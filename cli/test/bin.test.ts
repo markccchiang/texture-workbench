@@ -38,6 +38,23 @@ describe('the glcm binary', () => {
     expect(result.out).toContain('Haralick F1–F14');
   });
 
+  // Running the source file directly is what `npm run cli` used to do, and what a developer types; when this stopped
+  // working it did nothing at all, silently, and exited 0
+  it('also runs when the source file itself is the command', async () => {
+    const source = path.resolve(import.meta.dirname, '..', 'src', 'main.ts');
+    const result = await new Promise<{ code: number | null; out: string }>((resolve, reject) => {
+      const child = spawn(process.execPath, ['--import', 'tsx', source, 'features', '--presets', '--data-dir', dataDir], {
+        stdio: ['ignore', 'pipe', 'inherit'],
+      });
+      let out = '';
+      child.stdout.on('data', (chunk: Buffer) => (out += chunk));
+      child.on('error', reject);
+      child.on('close', (code) => resolve({ code, out }));
+    });
+    expect(result.code).toBe(0);
+    expect(result.out).toContain('haralick');
+  });
+
   it('exits with 2 and prints the reason for a command that cannot run', async () => {
     const result = await runBinary(['measure']);
     expect(result.code).toBe(2);

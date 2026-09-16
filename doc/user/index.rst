@@ -18,6 +18,9 @@ Texture Workbench measures the texture of regions in grayscale images. A typical
 #. **Save and export** — export the results as CSV or JSON, save the ROIs for another session, export the ROI images,
    or save everything as a project (:ref:`files`).
 
+The same measurements can be made without the browser: from a command line for scripts and repeated work, or by an AI
+assistant that looks at the images and picks out regions with you (:ref:`scripting`).
+
 .. figure:: images/main-window.png
    :alt: The main window with the sample image, four ROIs, the ROI Manager, the analysis settings and the results table.
    :width: 100%
@@ -37,4 +40,5 @@ The texture features and the settings that control them are defined precisely in
    rois
    measuring
    files
+   scripting
    reference

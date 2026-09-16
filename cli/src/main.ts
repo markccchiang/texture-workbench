@@ -2,6 +2,7 @@
 // Every command works either in this process or against a running server (--server), and has a --json form for scripts.
 
 import fs from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { combineResultsCsv, encodeFloat32Tiff, type AnalysisSettings, type Direction, type ImageInfo, type Roi } from '@glcm/api';
 import { ApiError, createClient, type ApiClient } from './client.js';
@@ -527,4 +528,10 @@ export async function run(argv: readonly string[], io: Io = { out: (t) => consol
   } finally {
     await connection.client?.close();
   }
+}
+
+// Run when this file is the command itself (`tsx cli/src/main.ts …`). Started through bin/glcm.mjs, or imported by a
+// test, the entry point is another file and this does nothing.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.exitCode = await run(process.argv.slice(2));
 }
