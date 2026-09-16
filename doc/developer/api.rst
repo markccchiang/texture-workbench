@@ -389,7 +389,8 @@ behind by a process that no longer exists is ignored.
 regions come from numbers (``rectangles``), from ``select_regions`` (which keeps them under an id such as
 ``regions_1``) or from an ROI set file. ``view_image`` answers with the rendered image or its edge map as a picture, so
 a model can look before it chooses. Results tables are shortened to a readable number of rows and written in full only
-when a tool is given ``saveTo``.
+when a tool is given ``saveTo``. ``glcm mcp --help`` prints the usage instead of starting the server, and ``glcm mcp``
+run in a terminal says on standard error (standard output belongs to the protocol) that it is waiting for a client.
 
 .. list-table::
    :header-rows: 1

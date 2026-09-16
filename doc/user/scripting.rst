@@ -16,14 +16,23 @@ This is worth using when
 What you need
 -------------
 
-The command is called ``glcm``. It comes with the application, so you need either a copy of the source (see
-`INSTALL.md <https://github.com/markccchiang/texture-workbench/blob/main/INSTALL.md>`_) or the Docker image, in which it
-is already installed:
+The command is called ``glcm``. It comes with the application, so you need either a copy of the source, built as
+described in `INSTALL.md <https://github.com/markccchiang/texture-workbench/blob/main/INSTALL.md>`_, or the Docker
+image, in which it is already installed. Nothing else has to be installed:
 
 .. code-block:: bash
 
-   npm run cli -- --help                       # from a copy of the source
+   npx glcm --help                             # in the folder of the source
    docker exec <container> glcm --help         # in a running container
+
+``glcm <command> --help`` explains the options of one command. To use ``glcm`` from any folder, add an alias with the
+path of your copy to your shell profile (``~/.zshrc`` or ``~/.bashrc``):
+
+.. code-block:: bash
+
+   alias glcm="node /path/to/texture-workbench/cli/bin/glcm.mjs"
+
+The examples below are written as ``glcm``.
 
 Where the measurements are kept
 -------------------------------
@@ -107,7 +116,19 @@ An AI assistant
 ---------------
 
 ``glcm mcp`` offers the same work to an assistant that speaks
-`MCP <https://modelcontextprotocol.io>`_, such as Claude. Add it to the assistant's configuration:
+`MCP <https://modelcontextprotocol.io>`_, such as Claude. The assistant starts the command itself, so you only add it to
+the assistant's configuration; run by hand in a terminal, it just waits for an assistant to connect (:kbd:`Ctrl+C` stops
+it).
+
+**Claude Code:**
+
+.. code-block:: bash
+
+   claude mcp add texture-workbench -- node /path/to/texture-workbench/cli/bin/glcm.mjs mcp
+
+**Claude Desktop**, and other assistants that read an ``mcpServers`` file — for Claude Desktop that is
+``~/Library/Application Support/Claude/claude_desktop_config.json`` on macOS and
+``%APPDATA%\Claude\claude_desktop_config.json`` on Windows:
 
 .. code-block:: json
 
@@ -116,6 +137,21 @@ An AI assistant
        "texture-workbench": { "command": "node", "args": ["/path/to/texture-workbench/cli/bin/glcm.mjs", "mcp"] }
      }
    }
+
+Restart the assistant afterwards; its list of tools then includes ``list_features``, ``list_samples``, ``open_image``,
+``view_image``, ``select_regions``, ``measure`` and ``feature_map``. Try, for example: *open
+sample:medical/ct-chest.png, show it to me, and compare the texture of the two lungs.*
+
+To let it work with a running or shared server, add the same options as on the command line, for example
+``"args": [".../glcm.mjs", "mcp", "--server", "http://127.0.0.1:8080"]``, and ``"--token", "<token>"`` for a server
+with a token.
+
+.. tip::
+
+   If the tools do not appear, the assistant most likely cannot find ``node``: applications started from the Dock or
+   the Start menu do not see the ``PATH`` of your shell. Put the full path of Node.js in ``command`` (``which node``
+   prints it, for example ``/opt/homebrew/bin/node``), make sure the path to ``glcm.mjs`` is absolute, and restart the
+   assistant.
 
 The assistant can then open an image, **look** at it (it receives the rendering, or the edge map, as a picture), choose
 regions — as rectangles it names by number, or by intensity as above — measure them, and compute a feature map. It

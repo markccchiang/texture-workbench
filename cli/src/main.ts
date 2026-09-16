@@ -469,6 +469,23 @@ export async function run(argv: readonly string[], io: Io = { out: (t) => consol
     return EXIT_OK;
   }
   if (name === 'mcp') {
+    if (rest.includes('--help') || rest.includes('-h')) {
+      io.out(
+        [
+          'Serve the same operations to an AI agent over MCP, on standard input and output',
+          '',
+          'Usage: glcm mcp [--server <url>] [--token <token>] [--data-dir <dir>]',
+          '',
+          'An assistant starts this command itself; add it to the assistant\'s MCP configuration, for example',
+          '  claude mcp add texture-workbench -- node /path/to/texture-workbench/cli/bin/glcm.mjs mcp',
+        ].join('\n'),
+      );
+      return EXIT_OK;
+    }
+    if (process.stdin.isTTY) {
+      // Standard output belongs to the protocol, so the hint goes to standard error
+      io.err('Waiting for an MCP client on standard input. An AI assistant starts this command itself; press Ctrl+C to stop.');
+    }
     try {
       const { serveMcp } = await import('./mcp.js');
       await serveMcp(rest);

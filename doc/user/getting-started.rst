@@ -17,6 +17,7 @@ Starting the application
 
 Then open http://127.0.0.1:8080 in your browser. The server only accepts connections from this computer, and your
 images and results are stored in ``~/.glcm-texture-analysis``. Stop the server with :kbd:`Ctrl+C` in the terminal.
+The same build also gives you the ``glcm`` command and an MCP server for AI assistants, described in :ref:`scripting`.
 
 **On a shared server**, open the address your administrator gives you. The first time, the application asks for an
 **access token**:

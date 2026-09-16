@@ -7,7 +7,8 @@ This part of the documentation is for people who change or extend the applicatio
 documents in the repository:
 
 - ``README.md``: what the application does.
-- ``INSTALL.md``: requirements, building the application, the C++ library and the documentation.
+- ``INSTALL.md``: requirements, building the application, setting up the command line and MCP clients, the C++
+  library and the documentation.
 - ``DEVELOPMENT.md``: tests, development commands, configuration, deployment and the list of endpoints.
 - ``doc/ui-design-plan.md``: the design plan the application was built from, with the decisions behind it and the
   status of each implementation phase.

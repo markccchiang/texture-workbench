@@ -122,6 +122,11 @@ describe('glcm', () => {
     const command = await glcm('measure', '--help');
     expect(command.out).toContain('Usage: glcm measure');
     expect(command.out).toContain('Without --rois the whole image is measured');
+
+    // Not the server itself, which would wait on standard input
+    const mcp = await glcm('mcp', '--help');
+    expect(mcp.code).toBe(0);
+    expect(mcp.out).toContain('Usage: glcm mcp');
   });
 });
 

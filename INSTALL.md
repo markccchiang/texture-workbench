@@ -43,7 +43,61 @@ Open http://127.0.0.1:8080/ in your browser and click **Open sample image**. The
 
 To run it on a server shared by several people instead, with Docker and an access token, see [Local mode, server mode and deployment](DEVELOPMENT.md#local-mode-server-mode-and-deployment) and [doc/deployment.md](doc/deployment.md).
 
-## 3. Build the C++ library on its own (optional)
+## 3. Use it from the command line or an AI assistant (optional)
+
+Step 2 also installed `glcm`, a command that does what the browser does — measure ROIs, find regions by intensity, compute feature maps — and serves the same work to an AI assistant over [MCP](https://modelcontextprotocol.io). It needs no further installation. What the commands do is explained in the [user guide](doc/user/scripting.rst).
+
+### The command line
+
+Inside the repository folder, run it through npm:
+
+```bash
+npx glcm --help                                         # the commands; glcm <command> --help for their options
+npx glcm samples                                        # the sample images
+npx glcm measure sample:textures/brick.png --preset haralick --out brick.csv
+```
+
+To use `glcm` from any folder, add an alias to your shell profile (`~/.zshrc` or `~/.bashrc`), with the path of your copy:
+
+```bash
+alias glcm="node /path/to/texture-workbench/cli/bin/glcm.mjs"
+```
+
+Without further options, `glcm` starts the API inside its own process, measures and stops, keeping images and results in the same folder as the application (`~/.glcm-texture-analysis`). While `npm start` is running on that folder, `glcm` refuses to start a second API there and names the address to use instead; send the command to the running server:
+
+```bash
+glcm measure image.png --server http://127.0.0.1:8080
+glcm measure image.png --server https://texture.example.org --token "$GLCM_API_TOKEN"   # a shared server with a token
+```
+
+### An AI assistant (MCP)
+
+`glcm mcp` is an MCP server on standard input and output. The assistant starts it itself, so you only add it to the assistant's configuration; running it in a terminal just waits for a client (Ctrl+C stops it).
+
+**Claude Code:**
+
+```bash
+claude mcp add texture-workbench -- node /path/to/texture-workbench/cli/bin/glcm.mjs mcp
+```
+
+**Claude Desktop** and other assistants that read an `mcpServers` file (for Claude Desktop, `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+
+```json
+{
+  "mcpServers": {
+    "texture-workbench": {
+      "command": "node",
+      "args": ["/path/to/texture-workbench/cli/bin/glcm.mjs", "mcp"]
+    }
+  }
+}
+```
+
+Restart the assistant afterwards. It then has the tools `list_features`, `list_samples`, `open_image`, `view_image`, `select_regions`, `measure` and `feature_map`; ask it, for example, to open `sample:medical/ct-chest.png`, show it to you, and compare the texture of two regions.
+
+To let the assistant work on a running or shared server instead of its own process, add the same options as for the command line: `"args": [".../glcm.mjs", "mcp", "--server", "http://127.0.0.1:8080"]`, plus `"--token", "<token>"` for a server with a token. The MCP server always runs on your own computer; the Docker image includes the command line but not the MCP server.
+
+## 4. Build the C++ library on its own (optional)
 
 `npm run build:native` builds everything the application needs. To build the `glcm_core` library and its unit tests separately, for example to use the library in your own program:
 
@@ -61,7 +115,7 @@ This builds:
 
 Link your program against `glcm_core`, for example with `target_link_libraries(my_app PRIVATE glcm_core)` after `add_subdirectory(core)`. [DEVELOPMENT.md](DEVELOPMENT.md#using-the-c-library) has an example.
 
-## 4. Build the documentation (optional)
+## 5. Build the documentation (optional)
 
 The documentation in `doc/` is a [Sphinx](https://www.sphinx-doc.org/) site. Build it in a Python virtual environment:
 
@@ -85,7 +139,7 @@ Once built, the running application also serves the documentation at http://127.
 ## Check the installation (optional)
 
 ```bash
-ctest --test-dir build     # C++ unit tests (after step 3)
+ctest --test-dir build     # C++ unit tests (after step 4)
 npm test                   # addon, server and web unit tests
 ```
 
@@ -97,3 +151,5 @@ End-to-end tests and the other developer commands are described in [DEVELOPMENT.
 - **`npm install` or `npm start` fails with a syntax or engine error:** check `node --version`; Node.js 24 or newer is needed.
 - **The browser shows "Not found" at http://127.0.0.1:8080/:** the web app was not built; run `npm run build:web` and reload.
 - **Port 8080 is already in use:** start the server on another port with `GLCM_PORT=8081 npm start`.
+- **`glcm` says a server is already using the data folder:** `npm start` (or another server) is running on `~/.glcm-texture-analysis`. Add `--server http://127.0.0.1:8080`, or stop the server.
+- **The assistant does not list the texture-workbench tools:** assistants started from the Dock or Start menu often do not see the `PATH` of your shell, so `node` is not found. Put the full path of Node.js (`which node`, for example `/opt/homebrew/bin/node`) in `command`, check that the path to `glcm.mjs` is absolute, and restart the assistant. `npm run build:native` must have run, because the MCP server measures with the same addon.
