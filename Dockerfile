@@ -23,15 +23,19 @@ WORKDIR /app
 # Dependencies first, so they are cached while sources change
 COPY package.json package-lock.json ./
 COPY packages/api/package.json packages/api/
+COPY packages/client/package.json packages/client/
 COPY bindings/node/package.json bindings/node/
 COPY server/package.json server/
 COPY web/package.json web/
 COPY cli/package.json cli/
 RUN npm ci
+# A workspace that is declared but not copied would only show up later, as a command that cannot resolve a package
+RUN node -e "const fs = require('fs'); const missing = require('./package.json').workspaces.filter((w) => !fs.existsSync(w + '/package.json')); if (missing.length > 0) { console.error('Workspaces missing from the image: ' + missing.join(', ')); process.exit(1); }"
 
 COPY core core
 COPY bindings/node bindings/node
 COPY packages/api packages/api
+COPY packages/client packages/client
 COPY server server
 COPY web web
 COPY cli cli
@@ -66,6 +70,8 @@ COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/packages/api/package.json packages/api/
 COPY --from=build /app/packages/api/src packages/api/src
+COPY --from=build /app/packages/client/package.json packages/client/
+COPY --from=build /app/packages/client/src packages/client/src
 COPY --from=build /app/bindings/node/package.json /app/bindings/node/index.js /app/bindings/node/index.d.ts bindings/node/
 COPY --from=build /app/bindings/node/build/Release/glcm_native.node bindings/node/build/Release/
 COPY --from=build /app/server/package.json server/
