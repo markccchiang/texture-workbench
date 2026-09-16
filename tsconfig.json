@@ -16,6 +16,8 @@
     "bindings/node/index.d.ts",
     "bindings/node/test",
     "packages/api/test",
+    "packages/client/src",
+    "packages/client/test",
     "cli/src",
     "cli/test",
     "server/src",

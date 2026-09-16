@@ -50,6 +50,11 @@ Repository layout
    * - ``packages/api/``
      - ``@glcm/api``: ``src/schemas.ts`` (system, images), ``src/analysis.ts`` (ROIs, settings, results),
        ``src/exports.ts`` (exports, file formats), ``src/windowLevel.ts``, generated ``openapi.json``
+   * - ``packages/client/``
+     - ``@glcm/client``: the API as a library — ``src/http.ts`` (transport) and ``src/operations.ts`` (open an image,
+       build settings, measure, select regions, feature maps). Depends only on ``@glcm/api`` and ``fetch``
+   * - ``cli/``
+     - ``@glcm/cli``: the ``glcm`` command and the MCP server; adds the in-process transport and the file handling
    * - ``server/``
      - ``@glcm/server``: ``src/app.ts``, ``config.ts``, ``security.ts``, ``routes/``, ``analysis/JobManager.ts``,
        ``storage/``, ``web.ts``; tests use ``fastify.inject``
@@ -65,8 +70,8 @@ Repository layout
    * - ``Dockerfile``, ``compose.yaml``, ``.github/workflows/``
      - Server image, deployment example, continuous integration
 
-The JavaScript packages are **npm workspaces**: ``node_modules/@glcm/*`` link to ``packages/api``, ``bindings/node``,
-``server`` and ``web``. The server and the web app import the TypeScript sources of ``@glcm/api`` directly (through
+The JavaScript packages are **npm workspaces**: ``node_modules/@glcm/*`` link to ``packages/api``,
+``packages/client``, ``bindings/node``, ``server``, ``web`` and ``cli``. The server and the web app import the TypeScript sources of ``@glcm/api`` directly (through
 ``tsx`` and Vite), so there is no separate build step for it.
 
 C++ core library
@@ -382,6 +387,39 @@ without it every image is uploaded.
 - **ROI sets and projects** are written and read entirely in the browser (``files/roiSet.ts``, ``files/project.ts``) and
   validated with the shared schemas. Opening a project finds its image with ``GET /images?sha256=``, re-uploads an
   embedded copy, or asks for the image file.
+
+.. rubric:: The command line and the agent server
+
+The ``glcm`` command and the MCP server are two front ends over one set of operations, and reach the same API either in
+their own process or over HTTP.
+
+.. figure:: images/flow-cli.svg
+   :alt: Layout of the command line and the agent server. Front ends: the glcm command (cli/src/main.ts and files.ts,
+         with the commands measure, regions, feature-map and info) and glcm mcp (cli/src/mcp.ts, MCP over standard input
+         and output, the tools an assistant calls). Both use the shared operations of @glcm/client — openImage,
+         buildSettings, measure, selectRegions, computeFeatureMap — which need only @glcm/api and fetch, read no files
+         and need no native addon. Below are two transports: localClient builds the app in this process with buildApp
+         and inject, without a port, and is refused while a server uses the same folder; httpClient talks over HTTP to a
+         local or shared server with --server and --token. Both reach the same routes, jobs and stores in server/src,
+         which call the @glcm/native addon and glcm_core, and read and write the data directory of images and results.
+   :width: 100%
+
+The web application uses those same routes and the same data directory, so an image opened in the browser can be
+measured from a script, and an image measured from a script appears in the browser.
+
+.. rubric:: An assistant measuring over MCP
+
+.. figure:: images/flow-mcp.svg
+   :alt: Sequence diagram of an assistant measuring over MCP, in three phases. What can be done: the assistant asks
+         tools/list and receives open_image, view_image, select_regions and measure. Open and look: open_image makes the
+         MCP server read the file, hash it and upload only what is new, with GET /images?sha256= and POST /images; the
+         ImageInfo comes back and the assistant is told the size, bit depth, window and spacing. view_image fetches GET
+         /images/{id}/display.png and returns an image block the model can look at. Choose regions and measure:
+         select_regions sends POST /images/{id}/threshold-rois, the polygons and pixel counts are kept under the id
+         regions_1 so the outlines stay on the server side, and the assistant receives a table of the regions. measure
+         with that id sends POST /analyses, reads the events and results, and answers with a shortened table of values,
+         20 rows by default, with saveTo writing the whole table.
+   :width: 100%
 
 .. rubric:: Pixel spacing
 

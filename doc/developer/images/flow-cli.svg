@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 712" width="960" height="712" role="img" aria-labelledby="title desc" font-family="'Inter', 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <title id="title">The command line and the agent server</title>
+  <desc id="desc">The glcm command and the MCP server are two front ends over the same operations. @glcm/client holds them — open an image, build and check settings, measure, select regions, compute feature maps — and depends only on @glcm/api and fetch, with no file system and no native addon. Below it sit two transports: localClient builds the server in the same process and calls its routes with inject, without a port; httpClient talks to a running server with --server and --token. Both reach the same routes, the same addon and the same C++ core, and the same data directory as the web application.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-20%" width="120%" height="150%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <rect width="960" height="712" fill="#ffffff"/>
+  <text x="24.0" y="44.0" font-size="10.5" fill="#64748b" font-weight="700" letter-spacing="0.08em">FRONT ENDS</text>
+  <g filter="url(#shadow)"><rect x="85.0" y="63.0" width="330" height="58" rx="10" fill="#eef4fe" stroke="#bcd2f7" stroke-width="1.4"/></g>
+  <text x="250.0" y="89.0" font-size="12.5" fill="#1e293b" font-weight="600" text-anchor="middle">glcm command</text>
+  <text x="250.0" y="105.0" font-size="10.5" fill="#64748b" text-anchor="middle" font-family="'SFMono-Regular', Menlo, Consolas, monospace">cli/src/main.ts · files.ts</text>
+  <g filter="url(#shadow)"><rect x="515.0" y="63.0" width="330" height="58" rx="10" fill="#eef4fe" stroke="#bcd2f7" stroke-width="1.4"/></g>
+  <text x="680.0" y="89.0" font-size="12.5" fill="#1e293b" font-weight="600" text-anchor="middle">glcm mcp</text>
+  <text x="680.0" y="105.0" font-size="10.5" fill="#64748b" text-anchor="middle" font-family="'SFMono-Regular', Menlo, Consolas, monospace">cli/src/mcp.ts · MCP over stdio</text>
+  <text x="250.0" y="140.0" font-size="10.5" fill="#64748b" text-anchor="middle" font-family="'SFMono-Regular', Menlo, Consolas, monospace">measure · regions · feature-map · info</text>
+  <text x="680.0" y="140.0" font-size="10.5" fill="#64748b" text-anchor="middle">tools an assistant calls</text>
+  <text x="24.0" y="186.0" font-size="10.5" fill="#64748b" font-weight="700" letter-spacing="0.08em">SHARED OPERATIONS</text>
+  <g filter="url(#shadow)"><rect x="155.0" y="201.0" width="620" height="62" rx="10" fill="#eef4fe" stroke="#3b73d9" stroke-width="1.8"/></g>
+  <text x="465.0" y="229.0" font-size="12.5" fill="#1e293b" font-weight="600" text-anchor="middle">@glcm/client</text>
+  <text x="465.0" y="245.0" font-size="10.5" fill="#64748b" text-anchor="middle" font-family="'SFMono-Regular', Menlo, Consolas, monospace">openImage · buildSettings · measure · selectRegions · computeFeatureMap</text>
+  <path d="M250.0,121.0 L250.0,176.0 L300.0,176.0 L300.0,201.0" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <path d="M680.0,121.0 L680.0,176.0 L630.0,176.0 L630.0,201.0" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <text x="465.0" y="281.0" font-size="11" fill="#64748b" text-anchor="middle">Only @glcm/api and fetch: reads no files, needs no native addon</text>
+  <text x="24.0" y="322.0" font-size="10.5" fill="#64748b" font-weight="700" letter-spacing="0.08em">TRANSPORTS</text>
+  <g filter="url(#shadow)"><rect x="85.0" y="343.0" width="330" height="58" rx="10" fill="#edf8f1" stroke="#b7e2c8" stroke-width="1.4"/></g>
+  <text x="250.0" y="369.0" font-size="12.5" fill="#1e293b" font-weight="600" text-anchor="middle">localClient</text>
+  <text x="250.0" y="385.0" font-size="10.5" fill="#64748b" text-anchor="middle" font-family="'SFMono-Regular', Menlo, Consolas, monospace">buildApp + inject · no port</text>
+  <g filter="url(#shadow)"><rect x="515.0" y="343.0" width="330" height="58" rx="10" fill="#edf8f1" stroke="#b7e2c8" stroke-width="1.4"/></g>
+  <text x="680.0" y="369.0" font-size="12.5" fill="#1e293b" font-weight="600" text-anchor="middle">httpClient</text>
+  <text x="680.0" y="385.0" font-size="10.5" fill="#64748b" text-anchor="middle" font-family="'SFMono-Regular', Menlo, Consolas, monospace">fetch · --server · --token</text>
+  <path d="M400.0,263.0 L400.0,343.0" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <text x="390.0" y="318.0" font-size="11" fill="#64748b" font-weight="600" text-anchor="end">in this process</text>
+  <path d="M530.0,263.0 L530.0,343.0" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <text x="540.0" y="318.0" font-size="11" fill="#64748b" font-weight="600">over HTTP</text>
+  <text x="250.0" y="420.0" font-size="10.5" fill="#64748b" text-anchor="middle">refused while a server uses the same folder</text>
+  <text x="680.0" y="420.0" font-size="10.5" fill="#64748b" text-anchor="middle">a local or a shared server</text>
+  <text x="24.0" y="448.0" font-size="10.5" fill="#64748b" font-weight="700" letter-spacing="0.08em">THE SAME API UNDERNEATH</text>
+  <g filter="url(#shadow)"><rect x="255.0" y="480.0" width="420" height="56" rx="10" fill="#edf8f1" stroke="#b7e2c8" stroke-width="1.4"/></g>
+  <text x="465.0" y="505.0" font-size="12.5" fill="#1e293b" font-weight="600" text-anchor="middle">Routes · jobs · stores</text>
+  <text x="465.0" y="521.0" font-size="10.5" fill="#64748b" text-anchor="middle" font-family="'SFMono-Regular', Menlo, Consolas, monospace">server/src</text>
+  <path d="M390.0,401.0 L390.0,474.0 L330.0,474.0 L330.0,479.0" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <path d="M560.0,401.0 L560.0,474.0 L600.0,474.0 L600.0,479.0" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <g filter="url(#shadow)"><rect x="65.0" y="583.0" width="270" height="54" rx="10" fill="#f3eefc" stroke="#d6c6f5" stroke-width="1.4"/></g>
+  <text x="200.0" y="607.0" font-size="12.5" fill="#1e293b" font-weight="600" text-anchor="middle">@glcm/native</text>
+  <text x="200.0" y="623.0" font-size="10.5" fill="#64748b" text-anchor="middle" font-family="'SFMono-Regular', Menlo, Consolas, monospace">addon.cpp</text>
+  <g filter="url(#shadow)"><rect x="385.0" y="583.0" width="270" height="54" rx="10" fill="#fff5e8" stroke="#f5cf9c" stroke-width="1.4"/></g>
+  <text x="520.0" y="607.0" font-size="12.5" fill="#1e293b" font-weight="600" text-anchor="middle">glcm_core</text>
+  <text x="520.0" y="623.0" font-size="10.5" fill="#64748b" text-anchor="middle" font-family="'SFMono-Regular', Menlo, Consolas, monospace">features · ROIs · exporters</text>
+  <g filter="url(#shadow)"><rect x="710.0" y="583.0" width="220" height="54" rx="10" fill="#e8f7f8" stroke="#a9dde2" stroke-width="1.4"/></g>
+  <text x="820.0" y="607.0" font-size="12.5" fill="#1e293b" font-weight="600" text-anchor="middle">Data directory</text>
+  <text x="820.0" y="623.0" font-size="10.5" fill="#64748b" text-anchor="middle" font-family="'SFMono-Regular', Menlo, Consolas, monospace">images · results</text>
+  <path d="M465.0,536.0 L465.0,566.0 L200.0,566.0 L200.0,582.0" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <path d="M336.0,610.0 L383.0,610.0" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <path d="M465.0,536.0 L465.0,566.0 L820.0,566.0 L820.0,582.0" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <text x="24.0" y="690.0" font-size="11" fill="#64748b">The web application uses the same routes and the same data directory, so an image opened in the browser can be measured from a script.</text>
+</svg>

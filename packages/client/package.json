@@ -1,0 +1,17 @@
+{
+  "name": "@glcm/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Typed HTTP client and operations for the Texture Workbench API: measuring, regions and feature maps",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@glcm/api": "0.1.0"
+  },
+  "license": "MIT"
+}

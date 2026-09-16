@@ -423,12 +423,109 @@ def pixel_spacing() -> str:
     return d.svg(488)
 
 
+def command_line() -> str:
+    d = Drawing(
+        'The command line and the agent server',
+        'The glcm command and the MCP server are two front ends over the same operations. @glcm/client holds them — open an '
+        'image, build and check settings, measure, select regions, compute feature maps — and depends only on @glcm/api and '
+        'fetch, with no file system and no native addon. Below it sit two transports: localClient builds the server in the '
+        'same process and calls its routes with inject, without a port; httpClient talks to a running server with --server '
+        'and --token. Both reach the same routes, the same addon and the same C++ core, and the same data directory as the '
+        'web application.',
+    )
+
+    d.section_label(24, 44, 'Front ends')
+    d.box(250, 92, 330, 58, 'glcm command', 'cli/src/main.ts · files.ts', 'web')
+    d.box(680, 92, 330, 58, 'glcm mcp', 'cli/src/mcp.ts · MCP over stdio', 'web')
+    d.add(text(250, 140, 'measure · regions · feature-map · info', 10.5, None, MUTED, 'middle', mono=True))
+    d.add(text(680, 140, 'tools an assistant calls', 10.5, None, MUTED, 'middle'))
+
+    d.section_label(24, 186, 'Shared operations')
+    d.box(465, 232, 620, 62, '@glcm/client', 'openImage · buildSettings · measure · selectRegions · computeFeatureMap', 'web', strong=True)
+    d.arrow([(250, 121), (250, 176), (300, 176), (300, 201)])
+    d.arrow([(680, 121), (680, 176), (630, 176), (630, 201)])
+    d.add(text(465, 281, 'Only @glcm/api and fetch: reads no files, needs no native addon', 11, None, MUTED, 'middle'))
+
+    d.section_label(24, 322, 'Transports')
+    d.box(250, 372, 330, 58, 'localClient', 'buildApp + inject · no port', 'server')
+    d.box(680, 372, 330, 58, 'httpClient', 'fetch · --server · --token', 'server')
+    d.arrow([(400, 263), (400, 343)], 'in this process', (390, 318), 'end')
+    d.arrow([(530, 263), (530, 343)], 'over HTTP', (540, 318))
+    d.add(text(250, 420, 'refused while a server uses the same folder', 10.5, None, MUTED, 'middle'))
+    d.add(text(680, 420, 'a local or a shared server', 10.5, None, MUTED, 'middle'))
+
+    d.section_label(24, 448, 'The same API underneath')
+    d.box(465, 508, 420, 56, 'Routes · jobs · stores', 'server/src', 'server')
+    # Between the captions and the section label, so the lines cross no text
+    d.arrow([(390, 401), (390, 474), (330, 474), (330, 479)])
+    d.arrow([(560, 401), (560, 474), (600, 474), (600, 479)])
+    d.box(200, 610, 270, 54, '@glcm/native', 'addon.cpp', 'addon')
+    d.box(520, 610, 270, 54, 'glcm_core', 'features · ROIs · exporters', 'core')
+    d.box(820, 610, 220, 54, 'Data directory', 'images · results', 'data')
+    d.arrow([(465, 536), (465, 566), (200, 566), (200, 582)])
+    d.arrow([(336, 610), (383, 610)])
+    d.arrow([(465, 536), (465, 566), (820, 566), (820, 582)])
+
+    d.add(text(24, 690, 'The web application uses the same routes and the same data directory, so an image opened in the browser can be measured from a script.',
+               11, None, MUTED))
+    return d.svg(712)
+
+
+def mcp_session() -> str:
+    d = Drawing(
+        'An assistant measuring over MCP',
+        'The assistant lists the tools over standard input and output, then opens an image: the MCP server reads the file, '
+        'hashes it and uploads it only when the server does not have it, and answers with the size, bit depth, window and '
+        'spacing. view_image returns the rendering as a picture the model can look at. select_regions asks the server for the '
+        'regions in an intensity range and keeps their polygons under an id, so the outlines never travel through the model. '
+        'measure then names that id: the server runs the analysis and the tool answers with a shortened table, writing the '
+        'whole table to a file when saveTo is given.',
+    )
+    s = Sequence(
+        d,
+        {
+            'agent': (160, 'AI assistant', 'an MCP client', 'web'),
+            'mcp': (480, 'glcm mcp', 'cli/src/mcp.ts', 'web'),
+            'server': (800, 'API server · core', 'in process or over HTTP', 'server'),
+        },
+    )
+    s.phase('What can be done')
+    s.message('agent', 'mcp', 'tools/list')
+    s.message('mcp', 'agent', 'open_image · view_image · select_regions · measure', response=True)
+
+    s.phase('Open and look')
+    s.message('agent', 'mcp', 'open_image {image}')
+    s.note('mcp', ['read the file, hash it,', 'upload only what is new'])
+    s.message('mcp', 'server', 'GET /images?sha256= · POST /images')
+    s.message('server', 'mcp', 'ImageInfo', response=True)
+    s.message('mcp', 'agent', 'size · bit depth · window · spacing', response=True)
+    s.message('agent', 'mcp', 'view_image {kind: display}')
+    s.message('mcp', 'server', 'GET /images/{id}/display.png')
+    s.message('server', 'mcp', 'PNG', response=True)
+    s.message('mcp', 'agent', 'an image block the model can look at', response=True)
+
+    s.phase('Choose regions and measure')
+    s.message('agent', 'mcp', 'select_regions {min, max}')
+    s.message('mcp', 'server', 'POST /images/{id}/threshold-rois')
+    s.message('server', 'mcp', 'polygons · pixel counts', response=True)
+    s.note('mcp', ['kept as "regions_1":', 'the outlines stay here'])
+    s.message('mcp', 'agent', 'a table of the regions', response=True)
+    s.message('agent', 'mcp', 'measure {rois: "regions_1", preset}')
+    s.message('mcp', 'server', 'POST /analyses · events · results')
+    s.message('server', 'mcp', 'results', response=True)
+    s.note('mcp', ['20 rows by default;', 'saveTo writes the whole table'])
+    s.message('mcp', 'agent', 'a shortened table of values', response=True)
+    return s.finish()
+
+
 def main() -> None:
     diagrams = {
         'flow-open-image.svg': open_image(),
         'flow-measure.svg': measure(),
         'flow-batch.svg': batch(),
         'flow-pixel-spacing.svg': pixel_spacing(),
+        'flow-cli.svg': command_line(),
+        'flow-mcp.svg': mcp_session(),
     }
     for name, content in diagrams.items():
         (OUTPUT / name).write_text(content)

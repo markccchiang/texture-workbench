@@ -6,7 +6,8 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { combineResultsCsv, encodeFloat32Tiff, type AnalysisSettings, type Direction, type ImageInfo, type Roi } from '@glcm/api';
 import { ApiError, createClient, type ApiClient } from './client.js';
-import * as operations from './operations.js';
+import * as operations from '@glcm/client';
+import { openImageTarget, readRois, readSettings } from './files.js';
 import { bytes, number, pairs, table } from './output.js';
 import { VERSION } from './version.js';
 
@@ -78,7 +79,7 @@ function numbers(value: string | undefined): number[] | undefined {
   return parts;
 }
 
-function settingsOverrides(context: Context): operations.SettingsOverrides {
+async function settingsOverrides(context: Context): Promise<operations.SettingsOverrides> {
   const quantization = text(context, 'quantization');
   const parsedQuantization = quantization
     ? (() => {
@@ -94,8 +95,9 @@ function settingsOverrides(context: Context): operations.SettingsOverrides {
         };
       })()
     : undefined;
+  const file = text(context, 'settings');
   return {
-    file: text(context, 'settings'),
+    ...(file ? { settings: (await readSettings(file)) as operations.SettingsOverrides['settings'] } : {}),
     preset: text(context, 'preset'),
     features: text(context, 'features')
       ?.split(',')
@@ -198,7 +200,7 @@ const COMMANDS: Record<string, Command> = {
       if (!target) {
         throw new ApiError(0, 'BadOption', 'Name an image: a file, sample:<path> or an image id');
       }
-      const { info, reused } = await operations.openImage(await context.client(), target);
+      const { info, reused } = await openImageTarget(await context.client(), target);
       if (context.json) {
         context.io.out(JSON.stringify(info, null, 2));
         return EXIT_OK;
@@ -244,14 +246,14 @@ const COMMANDS: Record<string, Command> = {
       }
       const client = await context.client();
       const catalog = await operations.getCatalog(client);
-      const rois = text(context, 'rois') ? await operations.readRois(text(context, 'rois')!) : null;
-      const overrides = settingsOverrides(context);
+      const rois = text(context, 'rois') ? await readRois(text(context, 'rois')!) : null;
+      const overrides = await settingsOverrides(context);
 
       const csvTexts: string[] = [];
       const documents: unknown[] = [];
       for (const target of context.positionals) {
-        const { info } = await operations.openImage(client, target);
-        const settings = await operations.buildSettings(catalog, info.bitDepth, overrides);
+        const { info } = await openImageTarget(client, target);
+        const settings = operations.buildSettings(catalog, info.bitDepth, overrides);
         const issues = operations.validateSettings(settings, info.bitDepth, catalog);
         for (const warning of issues.warnings) {
           context.io.err(`warning: ${warning}`);
@@ -323,7 +325,7 @@ const COMMANDS: Record<string, Command> = {
         throw new ApiError(0, 'BadOption', 'Name an image');
       }
       const client = await context.client();
-      const { info } = await operations.openImage(client, target);
+      const { info } = await openImageTarget(client, target);
       const at = numbers(text(context, 'at'));
       let regions: operations.RegionResult[];
       let total: number;
@@ -391,8 +393,8 @@ const COMMANDS: Record<string, Command> = {
       }
       const client = await context.client();
       const catalog = await operations.getCatalog(client);
-      const { info } = await operations.openImage(client, target);
-      const settings = await operations.buildSettings(catalog, info.bitDepth, settingsOverrides(context));
+      const { info } = await openImageTarget(client, target);
+      const settings = operations.buildSettings(catalog, info.bitDepth, await settingsOverrides(context));
       const map = await operations.computeFeatureMap(client, info.imageId, {
         feature,
         window: integer(context, 'window', 31)!,

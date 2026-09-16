@@ -202,6 +202,12 @@ with `saveTo`. To use it from an MCP client:
 }
 ```
 
+The layers are worth keeping apart: `@glcm/client` is the API as a library — the HTTP transport and the operations
+(open an image, build and check settings, measure, select regions, feature maps) — and depends only on `@glcm/api` and
+`fetch`. It reads no files and needs no native addon, so it also runs in a browser or another program, and could be
+published on its own if the MCP server ever moves to a repository of its own. `@glcm/cli` adds what needs a computer:
+the in-process transport (`localClient`), reading images and ROI files, the commands and the MCP server.
+
 While the server runs it marks its data directory with `server.lock`, and a command refuses to build a second server on
 the same folder — that would empty `uploads/` and `volumes/` under it. Send the command to the server instead:
 `--server http://127.0.0.1:8080 --token "$GLCM_API_TOKEN"`.
@@ -230,6 +236,8 @@ The screenshots of the user guide (`doc/user/images/`) are generated from the ru
 | `core/` | `glcm_core` library: `analysis/` (texture features), `roi/` (ROI masks, region selection and ROI operations), `imaging/` (loading, quantization, display), `pipeline/` (settings, analysis runner, feature maps), `io/` (JSON, CSV, ROI image export), `tests/` |
 | `bindings/node/` | Node-API addon (`@glcm/native`) exposing `glcm_core` to the server |
 | `packages/api/` | Shared API schemas and types (`@glcm/api`) and the generated OpenAPI document |
+| `packages/client/` | The API as a library (`@glcm/client`): HTTP transport and operations, with no file system and no native addon |
+| `cli/` | The `glcm` command and the MCP server (`@glcm/cli`) |
 | `server/` | Fastify API server (`@glcm/server`); also serves the built web app and the sample images |
 | `web/` | Browser app (`@glcm/web`): React, Mantine, Konva, WebGL2 image rendering, ROI tools, settings and results |
 | `e2e/` | Playwright end-to-end tests (`npm run test:e2e`), in local mode and with an access token |

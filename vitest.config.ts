@@ -8,7 +8,7 @@ export default defineConfig({
       {
         test: {
           name: 'node',
-          include: ['packages/api/test/**/*.test.ts', 'bindings/node/test/**/*.test.ts', 'server/test/**/*.test.ts', 'cli/test/**/*.test.ts'],
+          include: ['packages/api/test/**/*.test.ts', 'packages/client/test/**/*.test.ts', 'bindings/node/test/**/*.test.ts', 'server/test/**/*.test.ts', 'cli/test/**/*.test.ts'],
           testTimeout: 30_000,
         },
       },

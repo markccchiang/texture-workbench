@@ -8,7 +8,8 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { z } from 'zod';
 import type { ImageInfo, Roi } from '@glcm/api';
 import { ApiError, createClient, requireOk, type ApiClient, type ConnectionOptions } from './client.js';
-import * as operations from './operations.js';
+import * as operations from '@glcm/client';
+import { openImageTarget, readRois } from './files.js';
 import { number, table } from './output.js';
 import { VERSION } from './version.js';
 
@@ -75,7 +76,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
       if (stored) {
         return stored.rois;
       }
-      return operations.readRois(rois);
+      return readRois(rois);
     }
     return [operations.wholeImageRoi(image)];
   };
@@ -128,7 +129,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
     },
     async ({ image }) => {
       try {
-        const opened = await operations.openImage(await dependencies.client(), image);
+        const opened = await openImageTarget(await dependencies.client(), image);
         return asText(describe(opened.info, opened.reused));
       } catch (error) {
         return failure(error);
@@ -151,7 +152,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
     async ({ image, kind, min, max }) => {
       try {
         const client = await dependencies.client();
-        const { info } = await operations.openImage(client, image);
+        const { info } = await openImageTarget(client, image);
         const query =
           kind === 'edges'
             ? { method: 'canny', sigma: 1.4, low: 0, high: 0, maxSize: VIEW_MAX_SIZE }
@@ -171,7 +172,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         return {
           content: [
             { type: 'text', text: `${info.name}, ${kind === 'edges' ? 'edge map' : `window ${query.min ?? info.windowMin} – ${query.max ?? info.windowMax}`}` },
-            { type: 'image', data: picture.body.toString('base64'), mimeType: 'image/png' },
+            { type: 'image', data: Buffer.from(picture.body).toString('base64'), mimeType: 'image/png' },
           ],
         };
       } catch (error) {
@@ -200,7 +201,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
     async ({ image, min, max, minPixels, maxRegions, at, tolerance, saveTo }) => {
       try {
         const client = await dependencies.client();
-        const { info } = await operations.openImage(client, image);
+        const { info } = await openImageTarget(client, image);
         const regions = at
           ? [await operations.selectRegionAt(client, info.imageId, { x: at.x, y: at.y, tolerance: tolerance ?? Math.round((info.windowMax - info.windowMin) * 0.05) })]
               .filter((region) => region !== null)
@@ -258,8 +259,8 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
       try {
         const client = await dependencies.client();
         const catalog = await operations.getCatalog(client);
-        const { info } = await operations.openImage(client, image);
-        const settings = await operations.buildSettings(catalog, info.bitDepth, {
+        const { info } = await openImageTarget(client, image);
+        const settings = operations.buildSettings(catalog, info.bitDepth, {
           preset,
           features,
           grayLevels,
@@ -318,8 +319,8 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
       try {
         const client = await dependencies.client();
         const catalog = await operations.getCatalog(client);
-        const { info } = await operations.openImage(client, image);
-        const settings = await operations.buildSettings(catalog, info.bitDepth, {});
+        const { info } = await openImageTarget(client, image);
+        const settings = operations.buildSettings(catalog, info.bitDepth, {});
         const map = await operations.computeFeatureMap(client, info.imageId, {
           feature,
           window: window ?? 31,

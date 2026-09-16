@@ -6,6 +6,7 @@
   "description": "Texture Workbench: C++ core, Node-API addon, web API server and web app",
   "workspaces": [
     "packages/api",
+    "packages/client",
     "bindings/node",
     "server",
     "web",

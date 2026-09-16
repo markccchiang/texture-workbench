@@ -1,9 +1,7 @@
-// What the command line and the agent server both do: open an image, build settings, measure, select regions and
-// compute feature maps. Everything goes through the API (cli/src/client.ts), so both reach the same code as the app.
+// What a program does with the API: open an image, build and check settings, measure, select regions and compute
+// feature maps. Everything goes through an ApiClient, and nothing here reads files, so the same code serves the command
+// line, the agent server and any other caller.
 
-import { createHash } from 'node:crypto';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import {
   adaptToImage,
   checkSettings,
@@ -20,10 +18,10 @@ import {
   type RoiSetDocument,
   type SampleInfo,
 } from '@glcm/api';
-import { ApiError, requireOk, type ApiClient } from './client.js';
+import { ApiError, requireOk, type ApiClient } from './http.js';
 
-const IMAGE_ID = /^img_[0-9a-f]{32}$/;
-/** Feature maps are polled until they are done, as the app does */
+export const IMAGE_ID_PATTERN = /^img_[0-9a-f]{32}$/;
+/** Feature maps and analyses are polled until they are done, as the app does */
 const POLL_MS = 200;
 const POLL_TIMEOUT_MS = 10 * 60_000;
 
@@ -32,61 +30,52 @@ export function getCatalog(client: ApiClient): Promise<CatalogResponse> {
 }
 
 export function listSamples(client: ApiClient): Promise<SampleInfo[]> {
-  return client
-    .request('GET', '/samples')
-    .then((result) => requireOk(result, 'The samples could not be listed').json<{ samples: SampleInfo[] }>().samples);
+  return client.request('GET', '/samples').then((result) => requireOk(result, 'The samples could not be listed').json<{ samples: SampleInfo[] }>().samples);
 }
+
+/** Where an image comes from: one the server has, one it ships, or bytes a caller read */
+export type ImageSource =
+  | { kind: 'id'; imageId: string }
+  | { kind: 'sample'; path: string }
+  | { kind: 'bytes'; name: string; data: Uint8Array; contentType?: string };
 
 export interface OpenedImage {
   info: ImageInfo;
-  /** The server already had this file, so nothing was uploaded */
+  /** The server already had this image, so nothing was uploaded */
   reused: boolean;
 }
 
-const CONTENT_TYPES: Record<string, string> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.bmp': 'image/bmp',
-  '.tif': 'image/tiff',
-  '.tiff': 'image/tiff',
-  '.dcm': 'application/dicom',
-};
+async function sha256(data: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', data as unknown as ArrayBuffer);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
 
-/**
- * Opens an image given as an image id, a sample path (`sample:textures/camera.png`) or a file. Files are looked up by
- * their checksum first, so measuring the same file again uploads nothing.
- */
-export async function openImage(client: ApiClient, target: string): Promise<OpenedImage> {
-  if (IMAGE_ID.test(target)) {
-    const result = requireOk(await client.request('GET', `/images/${target}`), `Image ${target} could not be read`);
+export function imageByHash(client: ApiClient, hash: string): Promise<ImageInfo | null> {
+  return client
+    .request('GET', '/images', { query: { sha256: hash } })
+    .then((result) => requireOk(result, 'Stored images could not be listed').json<{ images: ImageInfo[] }>().images[0] ?? null);
+}
+
+/** Opens an image; bytes are looked up by their checksum first, so the same file is uploaded only once */
+export async function openImage(client: ApiClient, source: ImageSource): Promise<OpenedImage> {
+  if (source.kind === 'id') {
+    const result = requireOk(await client.request('GET', `/images/${source.imageId}`), `Image ${source.imageId} could not be read`);
     return { info: result.json<ImageInfo>(), reused: true };
   }
-
-  let data: Buffer;
-  let name: string;
-  if (target.startsWith('sample:')) {
-    const samplePath = target.slice('sample:'.length);
-    const result = requireOk(await client.request('GET', '/samples/file', { query: { path: samplePath }, accept: '*/*' }), `Sample ${samplePath}`);
-    data = result.body;
-    name = path.basename(samplePath);
-  } else {
-    try {
-      data = await fs.readFile(target);
-    } catch (error) {
-      throw new ApiError(0, 'FileNotFound', `${target} could not be read: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    name = path.basename(target);
+  if (source.kind === 'sample') {
+    const file = requireOk(await client.request('GET', '/samples/file', { query: { path: source.path }, accept: '*/*' }), `Sample ${source.path}`);
+    const name = source.path.split('/').pop() ?? source.path;
+    return openImage(client, { kind: 'bytes', name, data: file.body, contentType: file.contentType });
   }
 
-  const sha256 = createHash('sha256').update(data).digest('hex');
-  const known = requireOk(await client.request('GET', '/images', { query: { sha256 } }), 'Stored images could not be listed').json<{ images: ImageInfo[] }>();
-  if (known.images.length > 0) {
-    return { info: known.images[0], reused: true };
+  const known = await imageByHash(client, await sha256(source.data));
+  if (known) {
+    return { info: known, reused: true };
   }
-
-  const contentType = CONTENT_TYPES[path.extname(name).toLowerCase()] ?? 'application/octet-stream';
-  const result = requireOk(await client.request('POST', '/images', { file: { name, data, contentType } }), `${name} could not be opened`);
+  const result = requireOk(
+    await client.request('POST', '/images', { file: { name: source.name, data: source.data, contentType: source.contentType || 'application/octet-stream' } }),
+    `${source.name} could not be opened`,
+  );
   return { info: result.json<ImageInfo>(), reused: false };
 }
 
@@ -95,22 +84,16 @@ export function wholeImageRoi(info: ImageInfo): Roi {
   return { id: 'whole', name: 'Whole image', shape: { type: 'rectangle', x: 0, y: 0, width: info.width, height: info.height } };
 }
 
-/** ROIs from an ROI set, a project file or a bare array of ROIs */
-export async function readRois(file: string): Promise<Roi[]> {
-  let document: unknown;
-  try {
-    document = JSON.parse(await fs.readFile(file, 'utf8'));
-  } catch (error) {
-    throw new ApiError(0, 'InvalidRois', `${file} could not be read: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  const rois = Array.isArray(document) ? document : ((document as { rois?: unknown }).rois ?? null);
+/** The ROIs of an ROI set, a project or a bare array, as parsed JSON */
+export function roisFromDocument(document: unknown, what = 'The ROIs'): Roi[] {
+  const rois = Array.isArray(document) ? document : ((document as { rois?: unknown } | null)?.rois ?? null);
   if (!Array.isArray(rois) || rois.length === 0) {
-    throw new ApiError(0, 'InvalidRois', `${file} holds no ROIs; expected an ROI set, a project or an array of ROIs`);
+    throw new ApiError(0, 'InvalidRois', `${what}: expected an ROI set, a project or an array of ROIs`);
   }
   return rois.map((roi, index) => {
     const entry = roi as Partial<Roi> & { class?: string; visible?: boolean };
     if (!entry.shape) {
-      throw new ApiError(0, 'InvalidRois', `ROI ${index + 1} in ${file} has no shape`);
+      throw new ApiError(0, 'InvalidRois', `${what}: ROI ${index + 1} has no shape`);
     }
     return {
       id: entry.id ?? `roi${index + 1}`,
@@ -123,8 +106,8 @@ export async function readRois(file: string): Promise<Roi[]> {
 }
 
 export interface SettingsOverrides {
-  /** A file holding AnalysisSettings, or a document with a `settings` field (a project or a results file) */
-  file?: string;
+  /** Settings to start from, e.g. read from a file or a project */
+  settings?: Partial<AnalysisSettings>;
   preset?: string;
   features?: string[];
   grayLevels?: number;
@@ -136,15 +119,11 @@ export interface SettingsOverrides {
   score?: boolean;
 }
 
-export async function buildSettings(catalog: CatalogResponse, bitDepth: 8 | 16, overrides: SettingsOverrides): Promise<AnalysisSettings> {
+/** The defaults, then stored settings, then a preset, then single options — the order the app applies them in */
+export function buildSettings(catalog: CatalogResponse, bitDepth: 8 | 16, overrides: SettingsOverrides): AnalysisSettings {
   let settings = defaultSettings(catalog, bitDepth);
-  if (overrides.file) {
-    const text = await fs.readFile(overrides.file, 'utf8').catch((error: Error) => {
-      throw new ApiError(0, 'InvalidSettings', `${overrides.file} could not be read: ${error.message}`);
-    });
-    const document = JSON.parse(text) as AnalysisSettings | { settings?: AnalysisSettings };
-    const stored = 'settings' in document && document.settings ? document.settings : (document as AnalysisSettings);
-    settings = adaptToImage({ ...settings, ...stored }, bitDepth);
+  if (overrides.settings) {
+    settings = adaptToImage({ ...settings, ...overrides.settings }, bitDepth);
   }
   if (overrides.preset) {
     const preset = catalog.presets.find((candidate) => candidate.id === overrides.preset);
@@ -157,11 +136,11 @@ export async function buildSettings(catalog: CatalogResponse, bitDepth: 8 | 16, 
     const known = new Set(catalog.features.map((feature) => feature.id));
     const unknown = overrides.features.filter((id) => !known.has(id));
     if (unknown.length > 0) {
-      throw new ApiError(0, 'UnknownFeature', `Unknown features: ${unknown.join(', ')}. "glcm features" lists them all.`);
+      throw new ApiError(0, 'UnknownFeature', `Unknown features: ${unknown.join(', ')}`);
     }
     settings = { ...settings, features: overrides.features };
   }
-  settings = {
+  return {
     ...settings,
     ...(overrides.grayLevels !== undefined ? { grayLevels: overrides.grayLevels } : {}),
     ...(overrides.distances ? { distances: overrides.distances } : {}),
@@ -171,10 +150,9 @@ export async function buildSettings(catalog: CatalogResponse, bitDepth: 8 | 16, 
     ...(overrides.quantization ? { quantization: { ...settings.quantization, ...overrides.quantization } } : {}),
     ...(overrides.score !== undefined ? { score: { ...settings.score, enabled: overrides.score } } : {}),
   };
-  return settings;
 }
 
-/** The checks of the Analysis Settings panel, so a command fails with the same words the app would show */
+/** The checks of the Analysis Settings panel, so a caller fails with the same words the app would show */
 export function validateSettings(settings: AnalysisSettings, bitDepth: 8 | 16, catalog: CatalogResponse): { errors: string[]; warnings: string[] } {
   return checkSettings(settings, bitDepth, catalog);
 }
@@ -202,7 +180,6 @@ export async function measure(
     'The analysis was refused',
   ).json<AnalysisInfo>();
 
-  // Reading the event stream to its end is the wait; it closes after the "finished" event
   await client.request('GET', `/analyses/${started.analysisId}/events`, { accept: 'text/event-stream' });
   let analysis = requireOk(await client.request('GET', `/analyses/${started.analysisId}`), 'The analysis could not be read').json<AnalysisInfo>();
   // A dropped stream leaves it unfinished: fall back to polling, as the app does
@@ -240,16 +217,12 @@ export async function selectThresholdRegions(
   return result.json<{ regions: RegionResult[]; total: number }>();
 }
 
-export async function selectRegionAt(
-  client: ApiClient,
-  imageId: string,
-  query: { x: number; y: number; tolerance: number },
-): Promise<RegionResult | null> {
+export async function selectRegionAt(client: ApiClient, imageId: string, query: { x: number; y: number; tolerance: number }): Promise<RegionResult | null> {
   const result = requireOk(await client.request('POST', `/images/${imageId}/wand-roi`, { json: query }), 'The region could not be selected');
   return result.json<{ region: RegionResult | null }>().region;
 }
 
-/** The regions as an ROI set file, the format the app reads and writes */
+/** The regions as an ROI set, the format the app reads and writes */
 export function roiSetOf(image: ImageInfo, regions: readonly RegionResult[], namePrefix = 'Region'): RoiSetDocument {
   return {
     format: 'glcm-roi-set',

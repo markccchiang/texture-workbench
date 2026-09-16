@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@glcm/api": "0.1.0",
+    "@glcm/client": "0.1.0",
     "@glcm/server": "0.1.0",
     "tsx": "4.23.13"
   },
