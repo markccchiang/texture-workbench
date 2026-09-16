@@ -1,4 +1,9 @@
-# Texture Workbench
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="web/public/logo-wordmark-dark.svg">
+    <img src="web/public/logo-wordmark.svg" alt="Texture Workbench" width="346">
+  </picture>
+</p>
 
 Texture Workbench measures the **texture** of regions in grayscale images: how smooth, coarse, uniform or directional a tissue, material or surface looks. It turns that into numbers you can compare between regions and images. It runs in your web browser, on your own computer or on a server shared by a team.
 

@@ -1,7 +1,8 @@
-import { Badge, Button, Menu, Text } from '@mantine/core';
+import { Badge, Button, Group, Menu, Text } from '@mantine/core';
 import { IconCheck } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
+import { LogoMark } from './Logo';
 import { useAuth } from '../api/auth';
 import { CATALOG_QUERY } from '../api/queryClient';
 import { measure } from '../analysis/measure';
@@ -77,9 +78,12 @@ export function MenuBar() {
 
   return (
     <nav className="menu-bar" aria-label="Main menu">
-      <Text fw={700} size="sm" mr="sm">
-        ▣ Texture Workbench
-      </Text>
+      <Group gap={7} wrap="nowrap" mr="sm">
+        <LogoMark size={18} />
+        <Text fw={700} size="sm">
+          Texture Workbench
+        </Text>
+      </Group>
 
       <TopMenu label="File">
         <Menu.Item rightSection={<Shortcut>{MOD_KEY}O</Shortcut>} onClick={() => ui().requestFile('image')}>
