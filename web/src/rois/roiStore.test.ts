@@ -8,6 +8,7 @@ const names = () => store().rois.map((roi) => roi.name);
 
 beforeEach(() => {
   store().reset();
+  store().setCurrentSlice(null);
 });
 
 describe('ROI store', () => {
@@ -153,5 +154,25 @@ describe('ROI store', () => {
     store().setAllVisible(false);
     expect(store().rois[0].visible).toBe(false);
     expect(store().past).toHaveLength(steps);
+  });
+
+  it('puts new ROIs on the slice shown, and copies ROIs onto every other slice', () => {
+    expect(store().rois).toEqual([]);
+    store().setCurrentSlice(2);
+    const id = store().addRoi(rectangle(0));
+    const [imported] = store().importRois([{ name: 'Imported', color: '', shape: rectangle(5) }, { name: 'On 3', color: '', slice: 3, shape: rectangle(9) }]);
+    expect(store().rois.map((roi) => roi.slice)).toEqual([2, 2, 3]);
+    expect(store().selectedIds).toContain(imported);
+
+    // Showing another slice leaves only its ROIs selected
+    store().select([id, store().rois[2].id]);
+    store().setCurrentSlice(3);
+    expect(store().selectedIds).toEqual([store().rois[2].id]);
+
+    const copies = store().copyToAllSlices([id], 4);
+    expect(copies).toHaveLength(3);
+    expect(store().rois.filter((roi) => roi.name === 'ROI 1').map((roi) => roi.slice)).toEqual([2, 1, 3, 4]);
+    store().undo();
+    expect(store().rois).toHaveLength(3);
   });
 });

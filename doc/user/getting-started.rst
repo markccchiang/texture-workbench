@@ -53,11 +53,13 @@ Supported files are PNG, JPEG, BMP and TIFF with 8 or 16 bits per pixel, uncompr
 (see :ref:`medical-files`). The image is uploaded to the server, which decodes it:
 
 - **Color images** are converted to grayscale, and a notification says so.
-- **Multi-page TIFF files** open with their first page only, and a notification says so.
+- **Multi-page TIFF files** open as a **stack**, one slice per page (see :ref:`stacks`). Pages after the first page of
+  another size or type are left out, and a notification says so.
 - **16-bit images** keep their full intensity range for measurements; the display uses a window (see
   :ref:`window-level`).
 - **Limits:** by default an image can have up to 200 MB and 20 000 × 20 000 pixels on your own computer (100 MB and
-  10 000 × 10 000 pixels on a shared server). Larger files are rejected with a message.
+  10 000 × 10 000 pixels on a shared server), and a stack up to 1 000 000 000 pixels in all its slices together
+  (400 000 000 on a shared server). Larger files are rejected with a message.
 
 Opening another image replaces the current one, together with its ROIs; the results table keeps its rows. *File ▸
 Close Image* closes the image. *Image ▸ Image Info* shows the file name, size, bit depth, channels, the value
@@ -70,16 +72,25 @@ DICOM and NIfTI files
 
 **DICOM** files (``.dcm``, or any name) open like other images when they are uncompressed (implicit or explicit VR
 little endian). Compressed DICOM files (JPEG, JPEG-LS, JPEG 2000 or RLE) are refused with a message; convert them first,
-for example with ``dcmdjpeg`` or ``gdcmconv --raw``. A file with several frames opens with its first frame.
+for example with ``dcmdjpeg`` or ``gdcmconv --raw``. A file with several frames opens as a stack, one slice per frame,
+with the values of all frames stored alike. (Enhanced DICOM files keep their pixel spacing and rescale per frame in
+sequences, which are not read; a notification says so.)
+
+A **DICOM series** — a folder of single-frame files, one per slice, as a CT or MR scanner writes them — opens as one
+stack with *File ▸ Open DICOM Series…*, which asks for the folder. Files that are not DICOM images are left out; when
+the folder holds several series, the one with the most files is used; the slices are ordered along the patient axis
+across the image plane (ImagePositionPatient), or by instance number when the files have no position. The values of
+all files are stored with one conversion, the pixel spacing and window come from the first file, and the stack is named
+after the folder.
 
 **NIfTI** files (``.nii`` or ``.nii.gz``, NIfTI-1 or NIfTI-2) hold volumes. When a 3D or 4D file opens, a dialog asks
-which slice to open:
+how to open it:
 
 .. figure:: images/volume-import.png
-   :alt: The Open Slice dialog with the orientation buttons, a preview of an axial slice and the slice slider.
+   :alt: The dialog for a NIfTI volume with the orientation buttons, a preview of an axial slice, the slice slider and the buttons Open Slice and Open All Slices.
    :width: 60%
 
-   Choosing a slice of a NIfTI volume.
+   Opening a NIfTI volume.
 
 - **Orientation**: *Axial*, *Coronal* or *Sagittal*. Slices are shown in RAS orientation, whatever the order of the
   axes in the file: axial slices with the patient's right on the right and anterior at the top; coronal slices with
@@ -87,8 +98,13 @@ which slice to open:
   directions. The dialog starts in the plane of the file's first two axes, at the middle slice.
 - **Slice** (0 is the most inferior, posterior or left slice) and, for 4D files, **Volume** (for example a time point).
   The arrow keys move the focused slider one step.
-- **Open Slice** opens the slice as a normal 2D image named like ``brain.nii.gz [axial 120]`` (with ``, volume 3``
-  for 4D files). Its pixel spacing is the in-plane voxel size. Open the file again to choose another slice.
+- **Open All Slices** opens every slice in the chosen orientation as a stack named like ``brain.nii.gz [axial]`` (with
+  ``, volume 3`` for 4D files), showing the slice chosen in the dialog. In the stack, slices count from 1, so slice 120
+  of the dialog is slice 121 there.
+- **Open Slice** opens only the chosen slice as a normal 2D image named like ``brain.nii.gz [axial 120]``. Open the file
+  again to choose another slice.
+
+Either way the pixel spacing is the in-plane voxel size.
 
 A NIfTI file with a single slice opens directly.
 

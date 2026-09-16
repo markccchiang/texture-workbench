@@ -10,6 +10,7 @@ const info: ImageInfo = {
   width: 400,
   height: 200,
   bitDepth: 16,
+  slices: 1,
   sourceChannels: 1,
   pixelSpacing: null,
   sha256: 'a'.repeat(64),

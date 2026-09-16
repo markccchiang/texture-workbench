@@ -37,7 +37,10 @@ export interface OpenImageSource {
   windowMin: number;
   windowMax: number;
   colorTable: ColorTableId;
+  /** The ROIs drawn on it: those of the slice shown of a stack */
   rois: readonly ManagedRoi[];
+  /** The slice shown of a stack, from 1; absent for slice 1 */
+  slice?: number;
 }
 
 function canvasOf(width: number, height: number): HTMLCanvasElement {
@@ -149,7 +152,7 @@ export async function renderOpenImage(source: OpenImageSource, withRois: boolean
     contextOf(picture).putImageData(new ImageData(rgba, source.width, source.height), 0, 0);
   } else {
     // The server renders it, already no larger than MAX_IMAGE_SIZE
-    const blob = await fetchDisplayBlob(source.imageId, { min: source.windowMin, max: source.windowMax, maxSize: MAX_IMAGE_SIZE });
+    const blob = await fetchDisplayBlob(source.imageId, { min: source.windowMin, max: source.windowMax, maxSize: MAX_IMAGE_SIZE, slice: source.slice });
     const rendered = await blobToImage(blob);
     picture = canvasOf(rendered.naturalWidth, rendered.naturalHeight);
     contextOf(picture).drawImage(rendered, 0, 0);

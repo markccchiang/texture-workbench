@@ -102,7 +102,7 @@ export function exportImageJRoisFile(): void {
     return;
   }
   const { bytes, outlined, empty } = writeImageJRois(
-    rois.map(({ id, name, color, shape }) => ({ id, name, color, shape })),
+    rois.map(({ id, name, color, shape, slice }) => ({ id, name, color, ...(slice !== undefined ? { slice } : {}), shape })),
     image.info,
   );
   const written = rois.length - empty.length;
@@ -150,7 +150,7 @@ export async function exportRoiImagesFile(options: RoiImagesOptions): Promise<bo
   try {
     const { blob, fileName } = await exportRoiImages({
       imageId: image.info.imageId,
-      rois: chosen.map(({ id, name, color, shape }) => ({ id, name, color, shape })),
+      rois: chosen.map(({ id, name, color, shape, slice }) => ({ id, name, color, ...(slice !== undefined ? { slice } : {}), shape })),
       settings: stored ? adaptToImage(stored, image.info.bitDepth) : undefined,
       transparentOutside: image.info.bitDepth === 8 && options.transparentOutside,
       includeQuantized: options.includeQuantized,
@@ -197,7 +197,15 @@ function restoreProject(project: ProjectDocument, info: ImageInfo): void {
   rois.reset();
   rois.setClasses((project.classes ?? []).map(({ name, color }) => ({ name, color: color ?? '' })));
   rois.importRois(
-    project.rois.map(({ id, name, color, visible, shape, class: className }) => ({ id, name, color: color ?? '', visible, shape, ...(className ? { className } : {}) })),
+    project.rois.map(({ id, name, color, visible, shape, class: className, slice }) => ({
+      id,
+      name,
+      color: color ?? '',
+      visible,
+      shape,
+      ...(className ? { className } : {}),
+      ...(slice !== undefined && info.slices > 1 ? { slice } : {}),
+    })),
   );
   // Opening a project is not an undoable edit
   useRois.setState({ past: [], future: [], selectedIds: [] });

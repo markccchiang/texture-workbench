@@ -23,12 +23,13 @@ interface CachedPixels {
 /**
  * Images on local disk (doc/ui-design-plan.md, section 8.2). Each image has a folder images/<id>/ with
  * - original: the uploaded file
- * - pixels.bin: row-major grayscale samples, 16-bit samples little-endian
- * - pixels.bin.<gzip|zstd>: compressed copies, created on first request
+ * - pixels.bin: row-major grayscale samples, 16-bit samples little-endian; the slices of a stack one after the other
+ * - pixels.bin.<gzip|zstd>: compressed copies, created on first request (pixels.<slice>.bin.<gzip|zstd> for a slice of a stack)
  * - info.json: ImageInfo
  *
- * Pixel buffers of recently used images are kept in memory, up to pixelCacheBytes, so ROI statistics requests sent
- * while ROIs are edited do not read the whole file each time. Requests for the same image share one read.
+ * Pixel buffers of recently used images (or slices of stacks) are kept in memory, up to pixelCacheBytes, so ROI
+ * statistics requests sent while ROIs are edited do not read the whole file each time. Requests for the same pixels
+ * share one read.
  */
 export class ImageStore {
   readonly imagesDir: string;
@@ -77,8 +78,8 @@ export class ImageStore {
   async info(id: string): Promise<ImageInfo | undefined> {
     try {
       const info = JSON.parse(await fs.readFile(path.join(this.folder(id), 'info.json'), 'utf8')) as ImageInfo;
-      // Images stored before pixel spacing was read have no field
-      return { ...info, pixelSpacing: info.pixelSpacing ?? null };
+      // Images stored before pixel spacing or stacks were read have no field
+      return { ...info, pixelSpacing: info.pixelSpacing ?? null, slices: info.slices ?? 1 };
     } catch (error) {
       if (isNotFound(error)) {
         return undefined;
@@ -87,38 +88,64 @@ export class ImageStore {
     }
   }
 
-  /** pixels.bin, possibly shared with other requests: callers must not modify the buffer */
-  pixels(id: string): Promise<Buffer> {
-    const file = path.join(this.folder(id), 'pixels.bin');
+  /**
+   * The samples of one slice (from 1) of an image, possibly shared with other requests: callers must not modify the
+   * buffer. For a single image, the whole of pixels.bin.
+   */
+  pixels(image: string | Pick<ImageInfo, 'imageId' | 'width' | 'height' | 'bitDepth' | 'slices'>, slice = 1): Promise<Buffer> {
+    // An id stands for a single image
+    const info = typeof image === 'string' ? { imageId: image, width: 0, height: 0, bitDepth: 8 as const, slices: 1 } : image;
+    const file = path.join(this.folder(info.imageId), 'pixels.bin');
+    const stack = (info.slices ?? 1) > 1;
+    if (slice < 1 || slice > (info.slices ?? 1)) {
+      return Promise.reject(new Error(`Slice ${slice} is outside the image's ${info.slices ?? 1} slices`));
+    }
+    const read = stack ? () => this.readSlice(file, info, slice) : () => fs.readFile(file);
     if (this.pixelCacheBytes === 0) {
-      return fs.readFile(file);
+      return read();
     }
 
-    const cached = this.cachedPixels.get(id);
+    const key = stack ? `${info.imageId}#${slice}` : info.imageId;
+    const cached = this.cachedPixels.get(key);
     if (cached) {
-      this.cachedPixels.delete(id);
-      this.cachedPixels.set(id, cached);
+      this.cachedPixels.delete(key);
+      this.cachedPixels.set(key, cached);
       return cached.pixels;
     }
 
-    const entry: CachedPixels = { pixels: fs.readFile(file), bytes: 0 };
-    this.cachedPixels.set(id, entry);
+    const entry: CachedPixels = { pixels: read(), bytes: 0 };
+    this.cachedPixels.set(key, entry);
     entry.pixels.then(
       (pixels) => {
         // The image may have been removed while reading
-        if (this.cachedPixels.get(id) === entry) {
+        if (this.cachedPixels.get(key) === entry) {
           entry.bytes = pixels.length;
           this.cachedBytes += pixels.length;
           this.evictPixels();
         }
       },
       () => {
-        if (this.cachedPixels.get(id) === entry) {
-          this.cachedPixels.delete(id);
+        if (this.cachedPixels.get(key) === entry) {
+          this.cachedPixels.delete(key);
         }
       },
     );
     return entry.pixels;
+  }
+
+  private async readSlice(file: string, info: Pick<ImageInfo, 'width' | 'height' | 'bitDepth'>, slice: number): Promise<Buffer> {
+    const length = info.width * info.height * (info.bitDepth / 8);
+    const buffer = Buffer.alloc(length);
+    const handle = await fs.open(file, 'r');
+    try {
+      const { bytesRead } = await handle.read(buffer, 0, length, (slice - 1) * length);
+      if (bytesRead !== length) {
+        throw new Error(`pixels.bin of image ${(info as ImageInfo).imageId} is shorter than its slices`);
+      }
+    } finally {
+      await handle.close();
+    }
+    return buffer;
   }
 
   /** Bytes of pixel buffers held in memory */
@@ -138,35 +165,37 @@ export class ImageStore {
     }
   }
 
-  private forgetPixels(id: string): void {
-    const entry = this.cachedPixels.get(id);
-    if (entry) {
-      this.cachedBytes -= entry.bytes;
-      this.cachedPixels.delete(id);
+  /** Forgets a cached buffer by key, or every buffer of an image (its slices too) by image id */
+  private forgetPixels(key: string): void {
+    for (const [cachedKey, entry] of this.cachedPixels) {
+      if (cachedKey === key || (!key.includes('#') && cachedKey.startsWith(`${key}#`))) {
+        this.cachedBytes -= entry.bytes;
+        this.cachedPixels.delete(cachedKey);
+      }
     }
   }
 
-  /** One sample, read from pixels.bin without loading the whole image */
-  async pixelValue(info: ImageInfo, x: number, y: number): Promise<number> {
+  /** One sample of a slice (from 1), read from pixels.bin without loading the whole image */
+  async pixelValue(info: ImageInfo, x: number, y: number, slice = 1): Promise<number> {
     const bytesPerSample = info.bitDepth / 8;
     const buffer = Buffer.alloc(bytesPerSample);
     const handle = await fs.open(path.join(this.folder(info.imageId), 'pixels.bin'), 'r');
     try {
-      await handle.read(buffer, 0, bytesPerSample, (y * info.width + x) * bytesPerSample);
+      await handle.read(buffer, 0, bytesPerSample, ((slice - 1) * info.width * info.height + y * info.width + x) * bytesPerSample);
     } finally {
       await handle.close();
     }
     return bytesPerSample === 2 ? buffer.readUInt16LE(0) : buffer.readUInt8(0);
   }
 
-  /** pixels.bin in the given encoding; compressed copies are created once and reused */
-  async encodedPixels(id: string, encoding: ContentEncoding): Promise<Buffer> {
-    const source = path.join(this.folder(id), 'pixels.bin');
+  /** The samples of a slice in the given encoding; compressed copies are created once and reused */
+  async encodedPixels(info: ImageInfo, encoding: ContentEncoding, slice = 1): Promise<Buffer> {
+    const folder = this.folder(info.imageId);
     if (encoding === 'identity') {
-      return this.pixels(id);
+      return this.pixels(info, slice);
     }
 
-    const target = `${source}.${encoding}`;
+    const target = path.join(folder, info.slices > 1 ? `pixels.${slice}.bin.${encoding}` : `pixels.bin.${encoding}`);
     try {
       return await fs.readFile(target);
     } catch (error) {
@@ -178,7 +207,7 @@ export class ImageStore {
     let pending = this.pendingCompressions.get(target);
     if (!pending) {
       pending = (async () => {
-        const compressed = await compress(await this.pixels(id), encoding);
+        const compressed = await compress(await this.pixels(info, slice), encoding);
         const temporary = `${target}.${randomUUID()}.tmp`;
         await fs.writeFile(temporary, compressed);
         await fs.rename(temporary, target);

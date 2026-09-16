@@ -63,6 +63,7 @@ describe('system routes', () => {
       '/api/v1/feature-maps/{id}/values',
       '/api/v1/health',
       '/api/v1/images',
+      '/api/v1/images/series',
       '/api/v1/images/{id}',
       '/api/v1/images/{id}/brush-roi',
       '/api/v1/images/{id}/combine-rois',
@@ -83,6 +84,7 @@ describe('system routes', () => {
       '/api/v1/volumes/{id}',
       '/api/v1/volumes/{id}/images',
       '/api/v1/volumes/{id}/preview.png',
+      '/api/v1/volumes/{id}/stack',
     ]);
     expect(Object.keys(spec.paths['/api/v1/images/{id}']).sort()).toEqual(['delete', 'get']);
   });

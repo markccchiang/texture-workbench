@@ -326,7 +326,7 @@ describe('cancellation', () => {
 describe('job limits and fairness', () => {
   let t: TestApp;
   let image: ImageInfo;
-  const pixels = Buffer.from(HARALICK);
+  const pixels = new Map([[1, Buffer.from(HARALICK)]]);
 
   const request = (count: number, prefix = 'roi', imageId = image.imageId): AnalysisRequest => ({
     imageId,

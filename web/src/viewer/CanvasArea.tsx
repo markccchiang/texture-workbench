@@ -6,6 +6,7 @@ import { useViewer, type LoadingState } from '../stores/viewerStore';
 import { EdgeMapCard } from './EdgeMapCard';
 import { ImageCanvas } from './ImageCanvas';
 import { ScaleBar } from './ScaleBar';
+import { SliceBar } from './SliceBar';
 
 const PHASE_LABELS: Record<LoadingState['phase'], string> = {
   downloadingSample: 'Fetching sample',
@@ -37,17 +38,27 @@ export function CanvasArea() {
   const loading = useViewer((state) => state.loading);
 
   return (
-    <div style={{ position: 'relative', height: '100%' }}>
-      <ImageCanvas />
-      <ScaleBar />
-      <FeatureMapCard />
-      <EdgeMapCard />
-      {!hasImage && !loading && (
-        <div style={{ position: 'absolute', inset: 0 }}>
-          <StartScreen />
-        </div>
-      )}
-      {loading && <LoadingOverlay loading={loading} />}
+    <div
+      style={{
+        position: 'relative',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+        <ImageCanvas />
+        <ScaleBar />
+        <FeatureMapCard />
+        <EdgeMapCard />
+        {!hasImage && !loading && (
+          <div style={{ position: 'absolute', inset: 0 }}>
+            <StartScreen />
+          </div>
+        )}
+        {loading && <LoadingOverlay loading={loading} />}
+      </div>
+      <SliceBar />
     </div>
   );
 }

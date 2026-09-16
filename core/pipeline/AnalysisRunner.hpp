@@ -40,6 +40,7 @@ struct MeasurementResult {
     std::string roi_id;
     std::string roi_name;
     std::string roi_class; // the ROI's class; empty when it has none
+    int slice = 0;         // the ROI's slice of a stack, from 1; 0 for an image without slices
     int distance = 0;
     MeasurementStatus status = MeasurementStatus::Ok;
     std::string error; // reason for Skipped / Failed

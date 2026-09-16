@@ -2,7 +2,7 @@
 // the JSON written and read by glcm_core (core/io/Json.cpp).
 
 import { Type, type Static } from 'typebox';
-import { IMAGE_ID_PATTERN, PixelSpacing } from './schemas.js';
+import { IMAGE_ID_PATTERN, PixelSpacing, Slice } from './schemas.js';
 
 // Limits from doc/ui-design-plan.md, section 8.2
 export const MAX_ROIS_PER_REQUEST = 1000;
@@ -48,6 +48,7 @@ export const Roi = Type.Object({
   name: Type.String({ maxLength: 200 }),
   color: Type.Optional(Type.String({ pattern: '^#[0-9A-Fa-f]{6}$' })),
   class: Type.Optional(Type.String({ minLength: 1, maxLength: 100, description: 'Class of the ROI, e.g. "lesion"; carried into the results and exports' })),
+  slice: Type.Optional(Type.Integer({ minimum: 1, maximum: 100_000, description: 'The slice of a stack the ROI lies on, from 1; omitted for a single image (slice 1)' })),
   shape: RoiShape,
 });
 export type Roi = Static<typeof Roi>;
@@ -57,7 +58,7 @@ export type Roi = Static<typeof Roi>;
 // ---------------------------------------------------------------------------------------------------------------------
 
 export const RoiStatsRequest = Type.Object({
-  rois: Type.Array(Type.Object({ id: Type.String({ maxLength: 100 }), shape: RoiShape }), { maxItems: MAX_ROIS_PER_REQUEST }),
+  rois: Type.Array(Type.Object({ id: Type.String({ maxLength: 100 }), slice: Type.Optional(Slice), shape: RoiShape }), { maxItems: MAX_ROIS_PER_REQUEST }),
 });
 export type RoiStatsRequest = Static<typeof RoiStatsRequest>;
 
@@ -97,6 +98,7 @@ export const SelectedRegion = Type.Object({
 export type SelectedRegion = Static<typeof SelectedRegion>;
 
 export const ThresholdRoisRequest = Type.Object({
+  slice: Type.Optional(Slice),
   min: Intensity,
   max: Intensity,
   minPixels: Type.Integer({ minimum: 1, description: 'Regions with fewer pixels (holes included) are left out' }),
@@ -115,6 +117,7 @@ export const ThresholdRoisResponse = Type.Object({
 export type ThresholdRoisResponse = Static<typeof ThresholdRoisResponse>;
 
 export const WandRoiRequest = Type.Object({
+  slice: Type.Optional(Slice),
   x: Type.Integer({ description: 'Column of the clicked pixel' }),
   y: Type.Integer({ description: 'Row of the clicked pixel' }),
   tolerance: Type.Integer({ minimum: 0, maximum: 65535, description: 'Largest difference from the clicked pixel value' }),
@@ -186,6 +189,7 @@ export const MAX_LIVEWIRE_SPAN = 1024;
 const PixelPoint = Type.Object({ x: Type.Integer({ minimum: 0 }), y: Type.Integer({ minimum: 0 }) });
 
 export const LivewireRequest = Type.Object({
+  slice: Type.Optional(Slice),
   from: PixelPoint,
   to: PixelPoint,
   sigma: Type.Number({ minimum: 0, maximum: 10, description: 'Gaussian smoothing before the gradient, in pixels' }),
@@ -327,6 +331,7 @@ export const MeasurementResult = Type.Object({
   roiId: Type.String(),
   roiName: Type.String(),
   roiClass: Type.Optional(Type.String({ description: "The ROI's class; omitted when it has none" })),
+  slice: Type.Optional(Type.Integer({ minimum: 1, description: "The ROI's slice of a stack; omitted for ROIs without one" })),
   distance: Type.Integer(),
   status: MeasurementStatus,
   error: Type.String({ description: 'Reason for skipped or failed results' }),

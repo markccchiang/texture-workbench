@@ -15,6 +15,13 @@ export interface ManagedRoi {
   shape: RoiShape;
   /** Name of the ROI's class; absent when it has none */
   className?: string;
+  /** The slice of a stack the ROI lies on, from 1; absent for an image without slices */
+  slice?: number;
+}
+
+/** Whether an ROI lies on the slice shown (null: an image without slices shows every ROI) */
+export function isOnSlice(roi: Pick<ManagedRoi, 'slice'>, slice: number | null): boolean {
+  return slice === null || (roi.slice ?? 1) === slice;
 }
 
 /** A class ROIs can belong to, e.g. lesion or normal */
@@ -41,8 +48,14 @@ export interface RoiState {
   activeShape: RoiShape | null;
   /** Classes in the order of their shortcuts (⇧1–⇧9); kept when another image opens */
   classes: RoiClass[];
+  /** The slice shown of a stack, which new ROIs lie on; null for an image without slices */
+  currentSlice: number | null;
 
   setActiveShape(shape: RoiShape | null): void;
+  /** Follows the slice shown; ROIs on other slices leave the selection */
+  setCurrentSlice(slice: number | null): void;
+  /** Copies ROIs onto every other slice of a stack of `slices` slices, as one undo step; returns the ids of the copies */
+  copyToAllSlices(ids: readonly string[], slices: number): string[];
   /** Moves the active shape into the manager; returns its id, or null without an active shape */
   addActiveRoi(): string | null;
   addRoi(shape: RoiShape, name?: string): string;
@@ -118,8 +131,35 @@ export const useRois = create<RoiState>()((set, get) => {
     editSnapshot: null,
     activeShape: null,
     classes: [],
+    currentSlice: null,
 
     setActiveShape: (activeShape) => set({ activeShape }),
+
+    setCurrentSlice: (currentSlice) => {
+      const { rois, selectedIds, currentSlice: previous } = get();
+      if (previous === currentSlice) {
+        return;
+      }
+      const onSlice = new Set(rois.filter((roi) => isOnSlice(roi, currentSlice)).map((roi) => roi.id));
+      set({ currentSlice, selectedIds: selectedIds.filter((id) => onSlice.has(id)), hoveredId: null, activeShape: null });
+    },
+
+    copyToAllSlices: (ids, slices) => {
+      const { rois } = get();
+      const chosen = rois.filter((roi) => ids.includes(roi.id));
+      const copies: ManagedRoi[] = [];
+      for (const roi of chosen) {
+        for (let slice = 1; slice <= slices; slice += 1) {
+          if (slice !== (roi.slice ?? 1)) {
+            copies.push({ ...roi, id: newRoiId(), slice });
+          }
+        }
+      }
+      if (copies.length > 0) {
+        commit([...rois, ...copies]);
+      }
+      return copies.map((roi) => roi.id);
+    },
 
     addActiveRoi: () => {
       const { activeShape } = get();
@@ -132,14 +172,21 @@ export const useRois = create<RoiState>()((set, get) => {
     },
 
     addRoi: (shape, name) => {
-      const { rois, nextNumber } = get();
-      const roi: ManagedRoi = { id: newRoiId(), name: name ?? `ROI ${nextNumber}`, color: roiColor(nextNumber - 1), visible: true, shape };
+      const { rois, nextNumber, currentSlice } = get();
+      const roi: ManagedRoi = {
+        id: newRoiId(),
+        name: name ?? `ROI ${nextNumber}`,
+        color: roiColor(nextNumber - 1),
+        visible: true,
+        shape,
+        ...(currentSlice !== null ? { slice: currentSlice } : {}),
+      };
       commit([...rois, roi], { selectedIds: [roi.id], nextNumber: nextNumber + 1 });
       return roi.id;
     },
 
     importRois: (imported) => {
-      const { rois, nextNumber } = get();
+      const { rois, nextNumber, currentSlice } = get();
       // Ids already taken, including those chosen earlier in this import (a file may repeat an id)
       const existing = new Set(rois.map((roi) => roi.id));
       const added = imported.map((roi, i) => {
@@ -152,6 +199,8 @@ export const useRois = create<RoiState>()((set, get) => {
           visible: roi.visible ?? true,
           shape: roi.shape,
           ...(roi.className ? { className: roi.className } : {}),
+          // ROIs without a slice land on the slice shown
+          ...(roi.slice !== undefined ? { slice: roi.slice } : currentSlice !== null ? { slice: currentSlice } : {}),
         };
       });
       commit([...rois, ...added], { selectedIds: added.map((roi) => roi.id), nextNumber: nextNumber + added.length });

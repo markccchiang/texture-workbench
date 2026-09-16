@@ -28,6 +28,7 @@ import * as native from '@glcm/native';
 import { Type } from 'typebox';
 import { isFinished, JobLimitError, type AnalysisState, type JobManager } from '../analysis/JobManager.js';
 import { ApiError } from '../errors.js';
+import { requireSlice } from '../imageInfo.js';
 import { attachment, fileStem } from '../files.js';
 import type { ImageStore } from '../storage/ImageStore.js';
 import type { ResultStore } from '../storage/ResultStore.js';
@@ -97,11 +98,20 @@ export const analysisRoutes: FastifyPluginAsyncTypebox<AnalysisRoutesOptions> = 
       if (rois.length === 0) {
         return { stats: [] };
       }
-      const pixels = await store.pixels(info.imageId);
-      const stats = await native
-        .roiStats(pixels, info.width, info.height, info.bitDepth, JSON.stringify(rois.map(({ id, shape }) => ({ id, shape }))))
-        .catch(nativeError);
-      return { stats: stats.map((statistics, i) => ({ roiId: rois[i].id, ...statistics })) };
+      // Grouped by slice, answered in the order of the request
+      const stats = new Array<RoiStatsResponse['stats'][number]>(rois.length);
+      const slices = [...new Set(rois.map((roi) => roi.slice ?? 1))];
+      for (const slice of slices) {
+        const indices = rois.flatMap((roi, i) => ((roi.slice ?? 1) === slice ? [i] : []));
+        const pixels = await store.pixels(info, requireSlice(info, slice));
+        const sliceStats = await native
+          .roiStats(pixels, info.width, info.height, info.bitDepth, JSON.stringify(indices.map((i) => ({ id: rois[i].id, shape: rois[i].shape }))))
+          .catch(nativeError);
+        sliceStats.forEach((statistics, k) => {
+          stats[indices[k]] = { roiId: rois[indices[k]].id, ...statistics };
+        });
+      }
+      return { stats };
     },
   );
 
@@ -121,7 +131,7 @@ export const analysisRoutes: FastifyPluginAsyncTypebox<AnalysisRoutesOptions> = 
     async (request) => {
       const info = await requireImage(request.params.id);
       const { min, max, minPixels, maxRegions, maxPixels, minSphericity } = request.body;
-      const pixels = await store.pixels(info.imageId);
+      const pixels = await store.pixels(info, requireSlice(info, request.body.slice));
       return native
         .selectThresholdRegions(pixels, info.width, info.height, info.bitDepth, min, max, minPixels, maxRegions, maxPixels ?? null, minSphericity ?? null)
         .catch(nativeError);
@@ -144,7 +154,7 @@ export const analysisRoutes: FastifyPluginAsyncTypebox<AnalysisRoutesOptions> = 
     async (request) => {
       const info = await requireImage(request.params.id);
       const { x, y, tolerance } = request.body;
-      const pixels = await store.pixels(info.imageId);
+      const pixels = await store.pixels(info, requireSlice(info, request.body.slice));
       return { region: await native.selectWandRegion(pixels, info.width, info.height, info.bitDepth, x, y, tolerance).catch(nativeError) };
     },
   );
@@ -234,7 +244,7 @@ export const analysisRoutes: FastifyPluginAsyncTypebox<AnalysisRoutesOptions> = 
     async (request) => {
       const info = await requireImage(request.params.id);
       const { from, to, sigma } = request.body;
-      const pixels = await store.pixels(info.imageId);
+      const pixels = await store.pixels(info, requireSlice(info, request.body.slice));
       return { points: await native.livewirePath(pixels, info.width, info.height, info.bitDepth, from.x, from.y, to.x, to.y, sigma).catch(nativeError) };
     },
   );
@@ -263,7 +273,13 @@ export const analysisRoutes: FastifyPluginAsyncTypebox<AnalysisRoutesOptions> = 
       if (settings.resampling && !spacing) {
         throw new ApiError(400, 'BadRequest', "Resampling needs the image's pixel spacing; give one in pixelSpacing");
       }
-      const pixels = await store.pixels(imageId);
+      const pixels = new Map<number, Buffer>();
+      for (const roi of rois) {
+        const slice = requireSlice(image, roi.slice);
+        if (!pixels.has(slice)) {
+          pixels.set(slice, await store.pixels(image, slice));
+        }
+      }
       try {
         return reply.code(202).send(jobs.start(request.body, image, pixels).info);
       } catch (error) {

@@ -11,6 +11,7 @@ const info: ImageInfo = {
   width: 100,
   height: 50,
   bitDepth: 16,
+  slices: 1,
   sourceChannels: 1,
   pixelSpacing: null,
   sha256: 'a'.repeat(64),
@@ -113,5 +114,23 @@ describe('importing', () => {
       '1 ROI was clipped to the image.',
       'Skipped 1 ROI outside the image: Outside.',
     ]);
+  });
+
+  it('keeps the slices of ROIs on a stack and skips those beyond it', () => {
+    const stack = { ...info, slices: 3 };
+    const document = buildRoiSet({ ...info, slices: 4 }, [
+      { id: 's2', name: 'On 2', color: '#FFFFFF', visible: true, slice: 2, shape: rois[0].shape },
+      { id: 's4', name: 'On 4', color: '#FFFFFF', visible: true, slice: 4, shape: rois[0].shape },
+    ]);
+    expect(document.image?.slices).toBe(4);
+    expect(document.rois.map((roi) => roi.slice)).toEqual([2, 4]);
+    const prepared = prepareRoiImport(document, stack);
+    expect(prepared.rois.map((roi) => [roi.id, roi.slice])).toEqual([['s2', 2]]);
+    expect(prepared.warnings).toEqual(['The ROIs were drawn on a stack of 4 slices; this one has a stack of 3 slices.', 'Skipped 1 ROI on slices the image does not have: On 4.']);
+
+    // On an image without slices, slice 1 is the image
+    const single = prepareRoiImport(buildRoiSet(info, [{ id: 's1', name: 'On 1', color: '#FFFFFF', visible: true, slice: 1, shape: rois[0].shape }]), info);
+    expect(single.rois[0].slice).toBeUndefined();
+    expect(single.warnings).toEqual([]);
   });
 });

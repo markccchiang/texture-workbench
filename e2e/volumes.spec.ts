@@ -57,7 +57,7 @@ test('chooses a slice of a NIfTI volume and opens it as an image', async ({ page
   await start(page);
   await chooseFile(page, 'ramp.nii.gz', VOLUME);
 
-  const dialog = page.getByRole('dialog', { name: 'Open Slice of ramp.nii.gz' });
+  const dialog = page.getByRole('dialog', { name: 'Open ramp.nii.gz' });
   await expect(dialog).toContainText('6 × 5 × 4 voxels · 2 volumes · int16 · RAS');
   // The acquisition plane at its middle slice
   await expect(dialog.getByTestId('volume-slice-readout')).toHaveText('1 / 3');
@@ -79,7 +79,7 @@ test('chooses a slice of a NIfTI volume and opens it as an image', async ({ page
   const preview = dialog.getByTestId('volume-preview');
   expect(await preview.evaluate((img: HTMLImageElement) => [img.naturalWidth, img.naturalHeight])).toEqual([6, 4]);
 
-  await dialog.getByRole('button', { name: 'Open Slice' }).click();
+  await dialog.getByRole('button', { name: 'Open Slice', exact: true }).click();
   await expect(page.getByTestId('status-bar')).toContainText('ramp.nii.gz [coronal 3, volume 1] 6×4 16-bit');
   const image = (await openImage(page))!;
   expect(image).toMatchObject({ width: 6, height: 4, pixelSpacing: { x: 0.5, y: 2 } });
@@ -96,7 +96,7 @@ test('cancelling the slice dialog deletes the volume', async ({ page }) => {
   const created = page.waitForResponse((response) => response.url().endsWith('/api/v1/volumes') && response.request().method() === 'POST');
   await chooseFile(page, 'ramp.nii.gz', VOLUME);
   const { volumeId } = await (await created).json();
-  const dialog = page.getByRole('dialog', { name: 'Open Slice of ramp.nii.gz' });
+  const dialog = page.getByRole('dialog', { name: 'Open ramp.nii.gz' });
   await expect(dialog.getByTestId('volume-preview')).toBeVisible();
 
   const deleted = page.waitForResponse((response) => response.url().endsWith(`/api/v1/volumes/${volumeId}`) && response.request().method() === 'DELETE');

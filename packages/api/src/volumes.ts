@@ -67,6 +67,20 @@ export const VolumeSliceRequest = Type.Object(
 );
 export type VolumeSliceRequest = Static<typeof VolumeSliceRequest>;
 
+export const VolumeStackRequest = Type.Object(
+  {
+    orientation: SliceOrientation,
+    volume: Type.Optional(Type.Integer({ minimum: 0, description: 'Default 0' })),
+  },
+  { additionalProperties: false },
+);
+export type VolumeStackRequest = Static<typeof VolumeStackRequest>;
+
+/** Name of the stack made from a volume, e.g. "brain.nii.gz [axial]" or "bold.nii.gz [axial, volume 3]" */
+export function stackImageName(volumeName: string, orientation: SliceOrientation, volume: number, volumes: number): string {
+  return `${volumeName} [${orientation}${volumes > 1 ? `, volume ${volume}` : ''}]`;
+}
+
 /** Name of the image made from a slice, e.g. "brain.nii.gz [axial 120]" or "bold.nii.gz [axial 12, volume 3]" */
 export function sliceImageName(volumeName: string, orientation: SliceOrientation, slice: number, volume: number, volumes: number): string {
   return `${volumeName} [${orientation} ${slice}${volumes > 1 ? `, volume ${volume}` : ''}]`;

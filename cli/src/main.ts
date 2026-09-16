@@ -166,7 +166,7 @@ function describeImage(image: ImageInfo): Array<[string, string]> {
   return [
     ['Name', image.name],
     ['Image id', image.imageId],
-    ['Size', `${image.width} × ${image.height} px, ${image.bitDepth}-bit`],
+    ['Size', `${image.width} × ${image.height} px${image.slices > 1 ? ` × ${image.slices} slices` : ''}, ${image.bitDepth}-bit`],
     ['File size', bytes(image.sizeBytes)],
     ['Pixel spacing', image.pixelSpacing ? `${number(image.pixelSpacing.x)} × ${number(image.pixelSpacing.y)} mm` : 'not set'],
     ['Default window', `${image.windowMin} – ${image.windowMax}`],
@@ -256,7 +256,7 @@ const COMMANDS: Record<string, Command> = {
     summary: 'Measure texture features of ROIs in one or more images',
     usage: 'glcm measure <image...> [--rois <file>] [--preset <id>] [--out <file>]',
     details: [
-      'Without --rois the whole image is measured as one ROI.',
+      'Without --rois the whole image is measured as one ROI; for a stack, the whole of every slice, or of --slice <n> (from 1).',
       '--rois takes an ROI set (.roi.json), a project (.glcmproj), an array of ROIs, or ImageJ ROIs (.roi or RoiSet.zip).',
       'Settings come from the defaults, then --settings <file>, then --preset, then the single options.',
       'Several images are measured in turn and their rows merged into one file when their settings match.',
@@ -267,6 +267,7 @@ const COMMANDS: Record<string, Command> = {
     options: {
       ...SETTINGS_OPTIONS,
       rois: { type: 'string' },
+      slice: { type: 'string' },
       spacing: { type: 'string' },
       out: { type: 'string', short: 'o' },
       format: { type: 'string' },
@@ -286,6 +287,10 @@ const COMMANDS: Record<string, Command> = {
       const client = await context.client();
       const catalog = await operations.getCatalog(client);
       const rois = text(context, 'rois') ? await readRois(text(context, 'rois')!, (message) => context.io.err(`warning: ${message}`)) : null;
+      const slice = text(context, 'slice') !== undefined ? integer(context, 'slice')! : undefined;
+      if (slice !== undefined && rois) {
+        throw new ApiError(0, 'BadOption', '--slice chooses the slice of the whole image; ROIs from --rois lie on their own slices');
+      }
       const overrides = await settingsOverrides(context);
 
       const csvTexts: string[] = [];
@@ -308,7 +313,7 @@ const COMMANDS: Record<string, Command> = {
         }
         const measurement = await operations.measure(client, {
           imageId: info.imageId,
-          rois: rois ?? [operations.wholeImageRoi(info)],
+          rois: rois ?? operations.wholeImageRois(info, slice),
           settings,
           ...(spacing ? { pixelSpacing: { x: spacing[0], y: spacing[1] } } : {}),
         });
@@ -355,6 +360,7 @@ const COMMANDS: Record<string, Command> = {
       'With --at they are the one region around that pixel, as the magic wand gives it.',
       'The ROI set can then be measured: glcm measure <image> --rois <file>',
       'An --out name ending in .zip writes a RoiSet.zip for ImageJ instead of an ROI set.',
+      'For a stack, --slice <n> (from 1, default 1) chooses the slice; the ROIs are saved on that slice.',
     ],
     options: {
       min: { type: 'string' },
@@ -365,6 +371,7 @@ const COMMANDS: Record<string, Command> = {
       'max-regions': { type: 'string' },
       at: { type: 'string' },
       tolerance: { type: 'string' },
+      slice: { type: 'string' },
       out: { type: 'string', short: 'o' },
     },
     async run(context) {
@@ -374,6 +381,7 @@ const COMMANDS: Record<string, Command> = {
       }
       const client = await context.client();
       const { info } = await openImageTarget(client, target);
+      const slice = integer(context, 'slice', 1)!;
       const at = numbers(text(context, 'at'));
       let regions: operations.RegionResult[];
       let total: number;
@@ -385,6 +393,7 @@ const COMMANDS: Record<string, Command> = {
           x: at[0],
           y: at[1],
           tolerance: integer(context, 'tolerance', Math.round((info.windowMax - info.windowMin) * 0.05))!,
+          ...(slice > 1 ? { slice } : {}),
         });
         regions = region ? [region] : [];
         total = regions.length;
@@ -396,12 +405,13 @@ const COMMANDS: Record<string, Command> = {
           maxRegions: integer(context, 'max-regions', 20)!,
           ...(text(context, 'max-pixels') !== undefined ? { maxPixels: integer(context, 'max-pixels')! } : {}),
           ...(text(context, 'min-sphericity') !== undefined ? { minSphericity: fraction(context, 'min-sphericity') } : {}),
+          ...(slice > 1 ? { slice } : {}),
         });
         regions = found.regions;
         total = found.total;
       }
 
-      const document = operations.roiSetOf(info, regions);
+      const document = operations.roiSetOf(info, regions, 'Region', slice);
       const out = text(context, 'out');
       if (context.json && !out) {
         context.io.out(JSON.stringify(document, null, 2));
@@ -435,7 +445,14 @@ const COMMANDS: Record<string, Command> = {
   'feature-map': {
     summary: 'Compute one feature across a whole image and save it as a 32-bit TIFF',
     usage: 'glcm feature-map <image> --feature <id> [--window <px>] [--out <file.tif>]',
-    options: { ...SETTINGS_OPTIONS, feature: { type: 'string' }, window: { type: 'string' }, step: { type: 'string' }, out: { type: 'string', short: 'o' } },
+    options: {
+      ...SETTINGS_OPTIONS,
+      feature: { type: 'string' },
+      window: { type: 'string' },
+      step: { type: 'string' },
+      slice: { type: 'string' },
+      out: { type: 'string', short: 'o' },
+    },
     async run(context) {
       const [target] = context.positionals;
       const feature = text(context, 'feature');
@@ -446,16 +463,21 @@ const COMMANDS: Record<string, Command> = {
       const catalog = await operations.getCatalog(client);
       const { info } = await openImageTarget(client, target);
       const settings = operations.buildSettings(catalog, info.bitDepth, await settingsOverrides(context));
-      const map = await operations.computeFeatureMap(client, info.imageId, {
-        feature,
-        window: integer(context, 'window', 31)!,
-        step: text(context, 'step') ? integer(context, 'step')! : null,
-        grayLevels: settings.grayLevels,
-        quantization: settings.quantization,
-        distance: settings.distances[0],
-        directions: settings.directions,
-        logBase: settings.logBase,
-      });
+      const map = await operations.computeFeatureMap(
+        client,
+        info.imageId,
+        {
+          feature,
+          window: integer(context, 'window', 31)!,
+          step: text(context, 'step') ? integer(context, 'step')! : null,
+          grayLevels: settings.grayLevels,
+          quantization: settings.quantization,
+          distance: settings.distances[0],
+          directions: settings.directions,
+          logBase: settings.logBase,
+        },
+        text(context, 'slice') !== undefined ? integer(context, 'slice')! : undefined,
+      );
 
       const range = operations.valueRange(map.values);
       const summary = { feature, columns: map.info.columns, rows: map.info.rows, step: map.info.step, ...range, emptyWindows: range.empty };

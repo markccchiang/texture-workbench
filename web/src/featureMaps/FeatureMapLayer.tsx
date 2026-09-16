@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { Image as KonvaImage, Layer } from 'react-konva';
 import { colorTableById } from '../image/colorTables';
 import type { Viewport } from '../viewer/viewport';
+import { useViewer } from '../stores/viewerStore';
 import { useFeatureMap } from './featureMapStore';
 import { renderMapRgba } from './mapImage';
 
@@ -15,6 +16,8 @@ export function FeatureMapLayer({ viewport, imageWidth, imageHeight }: { viewpor
   const colorTable = useFeatureMap((state) => state.map?.colorTable ?? 'viridis');
   const opacity = useFeatureMap((state) => state.map?.opacity ?? 1);
   const visible = useFeatureMap((state) => state.map?.visible ?? false);
+  // A map of a stack covers one slice
+  const slice = useViewer((state) => state.image?.slice ?? 1);
   const columns = info?.columns ?? 0;
   const rows = info?.rows ?? 0;
 
@@ -29,7 +32,7 @@ export function FeatureMapLayer({ viewport, imageWidth, imageHeight }: { viewpor
     return target;
   }, [values, window, colorTable, columns, rows]);
 
-  if (!info || !canvas || !visible) {
+  if (!info || !canvas || !visible || (info.slice ?? 1) !== slice) {
     return null;
   }
   return (

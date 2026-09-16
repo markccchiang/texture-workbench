@@ -87,6 +87,9 @@ the open image:
 - ROIs that extend beyond the image are cut at its border; ROIs completely outside it are skipped, and the notification
   lists them.
 - Classes of the file that the class list does not have yet are added to it; the ROIs keep their classes.
+- ROIs of a stack keep their slices (see :ref:`stacks`). ROIs without a slice are put on the slice shown; ROIs on
+  slices the image does not have are skipped, and the notification lists them. On an image without slices, ROIs of
+  slice 1 are imported as they are.
 - The import is one step that :kbd:`⌘Z` / :kbd:`Ctrl+Z` undoes.
 
 This way the same regions can be measured on several images of the same size, or again later with other settings.
@@ -104,7 +107,8 @@ pixel count and mean here agree:
 - Rectangles, ovals, polygons, freehand and traced (wand) outlines, spline-fitted outlines, rotated rectangles and
   ellipses, rectangles with rounded corners and composite ROIs (with holes or several parts) are imported. Rectangles
   and ovals stay rectangles and ellipses; the others become polygons.
-- ImageJ's names and outline colours are kept. Lines, points, angles and text have no area to measure and are left out;
+- ImageJ's names, outline colours and positions in a stack are kept: an ROI on slice 12 in ImageJ lies on slice 12
+  here. Lines, points, angles and text have no area to measure and are left out;
   the notification lists them.
 - ImageJ counts a pixel whose centre lies exactly on an edge differently from this application. Imported polygons are
   moved by a hundred-millionth of a pixel so that such pixels are counted as in ImageJ; the shift disappears when the
@@ -115,8 +119,8 @@ Manager opens, covering **the same pixels in ImageJ as here**. Rectangles, ellip
 and polygons when ImageJ fills the same pixels for them. An ROI that would cover different pixels in ImageJ — an
 ellipse that is rotated or not on whole pixels, a polygon with an edge exactly through pixel centres (livewire outlines
 often have them) — and an ROI with holes or several parts is saved as the outline of its pixels instead: a traced ROI,
-or a composite ROI. The notification lists those ROIs. Classes are not saved, since ImageJ's ROI files have no place
-for them.
+or a composite ROI. The notification lists those ROIs. The slice of an ROI in a stack is saved as its position in
+ImageJ. Classes are not saved, since ImageJ's ROI files have no place for them.
 
 Exporting ROI images
 --------------------
@@ -140,6 +144,7 @@ Exporting ROI images
   When two ROIs would share a file name, for example ROIs named ``a`` and ``a_mask``, ``_2``, ``_3``, ... is appended,
   so no file overwrites another.
 - ``manifest.json`` lists every ROI with its shape, bounding box, pixel count and files, or why it was skipped.
+- For a stack, the files of each slice are in a folder ``slice-<n>`` with its own ``manifest.json``.
 
 .. _reports:
 

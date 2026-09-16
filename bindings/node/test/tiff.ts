@@ -16,6 +16,27 @@ const SHORT = 3;
 const LONG = 4;
 
 export function encodeTiff(image: TiffImage): Buffer {
+  return encodeTiffPages([image]);
+}
+
+/** A multi-page TIFF: each page one IFD with its data, linked in order */
+export function encodeTiffPages(images: TiffImage[]): Buffer {
+  const header = Buffer.alloc(8);
+  header.write('II', 0, 'latin1');
+  header.writeUInt16LE(42, 2);
+  header.writeUInt32LE(8, 4);
+  const pages: Buffer[] = [];
+  let start = 8;
+  images.forEach((image, index) => {
+    const page = encodePage(image, start, index === images.length - 1);
+    pages.push(page);
+    start += page.length;
+  });
+  return Buffer.concat([header, ...pages]);
+}
+
+/** One page starting at file offset `start`: IFD, bits array, data; the next IFD follows directly unless last */
+function encodePage(image: TiffImage, start: number, last: boolean): Buffer {
   const { width, height, bitsPerSample, samplesPerPixel } = image;
   const bytesPerSample = bitsPerSample / 8;
   const sampleCount = width * height * samplesPerPixel;
@@ -24,11 +45,10 @@ export function encodeTiff(image: TiffImage): Buffer {
   }
 
   const entries: Array<[tag: number, type: number, count: number, value: number]> = [];
-  const ifdOffset = 8;
   const withSampleFormat = samplesPerPixel === 1;
   const entryCount = withSampleFormat ? 11 : 10;
   const ifdLength = 2 + entryCount * 12 + 4;
-  const bitsArrayOffset = ifdOffset + ifdLength;
+  const bitsArrayOffset = start + ifdLength;
   const dataOffset = bitsArrayOffset + (samplesPerPixel > 1 ? samplesPerPixel * 2 : 0);
   const dataLength = sampleCount * bytesPerSample;
 
@@ -46,13 +66,10 @@ export function encodeTiff(image: TiffImage): Buffer {
     entries.push([339, SHORT, 1, image.sampleFormat === 'float' ? 3 : 1]); // SampleFormat
   }
 
-  const buffer = Buffer.alloc(dataOffset + dataLength);
-  buffer.write('II', 0, 'latin1');
-  buffer.writeUInt16LE(42, 2);
-  buffer.writeUInt32LE(ifdOffset, 4);
-  buffer.writeUInt16LE(entryCount, ifdOffset);
+  const buffer = Buffer.alloc(dataOffset + dataLength - start);
+  buffer.writeUInt16LE(entryCount, 0);
 
-  let position = ifdOffset + 2;
+  let position = 2;
   for (const [tag, type, count, value] of entries) {
     buffer.writeUInt16LE(tag, position);
     buffer.writeUInt16LE(type, position + 2);
@@ -64,14 +81,14 @@ export function encodeTiff(image: TiffImage): Buffer {
     }
     position += 12;
   }
-  buffer.writeUInt32LE(0, position); // no further IFD
+  buffer.writeUInt32LE(last ? 0 : dataOffset + dataLength, position); // the next IFD
 
   for (let i = 0; i < samplesPerPixel && samplesPerPixel > 1; i += 1) {
-    buffer.writeUInt16LE(bitsPerSample, bitsArrayOffset + 2 * i);
+    buffer.writeUInt16LE(bitsPerSample, bitsArrayOffset - start + 2 * i);
   }
 
   for (let i = 0; i < sampleCount; i += 1) {
-    const offset = dataOffset + i * bytesPerSample;
+    const offset = dataOffset - start + i * bytesPerSample;
     const value = image.data[i];
     if (bitsPerSample === 8) {
       buffer.writeUInt8(value, offset);

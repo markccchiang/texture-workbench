@@ -190,6 +190,12 @@ std::string ResultsToCsv(const std::vector<MeasurementResult>& results, const An
     if (with_classes) {
         header.insert(header.begin() + class_position, "roiClass");
     }
+    // The slice column follows them, only for ROIs on the slices of a stack
+    const bool with_slices = std::any_of(results.begin(), results.end(), [](const MeasurementResult& result) { return result.slice > 0; });
+    const auto slice_position = class_position + (with_classes ? 1 : 0);
+    if (with_slices) {
+        header.insert(header.begin() + slice_position, "slice");
+    }
     if (context.pixel_spacing) {
         header.push_back("areaMm2");
     }
@@ -211,6 +217,9 @@ std::string ResultsToCsv(const std::vector<MeasurementResult>& results, const An
             TextField(result.roi_name), TextField(result.roi_id), MeasurementStatusId(result.status), std::to_string(result.pixel_count)};
         if (with_classes) {
             common.insert(common.begin() + class_position, TextField(result.roi_class));
+        }
+        if (with_slices) {
+            common.insert(common.begin() + slice_position, result.slice > 0 ? std::to_string(result.slice) : "");
         }
         if (context.pixel_spacing) {
             // Resampled measurements count the pixels of the resampled image

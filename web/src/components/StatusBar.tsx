@@ -42,7 +42,8 @@ export function StatusBar() {
       </Text>
       {info && (
         <Text size="xs" truncate>
-          {info.name} {info.width}×{info.height} {info.bitDepth}-bit
+          {info.name} {info.width}×{info.height}
+          {info.slices > 1 ? `×${info.slices} slices` : ''} {info.bitDepth}-bit
           {info.sourceChannels > 1 ? ' (converted to grayscale)' : ''}
         </Text>
       )}

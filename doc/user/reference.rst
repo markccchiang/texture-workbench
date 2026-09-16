@@ -58,6 +58,8 @@ Keyboard
      - Zoom to the selected ROIs
    * - :kbd:`N`
      - Show or hide the navigator
+   * - :kbd:`.` / :kbd:`,`
+     - Next / previous slice of a stack (also :kbd:`>` / :kbd:`<`)
    * - :kbd:`Space` + drag
      - Pan
 
@@ -99,7 +101,7 @@ Menus
    * - Menu
      - Items
    * - File
-     - Open Image…, Open Sample Image…, Open Project…, Save Project…, Export Results as CSV, Export Results as JSON, Save Report…,
+     - Open Image…, Open DICOM Series…, Open Sample Image…, Open Project…, Save Project…, Export Results as CSV, Export Results as JSON, Save Report…,
        Close Image, Change Access Token… (servers with an access token)
    * - Edit
      - Undo, Redo, Select All ROIs, Delete ROI, Preferences…
@@ -108,7 +110,7 @@ Menus
        Inverted, Viridis, Magma, Hot), Ruler,
        Image Info
    * - ROI
-     - Rectangle, Ellipse, Polygon, Freehand, Livewire, Magic Wand, Brush, Eraser, Threshold ROI…, Union, Subtract, Intersect, XOR, Enlarge or Shrink…, Make Band…, Add to Manager, Duplicate, Rename, ROI Classes…, Import ROI Set…, Export ROI Set…,
+     - Rectangle, Ellipse, Polygon, Freehand, Livewire, Magic Wand, Brush, Eraser, Threshold ROI…, Union, Subtract, Intersect, XOR, Enlarge or Shrink…, Make Band…, Add to Manager, Duplicate, Copy to All Slices (stacks), Rename, ROI Classes…, Import ROI Set…, Export ROI Set…,
        Export ROIs for ImageJ…, Export ROI Images…
    * - Analyze
      - Measure Selected, Measure All, Batch Measure…, Feature Map…, Presets (the feature presets of the Analysis Settings panel), Clear Results

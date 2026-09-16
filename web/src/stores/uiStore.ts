@@ -3,7 +3,7 @@ import { create } from 'zustand';
 export type ModalName = 'imageInfo' | 'preferences' | 'shortcuts' | 'about' | 'samples' | 'saveProject' | 'exportRoiImages' | 'equations' | 'batch' | 'featureMap' | 'thresholdRoi' | 'growRoi' | 'roiClasses' | 'report';
 
 /** What a file chosen in the file dialog is used for */
-export type FileKind = 'image' | 'project' | 'roiSet' | 'projectImage';
+export type FileKind = 'image' | 'project' | 'roiSet' | 'projectImage' | 'dicomSeries';
 
 export interface UiState {
   modal: ModalName | null;

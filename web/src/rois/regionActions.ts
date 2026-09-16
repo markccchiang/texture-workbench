@@ -3,7 +3,7 @@
 import { MAX_POLYGON_VERTICES } from '@glcm/api';
 import { notifications } from '@mantine/notifications';
 import { selectThresholdRois, selectWandRoi } from '../api/client';
-import { useViewer } from '../stores/viewerStore';
+import { shownSlice, sliceField, useViewer } from '../stores/viewerStore';
 import { regionShape } from './regions';
 import { useRois } from './roiStore';
 
@@ -20,10 +20,11 @@ function notifySimplified(count: number): void {
 /** Makes the region around an image pixel the active ROI */
 export async function wandAt(imageId: string, x: number, y: number): Promise<void> {
   const tolerance = useViewer.getState().wandTolerance;
+  const slice = shownSlice();
   try {
-    const { region } = await selectWandRoi(imageId, { x, y, tolerance });
-    // The image may have changed while the request ran
-    if (!region || useViewer.getState().image?.info.imageId !== imageId) {
+    const { region } = await selectWandRoi(imageId, { x, y, tolerance, ...sliceField(slice) });
+    // The image or its slice may have changed while the request ran
+    if (!region || useViewer.getState().image?.info.imageId !== imageId || shownSlice() !== slice) {
       return;
     }
     const { shape, simplified } = regionShape(region);
@@ -51,8 +52,9 @@ export function thresholdFilterFields({ minPixels, maxPixels, minSphericity }: T
 
 export async function addThresholdRois(imageId: string, filters: ThresholdFilters, count: number): Promise<number> {
   const { min, max } = useViewer.getState().window;
-  const { regions } = await selectThresholdRois(imageId, { min, max, ...thresholdFilterFields(filters), maxRegions: count });
-  if (useViewer.getState().image?.info.imageId !== imageId || regions.length === 0) {
+  const slice = shownSlice();
+  const { regions } = await selectThresholdRois(imageId, { min, max, ...thresholdFilterFields(filters), maxRegions: count, ...sliceField(slice) });
+  if (useViewer.getState().image?.info.imageId !== imageId || shownSlice() !== slice || regions.length === 0) {
     return 0;
   }
   const rois = useRois.getState();

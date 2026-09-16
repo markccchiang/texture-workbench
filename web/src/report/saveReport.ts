@@ -6,7 +6,7 @@ import { getCoreVersion } from '../api/client';
 import { loadCatalog } from '../api/queryClient';
 import { downloadText } from '../files/download';
 import { useResults } from '../results/resultsStore';
-import { useRois } from '../rois/roiStore';
+import { useRois, isOnSlice } from '../rois/roiStore';
 import { useViewer } from '../stores/viewerStore';
 import { renderReportAssets, type OpenImageSource } from './reportAssets';
 import { buildReportHtml, reportFileName, type ReportSections } from './reportHtml';
@@ -48,7 +48,9 @@ function openImageSource(): OpenImageSource | null {
     windowMin: viewer.window.min,
     windowMax: viewer.window.max,
     colorTable: viewer.colorTable,
-    rois: useRois.getState().rois,
+    // The picture shows the slice shown of a stack, with its ROIs
+    rois: useRois.getState().rois.filter((roi) => isOnSlice(roi, useRois.getState().currentSlice)),
+    ...(image.slice !== undefined && image.slice > 1 ? { slice: image.slice } : {}),
   };
 }
 

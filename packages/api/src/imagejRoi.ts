@@ -7,6 +7,7 @@ import { unzipSync, zipSync, type Zippable } from 'fflate';
 import type { EllipseShape, PolygonShape, Roi, RoiShape } from './analysis.js';
 import { MAX_POLYGON_VERTICES, MAX_ROIS_PER_REQUEST } from './analysis.js';
 import type { RoiSetDocument } from './exports.js';
+import { MAX_SLICES } from './schemas.js';
 import { imagejPolygonRuns, runsOutline, sameRuns, shapeRuns, type Point, type Runs } from './roiPixels.js';
 
 // Header offsets (RoiDecoder)
@@ -23,11 +24,14 @@ const STROKE_COLOR = 40;
 const SUBTYPE = 48;
 const OPTIONS = 50;
 const ROUNDED_RECT_ARC_SIZE = 54;
+const POSITION = 56;
 const HEADER2_OFFSET = 60;
 const COORDINATES = 64;
 const HEADER_SIZE = 64;
 const HEADER2_SIZE = 64;
 // Header 2 offsets
+const Z_POSITION = 8;
+const T_POSITION = 12;
 const NAME_OFFSET = 16;
 const NAME_LENGTH = 20;
 
@@ -87,6 +91,7 @@ export function readImageJRois(bytes: Uint8Array, fileName: string): ImageJRoiIm
       id: `imagej-${rois.length + 1}`,
       name: decoded.name.slice(0, 200) || `ROI ${rois.length + 1}`,
       ...(decoded.color ? { color: decoded.color } : {}),
+      ...(roiSlice(entry.bytes) !== undefined ? { slice: roiSlice(entry.bytes) } : {}),
       shape: decoded.shape,
     });
   }
@@ -591,7 +596,7 @@ function encodeRoi(roi: Roi, size: { width: number; height: number }): { bytes: 
   if (runs.size === 0) {
     return null;
   }
-  const common = { name: roi.name, color: roi.color ?? null };
+  const common = { name: roi.name, color: roi.color ?? null, slice: roi.slice ?? 0 };
   if (shape.type === 'rectangle') {
     const rows = [...runs.keys()];
     const [start, end] = runs.get(rows[0]) ?? [0, 0];
@@ -653,6 +658,8 @@ function hasCuts(points: readonly Point[]): boolean {
 interface Common {
   name: string;
   color: string | null;
+  /** The ROI's position (stack slice); 0 for none */
+  slice: number;
 }
 
 function encodeOutline(runs: Runs, common: Common): Uint8Array {
@@ -735,6 +742,9 @@ class Writer {
     this.short(RIGHT, right);
     if (this.common.color) {
       this.int(STROKE_COLOR, 0xff000000 | parseInt(this.common.color.slice(1), 16));
+    }
+    if (this.common.slice > 0) {
+      this.int(POSITION, this.common.slice);
     }
   }
 
@@ -819,6 +829,21 @@ class Reader {
   float(offset: number): number {
     return this.has(offset, 4) ? this.view.getFloat32(offset) : 0;
   }
+}
+
+/**
+ * The stack slice of an ROI (from 1): its position, else the z or t position of a hyperstack (RoiDecoder reads both);
+ * undefined for an ROI on every slice (position 0)
+ */
+function roiSlice(bytes: Uint8Array): number | undefined {
+  const data = new Reader(bytes);
+  const candidates = [data.int(POSITION)];
+  const header2 = data.int(HEADER2_OFFSET);
+  if (header2 > 0 && header2 + 16 <= data.length) {
+    candidates.push(data.int(header2 + Z_POSITION), data.int(header2 + T_POSITION));
+  }
+  const slice = candidates.find((value) => value > 0);
+  return slice !== undefined && slice <= MAX_SLICES ? slice : undefined;
 }
 
 function roiName(data: Reader, fallback: string): string {

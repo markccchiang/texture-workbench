@@ -672,6 +672,78 @@ LoadedImage ExtractNiftiSlice(const std::string& path, SliceOrientation orientat
     return image;
 }
 
+LoadedStack ExtractNiftiStack(const std::string& path, SliceOrientation orientation, int64_t volume, const StorageChoice& storage,
+    int64_t max_pixels, int64_t max_stack_pixels) {
+    Input input(path);
+    const Header header = ReadHeader(input);
+    const Axes axes = AxesOf(header);
+    const SliceGeometry geometry = Geometry(axes, orientation);
+    if (volume < 0 || volume >= header.volumes) {
+        throw std::invalid_argument("The volume must be 0 to " + std::to_string(header.volumes - 1));
+    }
+    if (geometry.width > std::numeric_limits<int>::max() || geometry.height > std::numeric_limits<int>::max() ||
+        (max_pixels > 0 && geometry.width > max_pixels / geometry.height)) {
+        throw ImageTooLargeError(geometry.width, geometry.height, max_pixels);
+    }
+    if (geometry.count > MAX_SLICES) {
+        throw std::invalid_argument(
+            "The volume has " + std::to_string(geometry.count) + " slices, more than " + std::to_string(MAX_SLICES));
+    }
+    if (geometry.height * geometry.count > std::numeric_limits<int>::max() ||
+        (max_stack_pixels > 0 && geometry.width * geometry.height > max_stack_pixels / geometry.count)) {
+        throw StackTooLargeError(geometry.width, geometry.height, geometry.count, max_stack_pixels);
+    }
+
+    const auto o = static_cast<size_t>(orientation);
+    const auto width = static_cast<int>(geometry.width);
+    const auto height = static_cast<int>(geometry.height);
+    LoadedStack stack;
+    stack.slices = static_cast<int>(geometry.count);
+    stack.pixels = cv::Mat(height * stack.slices, width, storage.bit_depth == 8 ? CV_8UC1 : CV_16UC1);
+    stack.info.width = width;
+    stack.info.height = height;
+    stack.info.bit_depth = storage.bit_depth;
+    stack.info.source_channels = 1;
+    stack.info.pixel_spacing = geometry.pixel_spacing;
+    stack.info.value_conversion = Conversion(header, storage);
+
+    // The coordinate along each RAS axis of a voxel index: the same as ExtractNiftiSlice, inverted
+    const auto world = [&](int world_axis, const std::array<int64_t, 3>& v) {
+        const int64_t index = v[axes.voxel_axis[world_axis]];
+        return axes.direction[world_axis] > 0 ? index : axes.size[world_axis] - 1 - index;
+    };
+    const int64_t ni = header.dimensions[0];
+    const int64_t nj = header.dimensions[1];
+    const int64_t nk = header.dimensions[2];
+    const size_t bytes_per_voxel = header.type->bytes;
+    std::vector<uint8_t> buffer(static_cast<size_t>(ni) * bytes_per_voxel);
+    std::array<int64_t, 3> v{};
+    for (int64_t k = 0; k < nk; ++k) {
+        v[2] = k;
+        for (int64_t j = 0; j < nj; ++j) {
+            v[1] = j;
+            const uint64_t first = static_cast<uint64_t>(((volume * nk + k) * nj + j) * ni);
+            input.Seek(header.voxel_offset + first * bytes_per_voxel);
+            input.ReadExactly(buffer.data(), buffer.size());
+            for (int64_t i = 0; i < ni; ++i) {
+                v[0] = i;
+                const double value =
+                    Decode(buffer.data() + i * bytes_per_voxel, *header.type, header.little_endian) * header.slope + header.intercept;
+                const int stored = StoredSample(value, storage);
+                const int64_t slice = world(FIXED_AXIS[o], v);
+                const auto column = static_cast<int>(world(COLUMN_AXIS[o], v));
+                const auto row = static_cast<int>(slice * height + (geometry.height - 1 - world(ROW_AXIS[o], v)));
+                if (storage.bit_depth == 8) {
+                    stack.pixels.at<uchar>(row, column) = static_cast<uchar>(stored);
+                } else {
+                    stack.pixels.at<uint16_t>(row, column) = static_cast<uint16_t>(stored);
+                }
+            }
+        }
+    }
+    return stack;
+}
+
 LoadedImage LoadNiftiFile(const std::string& path, int64_t max_pixels) {
     NiftiVolumeInfo info = InspectNiftiVolume(path);
     if (info.dimensions[2] > 1 || info.volumes > 1) {

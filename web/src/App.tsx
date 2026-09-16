@@ -17,7 +17,7 @@ import { layoutStorage } from './layout/layoutStorage';
 import { ResultsPanel } from './results/ResultsPanel';
 import { RoiManager } from './rois/RoiManager';
 import { useRois } from './rois/roiStore';
-import { openImageFile } from './stores/imageLoader';
+import { openDicomSeries, openImageFile } from './stores/imageLoader';
 import { useUi, type FileKind } from './stores/uiStore';
 import { useViewer } from './stores/viewerStore';
 import { CanvasArea } from './viewer/CanvasArea';
@@ -27,6 +27,8 @@ const ACCEPTED_TYPES: Record<FileKind, string> = {
   image: IMAGE_FILE_TYPES,
   projectImage: IMAGE_FILE_TYPES,
   project: '.glcmproj,.json,application/json',
+  // A folder is chosen instead (webkitdirectory)
+  dicomSeries: '',
   roiSet: ROI_SET_FILE_TYPES,
 };
 
@@ -96,6 +98,7 @@ function Workspace() {
 
 export function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const seriesInputRef = useRef<HTMLInputElement>(null);
   const fileKindRef = useRef<FileKind>('image');
   const [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0);
@@ -116,6 +119,10 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (fileRequest?.kind === 'dicomSeries') {
+      seriesInputRef.current?.click();
+      return;
+    }
     const input = fileInputRef.current;
     if (fileRequest && input) {
       fileKindRef.current = fileRequest.kind;
@@ -189,6 +196,23 @@ export function App() {
           event.currentTarget.value = '';
           if (file) {
             openChosenFile(file, fileKindRef.current);
+          }
+        }}
+      />
+      <input
+        ref={seriesInputRef}
+        type="file"
+        multiple
+        hidden
+        data-testid="series-input"
+        // A folder of DICOM files; React does not know the attribute
+        {...{ webkitdirectory: '' }}
+        onChange={(event) => {
+          const files = [...(event.currentTarget.files ?? [])];
+          event.currentTarget.value = '';
+          if (files.length > 0) {
+            const folder = files[0].webkitRelativePath.split('/')[0];
+            void openDicomSeries(files, folder || 'DICOM series');
           }
         }}
       />

@@ -10,8 +10,17 @@ export interface DicomImage {
   /** PixelRepresentation 1 */
   signed?: boolean;
   photometric?: 'MONOCHROME1' | 'MONOCHROME2';
-  /** Row-major samples */
+  /** Row-major samples, frame after frame */
   data: ArrayLike<number>;
+  /** NumberOfFrames; data holds rows × columns × frames samples */
+  frames?: number;
+  seriesDescription?: string;
+  seriesUid?: string;
+  instanceNumber?: number;
+  /** ImagePositionPatient */
+  position?: [number, number, number];
+  /** ImageOrientationPatient: row direction, then column direction */
+  orientation?: [number, number, number, number, number, number];
   modality?: string;
   /** Row spacing, column spacing (mm), as in PixelSpacing */
   pixelSpacing?: [number, number];
@@ -49,8 +58,9 @@ function uint16(value: number): Buffer {
 
 export function encodeDicom(image: DicomImage): Buffer {
   const bytes = image.bitsAllocated / 8;
-  const pixels = Buffer.alloc(image.rows * image.columns * bytes);
-  for (let i = 0; i < image.rows * image.columns; i += 1) {
+  const samples = image.rows * image.columns * (image.frames ?? 1);
+  const pixels = Buffer.alloc(samples * bytes);
+  for (let i = 0; i < samples; i += 1) {
     if (bytes === 1) {
       pixels.writeUInt8(image.data[i] & 0xff, i);
     } else {
@@ -61,9 +71,25 @@ export function encodeDicom(image: DicomImage): Buffer {
   if (image.modality) {
     parts.push(element(0x0008, 0x0060, 'CS', text(image.modality)));
   }
+  if (image.seriesDescription !== undefined) {
+    parts.push(element(0x0008, 0x103e, 'LO', text(image.seriesDescription)));
+  }
+  if (image.seriesUid !== undefined) {
+    parts.push(element(0x0020, 0x000e, 'UI', text(image.seriesUid, '\0')));
+  }
+  if (image.instanceNumber !== undefined) {
+    parts.push(element(0x0020, 0x0013, 'IS', text(String(image.instanceNumber))));
+  }
+  if (image.position) {
+    parts.push(element(0x0020, 0x0032, 'DS', text(image.position.join('\\'))));
+  }
+  if (image.orientation) {
+    parts.push(element(0x0020, 0x0037, 'DS', text(image.orientation.join('\\'))));
+  }
   parts.push(
     element(0x0028, 0x0002, 'US', uint16(1)),
     element(0x0028, 0x0004, 'CS', text(image.photometric ?? 'MONOCHROME2')),
+    ...(image.frames !== undefined ? [element(0x0028, 0x0008, 'IS', text(String(image.frames)))] : []),
     element(0x0028, 0x0010, 'US', uint16(image.rows)),
     element(0x0028, 0x0011, 'US', uint16(image.columns)),
   );

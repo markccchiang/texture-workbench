@@ -71,6 +71,12 @@ NiftiVolumeInfo InspectNiftiVolume(const std::string& path, const std::string& u
 LoadedImage ExtractNiftiSlice(const std::string& path, SliceOrientation orientation, int64_t slice, int64_t volume,
     const StorageChoice& storage, int64_t max_pixels = 0);
 
+// Every slice of one volume (0-based) in one orientation as a stack, slice 0 first, each laid out and stored exactly as
+// ExtractNiftiSlice gives it. The file is read once, in its own order. max_pixels limits a slice, max_stack_pixels (> 0) the
+// stack (StackTooLargeError, before the voxels are read). The window is not set.
+LoadedStack ExtractNiftiStack(const std::string& path, SliceOrientation orientation, int64_t volume, const StorageChoice& storage,
+    int64_t max_pixels = 0, int64_t max_stack_pixels = 0);
+
 // A NIfTI file holding a single 2D image (one slice and one volume); std::invalid_argument for volumes, which need a
 // slice to be chosen (InspectNiftiVolume and ExtractNiftiSlice)
 LoadedImage LoadNiftiFile(const std::string& path, int64_t max_pixels = 0);

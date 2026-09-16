@@ -104,6 +104,16 @@ export type CatalogResponse = Static<typeof CatalogResponse>;
 
 export const IMAGE_ID_PATTERN = '^img_[0-9a-f]{32}$';
 
+/** The largest number of slices of a stack (glcm::MAX_SLICES) */
+export const MAX_SLICES = 100_000;
+
+/** A slice of a stack, from 1 (ImageJ's numbering) */
+export const Slice = Type.Integer({ minimum: 1, maximum: MAX_SLICES, description: 'Slice of a stack, from 1; default 1' });
+
+/** The optional slice of a query of an image */
+export const SliceQuery = Type.Object({ slice: Type.Optional(Slice) });
+export type SliceQuery = Static<typeof SliceQuery>;
+
 export const ImageIdParams = Type.Object({
   id: Type.String({ pattern: IMAGE_ID_PATTERN, description: 'Image id returned by POST /images' }),
 });
@@ -136,25 +146,33 @@ export const ImageInfo = Type.Object({
   width: Type.Integer(),
   height: Type.Integer(),
   bitDepth: Type.Union([Type.Literal(8), Type.Literal(16)]),
+  slices: Type.Integer({
+    minimum: 1,
+    maximum: MAX_SLICES,
+    description: 'Slices of a stack (TIFF pages, DICOM frames or series files, NIfTI slices), each width × height; 1 for a single image',
+  }),
   sourceChannels: Type.Integer({ description: 'Channels before grayscale conversion (1 or 3)' }),
   pixelSpacing: Type.Union([PixelSpacing, Type.Null()], {
     description:
       "From the file's metadata (PNG pHYs, JPEG JFIF, BMP, TIFF resolution, DICOM PixelSpacing or ImagerPixelSpacing, NIfTI voxel size); null when the file has none, or only the 72/96 dpi default of image editors",
   }),
   valueConversion: Type.Optional(Type.Unsafe<ValueConversion>({ ...ValueConversion, description: 'Absent when the stored samples are the file\'s values' })),
-  sha256: Type.String({ description: 'SHA-256 of the uploaded file (hex)' }),
+  sha256: Type.String({
+    description: 'SHA-256 of the uploaded file (hex); for a stack made from a NIfTI volume or a DICOM series, of the TIFF that stands for it',
+  }),
   transfer: Type.Union([Type.Literal('raw'), Type.Literal('server')], {
     description: '"raw": GET /raw is available and the browser renders the image; "server": use display.png and /pixel',
   }),
-  windowMin: Type.Integer({ description: "Default display window: 0.5th percentile, or the DICOM file's WindowCenter/WindowWidth" }),
-  windowMax: Type.Integer({ description: 'Default display window: 99.5th percentile' }),
-  histogram: Type.Array(Type.Integer(), { minItems: 256, maxItems: 256, description: '256 equal bins over 0-255 or 0-65535' }),
+  windowMin: Type.Integer({ description: "Default display window: 0.5th percentile of all slices, or the DICOM file's WindowCenter/WindowWidth" }),
+  windowMax: Type.Integer({ description: 'Default display window: 99.5th percentile of all slices' }),
+  histogram: Type.Array(Type.Integer(), { minItems: 256, maxItems: 256, description: '256 equal bins over 0-255 or 0-65535, over all slices' }),
   warnings: Type.Array(Type.String()),
   createdAt: Type.String({ format: 'date-time' }),
 });
 export type ImageInfo = Static<typeof ImageInfo>;
 
 export const DisplayQuery = Type.Object({
+  slice: Type.Optional(Slice),
   min: Type.Optional(Type.Integer({ minimum: 0, maximum: 65535, description: 'Window minimum; default windowMin' })),
   max: Type.Optional(Type.Integer({ minimum: 0, maximum: 65535, description: 'Window maximum; default windowMax' })),
   maxSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 16384, description: 'Largest long side; capped by the server limit' })),
@@ -168,6 +186,7 @@ export const MAX_EDGE_SIGMA = 10;
 const EdgeSigma = Type.Number({ minimum: 0, maximum: MAX_EDGE_SIGMA, description: 'Gaussian smoothing before the derivatives, in pixels (0: none)' });
 
 export const EdgeMapQuery = Type.Object({
+  slice: Type.Optional(Slice),
   method: EdgeMethod,
   sigma: EdgeSigma,
   low: Type.Number({ minimum: 0, description: 'sobel: gradient magnitude shown black; canny: lower hysteresis threshold' }),
@@ -176,7 +195,7 @@ export const EdgeMapQuery = Type.Object({
 });
 export type EdgeMapQuery = Static<typeof EdgeMapQuery>;
 
-export const GradientStatsQuery = Type.Object({ sigma: EdgeSigma });
+export const GradientStatsQuery = Type.Object({ sigma: EdgeSigma, slice: Type.Optional(Slice) });
 export type GradientStatsQuery = Static<typeof GradientStatsQuery>;
 
 export const GradientStatsResponse = Type.Object({
@@ -192,6 +211,7 @@ export type GradientStatsResponse = Static<typeof GradientStatsResponse>;
 export const PixelQuery = Type.Object({
   x: Type.Integer({ minimum: 0 }),
   y: Type.Integer({ minimum: 0 }),
+  slice: Type.Optional(Slice),
 });
 export type PixelQuery = Static<typeof PixelQuery>;
 

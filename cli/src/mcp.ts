@@ -37,7 +37,7 @@ const RECTANGLE = z.object({
 
 function describe(image: ImageInfo, reused: boolean): string {
   const lines = [
-    `${image.name} — ${image.width} × ${image.height} px, ${image.bitDepth}-bit`,
+    `${image.name} — ${image.width} × ${image.height} px${image.slices > 1 ? ` × ${image.slices} slices (a stack; slices count from 1)` : ''}, ${image.bitDepth}-bit`,
     `image id: ${image.imageId}`,
     `display window: ${image.windowMin} – ${image.windowMax}`,
     image.pixelSpacing ? `pixel spacing: ${number(image.pixelSpacing.x)} × ${number(image.pixelSpacing.y)} mm` : 'pixel spacing: not set',
@@ -68,11 +68,14 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
     rois: string | undefined,
     rectangles: z.infer<typeof RECTANGLE>[] | undefined,
     warn: (message: string) => void,
+    slice: number | undefined,
   ): Promise<Roi[]> => {
     if (rectangles && rectangles.length > 0) {
+      const onSlice = slice ?? ((image.slices ?? 1) > 1 ? 1 : undefined);
       return rectangles.map((rectangle, index) => ({
         id: `rect${index + 1}`,
         name: rectangle.name ?? `ROI ${index + 1}`,
+        ...(onSlice !== undefined ? { slice: onSlice } : {}),
         shape: { type: 'rectangle' as const, x: rectangle.x, y: rectangle.y, width: rectangle.width, height: rectangle.height },
       }));
     }
@@ -83,7 +86,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
       }
       return readRois(rois, warn);
     }
-    return [operations.wholeImageRoi(image)];
+    return operations.wholeImageRois(image, slice);
   };
 
   server.registerTool(
@@ -152,19 +155,20 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         kind: z.enum(['display', 'edges']).optional().describe('display (default) or edges'),
         min: z.number().optional().describe('Display window minimum; the image default is used otherwise'),
         max: z.number().optional(),
+        slice: z.number().int().min(1).optional().describe('Slice of a stack, from 1 (default 1)'),
       },
     },
-    async ({ image, kind, min, max }) => {
+    async ({ image, kind, min, max, slice }) => {
       try {
         const client = await dependencies.client();
         const { info } = await openImageTarget(client, image);
         const query =
           kind === 'edges'
-            ? { method: 'canny', sigma: 1.4, low: 0, high: 0, maxSize: VIEW_MAX_SIZE }
-            : { min: min ?? info.windowMin, max: max ?? info.windowMax, maxSize: VIEW_MAX_SIZE };
+            ? { method: 'canny', sigma: 1.4, low: 0, high: 0, maxSize: VIEW_MAX_SIZE, slice }
+            : { min: min ?? info.windowMin, max: max ?? info.windowMax, maxSize: VIEW_MAX_SIZE, slice };
         if (kind === 'edges') {
           const stats = requireOk(
-            await client.request('GET', `/images/${info.imageId}/gradient-stats`, { query: { sigma: 1.4 } }),
+            await client.request('GET', `/images/${info.imageId}/gradient-stats`, { query: { sigma: 1.4, ...(slice !== undefined ? { slice } : {}) } }),
             'The gradient statistics could not be read',
           ).json<{ percentiles: Record<string, number> }>();
           query.high = stats.percentiles['95'];
@@ -176,7 +180,10 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         );
         return {
           content: [
-            { type: 'text', text: `${info.name}, ${kind === 'edges' ? 'edge map' : `window ${query.min ?? info.windowMin} – ${query.max ?? info.windowMax}`}` },
+            {
+              type: 'text',
+              text: `${info.name}${info.slices > 1 ? `, slice ${slice ?? 1} of ${info.slices}` : ''}, ${kind === 'edges' ? 'edge map' : `window ${query.min ?? info.windowMin} – ${query.max ?? info.windowMax}`}`,
+            },
             { type: 'image', data: Buffer.from(picture.body).toString('base64'), mimeType: 'image/png' },
           ],
         };
@@ -208,14 +215,22 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         at: z.object({ x: z.number(), y: z.number() }).optional().describe('Select the one region around this pixel instead'),
         tolerance: z.number().optional().describe('How far a value may differ from the pixel at "at" (default 5 % of the window)'),
         saveTo: z.string().optional().describe('Write the regions as an ROI set file as well; a name ending in .zip writes a RoiSet.zip for ImageJ'),
+        slice: z.number().int().min(1).optional().describe('Slice of a stack, from 1 (default 1)'),
       },
     },
-    async ({ image, min, max, minPixels, maxPixels, minSphericity, maxRegions, at, tolerance, saveTo }) => {
+    async ({ image, min, max, minPixels, maxPixels, minSphericity, maxRegions, at, tolerance, saveTo, slice }) => {
       try {
         const client = await dependencies.client();
         const { info } = await openImageTarget(client, image);
         const regions = at
-          ? [await operations.selectRegionAt(client, info.imageId, { x: at.x, y: at.y, tolerance: tolerance ?? Math.round((info.windowMax - info.windowMin) * 0.05) })]
+          ? [
+              await operations.selectRegionAt(client, info.imageId, {
+                x: at.x,
+                y: at.y,
+                tolerance: tolerance ?? Math.round((info.windowMax - info.windowMin) * 0.05),
+                ...(slice !== undefined ? { slice } : {}),
+              }),
+            ]
               .filter((region) => region !== null)
               .map((region) => region!)
           : (
@@ -226,12 +241,13 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
                 maxRegions: maxRegions ?? 10,
                 ...(maxPixels !== undefined ? { maxPixels } : {}),
                 ...(minSphericity !== undefined ? { minSphericity } : {}),
+                ...(slice !== undefined ? { slice } : {}),
               })
             ).regions;
         if (regions.length === 0) {
           return asText('No region matched. Widen the intensity range or lower minPixels.');
         }
-        const document = operations.roiSetOf(info, regions);
+        const document = operations.roiSetOf(info, regions, 'Region', slice ?? 1);
         const id = `regions_${nextRegionSet++}`;
         regionSets.set(id, { rois: document.rois as Roi[], imageId: info.imageId });
         if (saveTo) {
@@ -267,9 +283,15 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         distances: z.array(z.number()).optional(),
         maxRows: z.number().optional().describe(`Rows of the table to return (default ${DEFAULT_MAX_ROWS})`),
         saveTo: z.string().optional().describe('Write the full results as a CSV file'),
+        slice: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe('For a stack: the slice (from 1) of the rectangles or of the whole image; without regions every slice is measured whole'),
       },
     },
-    async ({ image, rois, rectangles, preset, features, grayLevels, distances, maxRows, saveTo }) => {
+    async ({ image, rois, rectangles, preset, features, grayLevels, distances, maxRows, saveTo, slice }) => {
       try {
         const client = await dependencies.client();
         const catalog = await operations.getCatalog(client);
@@ -287,7 +309,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
           return asText(`These settings cannot be used: ${issues.errors.join(' ')}`);
         }
         const fileWarnings: string[] = [];
-        const roiList = await resolveRois(info, rois, rectangles, (message) => fileWarnings.push(message));
+        const roiList = await resolveRois(info, rois, rectangles, (message) => fileWarnings.push(message), slice);
         const measurement = await operations.measure(client, { imageId: info.imageId, rois: roiList, settings });
         if (saveTo) {
           await fs.writeFile(saveTo, measurement.csv);
@@ -298,7 +320,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         const shown = results.slice(0, limit);
         const featureIds = settings.features.filter((id) => shown.some((result) => result.values[id] !== undefined));
         const rows = shown.map((result) => [
-          result.roiName,
+          result.slice !== undefined ? `${result.roiName} (slice ${result.slice})` : result.roiName,
           String(result.distance),
           result.pixelCount.toLocaleString(),
           ...featureIds.map((id) => (result.values[id]?.mean === undefined ? '' : number(result.values[id].mean!, 4))),
@@ -329,24 +351,30 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         feature: z.string().describe('A co-occurrence feature id, e.g. Contrast'),
         window: z.number().optional().describe('Odd window side in pixels (default 31)'),
         saveTo: z.string().optional().describe('Write the values as a 32-bit floating point TIFF'),
+        slice: z.number().int().min(1).optional().describe('Slice of a stack, from 1 (default 1)'),
       },
     },
-    async ({ image, feature, window, saveTo }) => {
+    async ({ image, feature, window, saveTo, slice }) => {
       try {
         const client = await dependencies.client();
         const catalog = await operations.getCatalog(client);
         const { info } = await openImageTarget(client, image);
         const settings = operations.buildSettings(catalog, info.bitDepth, {});
-        const map = await operations.computeFeatureMap(client, info.imageId, {
-          feature,
-          window: window ?? 31,
-          step: null,
-          grayLevels: settings.grayLevels,
-          quantization: settings.quantization,
-          distance: settings.distances[0],
-          directions: settings.directions,
-          logBase: settings.logBase,
-        });
+        const map = await operations.computeFeatureMap(
+          client,
+          info.imageId,
+          {
+            feature,
+            window: window ?? 31,
+            step: null,
+            grayLevels: settings.grayLevels,
+            quantization: settings.quantization,
+            distance: settings.distances[0],
+            directions: settings.directions,
+            logBase: settings.logBase,
+          },
+          slice,
+        );
         const range = operations.valueRange(map.values);
         if (saveTo) {
           const { encodeFloat32Tiff } = await import('@glcm/api');

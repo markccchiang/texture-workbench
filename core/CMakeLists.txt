@@ -76,6 +76,7 @@ if (GLCM_BUILD_TESTS)
                 tests/ImagingTest.cpp
                 tests/IoTest.cpp
                 tests/MedicalImageTest.cpp
+                tests/StackTest.cpp
                 tests/PipelineTest.cpp
                 tests/RegionSelectionTest.cpp
                 tests/RoiClassTest.cpp

@@ -35,6 +35,7 @@ import {
   type VolumeInfo,
   type VolumePreviewQuery,
   type VolumeSliceRequest,
+  type VolumeStackRequest,
 } from '@glcm/api';
 import { fileNameFromDisposition } from '../files/download';
 import { decodeRawSamples, rawFormatFromHeaders, type RawImage } from '../image/raw';
@@ -100,9 +101,14 @@ export function getImageInfo(imageId: string, signal?: AbortSignal): Promise<Ima
   return getJson(`${API_PREFIX}/images/${imageId}`, signal);
 }
 
-/** Uploads with XMLHttpRequest, which (unlike fetch) reports upload progress */
 /** Multipart upload with progress (XHR: fetch cannot report upload progress) */
 function uploadFile<T>(url: string, file: File, onProgress?: ProgressCallback, signal?: AbortSignal): Promise<T> {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  return uploadForm(url, form, onProgress, signal);
+}
+
+function uploadForm<T>(url: string, form: FormData, onProgress?: ProgressCallback, signal?: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open('POST', url);
@@ -132,14 +138,22 @@ function uploadFile<T>(url: string, file: File, onProgress?: ProgressCallback, s
     request.onabort = () => reject(new DOMException('The upload was cancelled', 'AbortError'));
     signal?.addEventListener('abort', () => request.abort(), { once: true });
 
-    const form = new FormData();
-    form.append('file', file, file.name);
     request.send(form);
   });
 }
 
 export function uploadImage(file: File, onProgress?: ProgressCallback, signal?: AbortSignal): Promise<ImageInfo> {
   return uploadFile(`${API_PREFIX}/images`, file, onProgress, signal);
+}
+
+/** Uploads the files of a DICOM series, which the server opens as one stack */
+export function uploadDicomSeries(files: readonly File[], name: string, onProgress?: ProgressCallback, signal?: AbortSignal): Promise<ImageInfo> {
+  const form = new FormData();
+  form.append('name', name);
+  for (const file of files) {
+    form.append('file', file, file.name);
+  }
+  return uploadForm(`${API_PREFIX}/images/series`, form, onProgress, signal);
 }
 
 /** Uploads a NIfTI volume (.nii, .nii.gz), kept on the server until deleteVolume */
@@ -157,6 +171,11 @@ export async function fetchVolumePreview(volumeId: string, query: VolumePreviewQ
     throw await errorFromResponse(response);
   }
   return response.blob();
+}
+
+/** Stores every slice of a volume in one orientation as a stack image */
+export function openVolumeStackImage(volumeId: string, request: VolumeStackRequest, signal?: AbortSignal): Promise<ImageInfo> {
+  return sendJson('POST', `${API_PREFIX}/volumes/${volumeId}/stack`, request, signal);
 }
 
 /** Stores one slice of a volume as an image */
@@ -182,8 +201,8 @@ export async function deleteImage(imageId: string): Promise<void> {
  * Downloads the raw samples of an image with transfer "raw". Progress counts decoded bytes against the size implied
  * by the image info, because Content-Length is the compressed size.
  */
-export async function fetchRawImage(info: ImageInfo, onProgress?: ProgressCallback, signal?: AbortSignal): Promise<RawImage> {
-  const response = await apiFetch(`${API_PREFIX}/images/${info.imageId}/raw`, { signal });
+export async function fetchRawImage(info: ImageInfo, onProgress?: ProgressCallback, signal?: AbortSignal, slice = 1): Promise<RawImage> {
+  const response = await apiFetch(`${API_PREFIX}/images/${info.imageId}/raw${slice > 1 ? `?slice=${slice}` : ''}`, { signal });
   if (!response.ok) {
     throw await errorFromResponse(response);
   }
@@ -219,10 +238,15 @@ export interface DisplayOptions {
   min: number;
   max: number;
   maxSize?: number;
+  /** Slice of a stack, from 1 */
+  slice?: number;
 }
 
-export function displayUrl(imageId: string, { min, max, maxSize }: DisplayOptions): string {
+export function displayUrl(imageId: string, { min, max, maxSize, slice }: DisplayOptions): string {
   const query = new URLSearchParams({ min: String(min), max: String(max) });
+  if (slice !== undefined && slice > 1) {
+    query.set('slice', String(slice));
+  }
   if (maxSize !== undefined) {
     query.set('maxSize', String(maxSize));
   }
@@ -237,8 +261,8 @@ export async function fetchDisplayBlob(imageId: string, options: DisplayOptions,
   return response.blob();
 }
 
-export function getPixel(imageId: string, x: number, y: number, signal?: AbortSignal): Promise<PixelResponse> {
-  return getJson(`${API_PREFIX}/images/${imageId}/pixel?x=${x}&y=${y}`, signal);
+export function getPixel(imageId: string, x: number, y: number, signal?: AbortSignal, slice = 1): Promise<PixelResponse> {
+  return getJson(`${API_PREFIX}/images/${imageId}/pixel?x=${x}&y=${y}${slice > 1 ? `&slice=${slice}` : ''}`, signal);
 }
 
 async function sendJson<T>(method: 'POST' | 'DELETE', url: string, body?: unknown, signal?: AbortSignal): Promise<T> {
@@ -289,6 +313,9 @@ export async function fetchEdgeMap(imageId: string, query: EdgeMapQuery, signal?
   if (query.maxSize !== undefined) {
     parameters.set('maxSize', String(query.maxSize));
   }
+  if (query.slice !== undefined && query.slice > 1) {
+    parameters.set('slice', String(query.slice));
+  }
   const response = await apiFetch(`${API_PREFIX}/images/${imageId}/edges.png?${parameters}`, { signal });
   if (!response.ok) {
     throw await errorFromResponse(response);
@@ -296,8 +323,8 @@ export async function fetchEdgeMap(imageId: string, query: EdgeMapQuery, signal?
   return response.blob();
 }
 
-export function getGradientStats(imageId: string, sigma: number, signal?: AbortSignal): Promise<GradientStatsResponse> {
-  return getJson(`${API_PREFIX}/images/${imageId}/gradient-stats?sigma=${sigma}`, signal);
+export function getGradientStats(imageId: string, sigma: number, signal?: AbortSignal, slice = 1): Promise<GradientStatsResponse> {
+  return getJson(`${API_PREFIX}/images/${imageId}/gradient-stats?sigma=${sigma}${slice > 1 ? `&slice=${slice}` : ''}`, signal);
 }
 
 /** Livewire path between two pixels along strong edges */

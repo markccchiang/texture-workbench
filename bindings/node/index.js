@@ -10,6 +10,8 @@ export const {
   decodeImageFile,
   inspectNiftiVolume,
   extractNiftiSlice,
+  extractNiftiStack,
+  decodeDicomSeries,
   renderDisplay,
   roiStats,
   validateAnalysis,

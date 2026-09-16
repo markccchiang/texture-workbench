@@ -502,3 +502,13 @@ body,
   top: 50%;
   transform: translateY(-50%);
 }
+
+/* The slice slider of a stack, below the image */
+.slice-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-top: 1px solid var(--mantine-color-default-border);
+  background: var(--mantine-color-body);
+}

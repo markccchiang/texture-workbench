@@ -18,27 +18,33 @@ export function useDisplaySource(): void {
   const windowRange = useViewer((state) => state.window);
   const colorTable = useViewer((state) => state.colorTable);
   const useWebGl = usePreferences((state) => state.useWebGl);
-  const [renderer, setRenderer] = useState<ImageRenderer | null>(null);
+  // The renderer with the image it was made for: until the effect below replaces it, the renderer of the previous image
+  // must not receive the samples of the next one, which may have another size
+  const [current, setRenderer] = useState<{ renderer: ImageRenderer; imageId: string } | null>(null);
   const [rendererFailed, setRendererFailed] = useState(false);
   // The image whose WebGL context was lost (GPU reset, driver update, too many contexts). It is rendered with the
   // lookup table from then on; the next image tries WebGL again.
-  const [contextLostImage, setContextLostImage] = useState<typeof image>(null);
-  const webGlLost = image !== null && contextLostImage === image;
+  const [contextLostImage, setContextLostImage] = useState<string | null>(null);
+  const imageId = image?.info.imageId ?? null;
+  const webGlLost = imageId !== null && contextLostImage === imageId;
+  const hasRaw = image?.raw != null;
+  const slice = image?.slice ?? 1;
 
-  // One renderer per raw image
+  // One renderer per image with raw samples; the slices of a stack replace its samples
   useEffect(() => {
     setRendererFailed(false);
-    if (!image?.raw) {
+    const raw = useViewer.getState().image?.raw;
+    if (!hasRaw || !raw) {
       setRenderer(null);
       return;
     }
     let created: ImageRenderer;
     try {
-      created = createRenderer(image.raw, {
+      created = createRenderer(raw, {
         allowWebGl: useWebGl && !webGlLost,
         onContextLost: () => {
           console.warn('The WebGL context was lost; using the lookup-table renderer');
-          setContextLostImage(image);
+          setContextLostImage(imageId);
         },
       });
     } catch (error) {
@@ -47,26 +53,29 @@ export function useDisplaySource(): void {
       setRendererFailed(true);
       return;
     }
-    setRenderer(created);
+    setRenderer({ renderer: created, imageId: imageId! });
     return () => {
       if (useViewer.getState().displaySource === created.canvas) {
         useViewer.getState().setDisplaySource(null, null);
       }
       created.dispose();
     };
-  }, [image, useWebGl, webGlLost]);
+  }, [imageId, hasRaw, useWebGl, webGlLost]);
 
-  // Redraw at most once per frame when the window or the colour table changes
+  // Redraw at most once per frame when the window, the colour table or the slice changes
+  const raw = image?.raw ?? null;
+  const renderer = current?.imageId === imageId ? current.renderer : null;
   useEffect(() => {
-    if (!renderer) {
+    if (!renderer || !raw) {
       return;
     }
+    renderer.setSamples(raw);
     const frame = requestAnimationFrame(() => {
       renderer.render(windowRange.min, windowRange.max, colorTableById(colorTable).rgb);
       useViewer.getState().setDisplaySource(renderer.canvas, renderer.kind);
     });
     return () => cancelAnimationFrame(frame);
-  }, [renderer, windowRange, colorTable]);
+  }, [renderer, raw, windowRange, colorTable]);
 
   // display.png for images without raw samples
   const serverRendering = image !== null && (image.raw === null || rendererFailed);
@@ -74,16 +83,15 @@ export function useDisplaySource(): void {
     if (!image || !serverRendering) {
       return;
     }
-    const { imageId } = image.info;
     const { min, max } = windowRange;
-    const key = `${imageId}:${min}:${max}`;
+    const key = `${image.info.imageId}:${slice}:${min}:${max}`;
     const controller = new AbortController();
 
     // display.png is gray; other colour tables are applied in the browser, so the server rendering stays the same
     const show = (url: string) => {
       const element = new Image();
       element.onload = () => {
-        if (controller.signal.aborted || useViewer.getState().image !== image) {
+        if (controller.signal.aborted || useViewer.getState().image?.info.imageId !== image.info.imageId || useViewer.getState().image?.slice !== image.slice) {
           return;
         }
         const table = colorTableById(colorTable);
@@ -114,7 +122,7 @@ export function useDisplaySource(): void {
     const delay = useViewer.getState().displaySource ? DISPLAY_DEBOUNCE_MS : 0;
     const timer = window.setTimeout(async () => {
       try {
-        const blob = await fetchDisplayBlob(imageId, { min, max }, controller.signal);
+        const blob = await fetchDisplayBlob(image.info.imageId, { min, max, slice }, controller.signal);
         show(displayUrls.set(key, blob));
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -126,5 +134,5 @@ export function useDisplaySource(): void {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [image, serverRendering, windowRange, colorTable]);
+  }, [image, slice, serverRendering, windowRange, colorTable]);
 }

@@ -84,6 +84,19 @@ export function wholeImageRoi(info: ImageInfo): Roi {
   return { id: 'whole', name: 'Whole image', shape: { type: 'rectangle', x: 0, y: 0, width: info.width, height: info.height } };
 }
 
+/** The whole image; for a stack, the whole of every slice, or of one slice (from 1) */
+export function wholeImageRois(info: ImageInfo, slice?: number): Roi[] {
+  const slices = info.slices ?? 1;
+  if (slice !== undefined && (slice < 1 || slice > slices)) {
+    throw new ApiError(0, 'BadOption', `${info.name} has ${slices} ${slices === 1 ? 'slice' : 'slices'}; slice ${slice} does not exist`);
+  }
+  if (slices <= 1) {
+    return [wholeImageRoi(info)];
+  }
+  const chosen = slice !== undefined ? [slice] : Array.from({ length: slices }, (_, i) => i + 1);
+  return chosen.map((n) => ({ ...wholeImageRoi(info), id: `whole-${n}`, name: `Whole slice ${n}`, slice: n }));
+}
+
 /** The ROIs of an ROI set, a project or a bare array, as parsed JSON */
 export function roisFromDocument(document: unknown, what = 'The ROIs'): Roi[] {
   const rois = Array.isArray(document) ? document : ((document as { rois?: unknown } | null)?.rois ?? null);
@@ -100,6 +113,7 @@ export function roisFromDocument(document: unknown, what = 'The ROIs'): Roi[] {
       name: entry.name ?? `ROI ${index + 1}`,
       ...(entry.color ? { color: entry.color } : {}),
       ...(entry.class ? { class: entry.class } : {}),
+      ...(entry.slice !== undefined ? { slice: entry.slice } : {}),
       shape: entry.shape,
     };
   });
@@ -225,26 +239,39 @@ export interface RegionResult {
 export async function selectThresholdRegions(
   client: ApiClient,
   imageId: string,
-  query: { min: number; max: number; minPixels: number; maxRegions: number; maxPixels?: number; minSphericity?: number },
+  query: { min: number; max: number; minPixels: number; maxRegions: number; maxPixels?: number; minSphericity?: number; slice?: number },
 ): Promise<{ regions: RegionResult[]; total: number }> {
   const result = requireOk(await client.request('POST', `/images/${imageId}/threshold-rois`, { json: query }), 'The regions could not be selected');
   return result.json<{ regions: RegionResult[]; total: number }>();
 }
 
-export async function selectRegionAt(client: ApiClient, imageId: string, query: { x: number; y: number; tolerance: number }): Promise<RegionResult | null> {
+export async function selectRegionAt(
+  client: ApiClient,
+  imageId: string,
+  query: { x: number; y: number; tolerance: number; slice?: number },
+): Promise<RegionResult | null> {
   const result = requireOk(await client.request('POST', `/images/${imageId}/wand-roi`, { json: query }), 'The region could not be selected');
   return result.json<{ region: RegionResult | null }>().region;
 }
 
-/** The regions as an ROI set, the format the app reads and writes */
-export function roiSetOf(image: ImageInfo, regions: readonly RegionResult[], namePrefix = 'Region'): RoiSetDocument {
+/** The regions as an ROI set, the format the app reads and writes; on a stack, the regions of one slice (from 1) */
+export function roiSetOf(image: ImageInfo, regions: readonly RegionResult[], namePrefix = 'Region', slice = 1): RoiSetDocument {
+  const stack = (image.slices ?? 1) > 1;
   return {
     format: 'glcm-roi-set',
     version: 1,
-    image: { name: image.name, width: image.width, height: image.height, bitDepth: image.bitDepth, sha256: image.sha256 },
+    image: {
+      name: image.name,
+      width: image.width,
+      height: image.height,
+      bitDepth: image.bitDepth,
+      ...(stack ? { slices: image.slices } : {}),
+      sha256: image.sha256,
+    },
     rois: regions.map((region, index) => ({
       id: `region${index + 1}`,
       name: `${namePrefix} ${index + 1}`,
+      ...(stack ? { slice } : {}),
       shape: { type: 'polygon', points: region.points },
     })),
   };
@@ -279,8 +306,11 @@ export interface FeatureMapResult {
 }
 
 /** Starts a feature map, waits for it and reads its values */
-export async function computeFeatureMap(client: ApiClient, imageId: string, settings: Record<string, unknown>): Promise<FeatureMapResult> {
-  let info = requireOk(await client.request('POST', '/feature-maps', { json: { imageId, settings } }), 'The feature map was refused').json<FeatureMapInfo>();
+export async function computeFeatureMap(client: ApiClient, imageId: string, settings: Record<string, unknown>, slice?: number): Promise<FeatureMapResult> {
+  let info = requireOk(
+    await client.request('POST', '/feature-maps', { json: { imageId, settings, ...(slice !== undefined ? { slice } : {}) } }),
+    'The feature map was refused',
+  ).json<FeatureMapInfo>();
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   while (info.status === 'queued' || info.status === 'running') {
     if (Date.now() > deadline) {

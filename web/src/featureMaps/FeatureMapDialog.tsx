@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { CATALOG_QUERY } from '../api/queryClient';
 import { useAnalysisSettings } from '../analysis/settingsStore';
-import { useViewer } from '../stores/viewerStore';
+import { useViewer, sliceField } from '../stores/viewerStore';
 import { useFeatureMap } from './featureMapStore';
 import {
   automaticStep,
@@ -61,7 +61,9 @@ export function FeatureMapContent({ onClose }: { onClose(): void }) {
   const compute = async () => {
     setStarting(true);
     try {
-      await useFeatureMap.getState().start({ imageId: image.info.imageId, settings: buildFeatureMapSettings(settings, choice) }, choice);
+      await useFeatureMap
+        .getState()
+        .start({ imageId: image.info.imageId, ...sliceField(image.slice ?? 1), settings: buildFeatureMapSettings(settings, choice) }, choice);
       onClose();
     } catch (error) {
       notifications.show({ color: 'red', title: 'Could not start the feature map', message: (error as Error).message });

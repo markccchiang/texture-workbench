@@ -363,7 +363,7 @@
         "tags": [
           "images"
         ],
-        "description": "multipart/form-data with one file field. PNG, JPEG, BMP, 8/16-bit TIFF, uncompressed DICOM (first frame) and 2D NIfTI are decoded on the server; color images are converted to grayscale. Upload NIfTI volumes to POST /volumes.",
+        "description": "multipart/form-data with one file field. PNG, JPEG, BMP, 8/16-bit TIFF, uncompressed DICOM and 2D NIfTI are decoded on the server; color images are converted to grayscale. The pages of a multi-page TIFF and the frames of a DICOM file become the slices of a stack. Upload NIfTI volumes to POST /volumes and DICOM series to POST /images/series.",
         "responses": {
           "201": {
             "description": "Default Response",
@@ -378,6 +378,7 @@
                     "width",
                     "height",
                     "bitDepth",
+                    "slices",
                     "sourceChannels",
                     "pixelSpacing",
                     "sha256",
@@ -422,6 +423,12 @@
                           ]
                         }
                       ]
+                    },
+                    "slices": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100000,
+                      "description": "Slices of a stack (TIFF pages, DICOM frames or series files, NIfTI slices), each width × height; 1 for a single image"
                     },
                     "sourceChannels": {
                       "type": "integer",
@@ -486,7 +493,7 @@
                     },
                     "sha256": {
                       "type": "string",
-                      "description": "SHA-256 of the uploaded file (hex)"
+                      "description": "SHA-256 of the uploaded file (hex); for a stack made from a NIfTI volume or a DICOM series, of the TIFF that stands for it"
                     },
                     "transfer": {
                       "anyOf": [
@@ -507,11 +514,11 @@
                     },
                     "windowMin": {
                       "type": "integer",
-                      "description": "Default display window: 0.5th percentile, or the DICOM file's WindowCenter/WindowWidth"
+                      "description": "Default display window: 0.5th percentile of all slices, or the DICOM file's WindowCenter/WindowWidth"
                     },
                     "windowMax": {
                       "type": "integer",
-                      "description": "Default display window: 99.5th percentile"
+                      "description": "Default display window: 99.5th percentile of all slices"
                     },
                     "histogram": {
                       "type": "array",
@@ -520,7 +527,7 @@
                       },
                       "minItems": 256,
                       "maxItems": 256,
-                      "description": "256 equal bins over 0-255 or 0-65535"
+                      "description": "256 equal bins over 0-255 or 0-65535, over all slices"
                     },
                     "warnings": {
                       "type": "array",
@@ -679,6 +686,7 @@
                           "width",
                           "height",
                           "bitDepth",
+                          "slices",
                           "sourceChannels",
                           "pixelSpacing",
                           "sha256",
@@ -723,6 +731,12 @@
                                 ]
                               }
                             ]
+                          },
+                          "slices": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000,
+                            "description": "Slices of a stack (TIFF pages, DICOM frames or series files, NIfTI slices), each width × height; 1 for a single image"
                           },
                           "sourceChannels": {
                             "type": "integer",
@@ -787,7 +801,7 @@
                           },
                           "sha256": {
                             "type": "string",
-                            "description": "SHA-256 of the uploaded file (hex)"
+                            "description": "SHA-256 of the uploaded file (hex); for a stack made from a NIfTI volume or a DICOM series, of the TIFF that stands for it"
                           },
                           "transfer": {
                             "anyOf": [
@@ -808,11 +822,11 @@
                           },
                           "windowMin": {
                             "type": "integer",
-                            "description": "Default display window: 0.5th percentile, or the DICOM file's WindowCenter/WindowWidth"
+                            "description": "Default display window: 0.5th percentile of all slices, or the DICOM file's WindowCenter/WindowWidth"
                           },
                           "windowMax": {
                             "type": "integer",
-                            "description": "Default display window: 99.5th percentile"
+                            "description": "Default display window: 99.5th percentile of all slices"
                           },
                           "histogram": {
                             "type": "array",
@@ -821,7 +835,7 @@
                             },
                             "minItems": 256,
                             "maxItems": 256,
-                            "description": "256 equal bins over 0-255 or 0-65535"
+                            "description": "256 equal bins over 0-255 or 0-65535, over all slices"
                           },
                           "warnings": {
                             "type": "array",
@@ -870,26 +884,15 @@
         }
       }
     },
-    "/api/v1/images/{id}": {
-      "get": {
-        "summary": "Image metadata",
+    "/api/v1/images/series": {
+      "post": {
+        "summary": "Upload a DICOM series as a stack",
         "tags": [
           "images"
         ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "pattern": "^img_[0-9a-f]{32}$"
-            },
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "description": "Image id returned by POST /images"
-          }
-        ],
+        "description": "multipart/form-data with the files of a DICOM series (single-frame images) in file fields, and optionally a name field. Files that are not DICOM images are left out, only the series with the most files is used, and the slices are ordered along the image normal (ImagePositionPatient and ImageOrientationPatient), else by InstanceNumber, else by file name. The values of all files are stored alike. The image's original file is an uncompressed multi-page TIFF of the slices, whose SHA-256 identifies the image.",
         "responses": {
-          "200": {
+          "201": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -902,6 +905,7 @@
                     "width",
                     "height",
                     "bitDepth",
+                    "slices",
                     "sourceChannels",
                     "pixelSpacing",
                     "sha256",
@@ -946,6 +950,12 @@
                           ]
                         }
                       ]
+                    },
+                    "slices": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100000,
+                      "description": "Slices of a stack (TIFF pages, DICOM frames or series files, NIfTI slices), each width × height; 1 for a single image"
                     },
                     "sourceChannels": {
                       "type": "integer",
@@ -1010,7 +1020,7 @@
                     },
                     "sha256": {
                       "type": "string",
-                      "description": "SHA-256 of the uploaded file (hex)"
+                      "description": "SHA-256 of the uploaded file (hex); for a stack made from a NIfTI volume or a DICOM series, of the TIFF that stands for it"
                     },
                     "transfer": {
                       "anyOf": [
@@ -1031,11 +1041,11 @@
                     },
                     "windowMin": {
                       "type": "integer",
-                      "description": "Default display window: 0.5th percentile, or the DICOM file's WindowCenter/WindowWidth"
+                      "description": "Default display window: 0.5th percentile of all slices, or the DICOM file's WindowCenter/WindowWidth"
                     },
                     "windowMax": {
                       "type": "integer",
-                      "description": "Default display window: 99.5th percentile"
+                      "description": "Default display window: 99.5th percentile of all slices"
                     },
                     "histogram": {
                       "type": "array",
@@ -1044,7 +1054,308 @@
                       },
                       "minItems": 256,
                       "maxItems": 256,
-                      "description": "256 equal bins over 0-255 or 0-65535"
+                      "description": "256 equal bins over 0-255 or 0-65535, over all slices"
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error returned by every endpoint for 4xx and 5xx responses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error code, e.g. \"NotFound\" or \"PayloadTooLarge\""
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description"
+                    }
+                  },
+                  "description": "Error returned by every endpoint for 4xx and 5xx responses"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Error returned by every endpoint for 4xx and 5xx responses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error code, e.g. \"NotFound\" or \"PayloadTooLarge\""
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description"
+                    }
+                  },
+                  "description": "Error returned by every endpoint for 4xx and 5xx responses"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Error returned by every endpoint for 4xx and 5xx responses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error code, e.g. \"NotFound\" or \"PayloadTooLarge\""
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description"
+                    }
+                  },
+                  "description": "Error returned by every endpoint for 4xx and 5xx responses"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error returned by every endpoint for 4xx and 5xx responses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error code, e.g. \"NotFound\" or \"PayloadTooLarge\""
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description"
+                    }
+                  },
+                  "description": "Error returned by every endpoint for 4xx and 5xx responses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/images/{id}": {
+      "get": {
+        "summary": "Image metadata",
+        "tags": [
+          "images"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^img_[0-9a-f]{32}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Image id returned by POST /images"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "imageId",
+                    "name",
+                    "sizeBytes",
+                    "width",
+                    "height",
+                    "bitDepth",
+                    "slices",
+                    "sourceChannels",
+                    "pixelSpacing",
+                    "sha256",
+                    "transfer",
+                    "windowMin",
+                    "windowMax",
+                    "histogram",
+                    "warnings",
+                    "createdAt"
+                  ],
+                  "properties": {
+                    "imageId": {
+                      "type": "string",
+                      "pattern": "^img_[0-9a-f]{32}$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "File name of the upload"
+                    },
+                    "sizeBytes": {
+                      "type": "integer",
+                      "description": "Size of the uploaded file"
+                    },
+                    "width": {
+                      "type": "integer"
+                    },
+                    "height": {
+                      "type": "integer"
+                    },
+                    "bitDepth": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "enum": [
+                            8
+                          ]
+                        },
+                        {
+                          "type": "number",
+                          "enum": [
+                            16
+                          ]
+                        }
+                      ]
+                    },
+                    "slices": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100000,
+                      "description": "Slices of a stack (TIFF pages, DICOM frames or series files, NIfTI slices), each width × height; 1 for a single image"
+                    },
+                    "sourceChannels": {
+                      "type": "integer",
+                      "description": "Channels before grayscale conversion (1 or 3)"
+                    },
+                    "pixelSpacing": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "x",
+                            "y"
+                          ],
+                          "properties": {
+                            "x": {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "maximum": 1000000,
+                              "description": "Millimetres per pixel, horizontally"
+                            },
+                            "y": {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "maximum": 1000000,
+                              "description": "Millimetres per pixel, vertically"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Physical size of one pixel"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "From the file's metadata (PNG pHYs, JPEG JFIF, BMP, TIFF resolution, DICOM PixelSpacing or ImagerPixelSpacing, NIfTI voxel size); null when the file has none, or only the 72/96 dpi default of image editors"
+                    },
+                    "valueConversion": {
+                      "type": "object",
+                      "required": [
+                        "scale",
+                        "offset",
+                        "unit",
+                        "description"
+                      ],
+                      "properties": {
+                        "scale": {
+                          "type": "number"
+                        },
+                        "offset": {
+                          "type": "number"
+                        },
+                        "unit": {
+                          "type": "string",
+                          "description": "HU for CT; empty when the file does not say"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "e.g. \"Rescale slope 1, intercept -1024; values stored + 1024; HU = stored value - 1024\""
+                        }
+                      },
+                      "description": "Absent when the stored samples are the file's values"
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "description": "SHA-256 of the uploaded file (hex); for a stack made from a NIfTI volume or a DICOM series, of the TIFF that stands for it"
+                    },
+                    "transfer": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "raw"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "server"
+                          ]
+                        }
+                      ],
+                      "description": "\"raw\": GET /raw is available and the browser renders the image; \"server\": use display.png and /pixel"
+                    },
+                    "windowMin": {
+                      "type": "integer",
+                      "description": "Default display window: 0.5th percentile of all slices, or the DICOM file's WindowCenter/WindowWidth"
+                    },
+                    "windowMax": {
+                      "type": "integer",
+                      "description": "Default display window: 99.5th percentile of all slices"
+                    },
+                    "histogram": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      },
+                      "minItems": 256,
+                      "maxItems": 256,
+                      "description": "256 equal bins over 0-255 or 0-65535, over all slices"
                     },
                     "warnings": {
                       "type": "array",
@@ -1198,6 +1509,17 @@
           {
             "schema": {
               "type": "integer",
+              "minimum": 1,
+              "maximum": 100000
+            },
+            "in": "query",
+            "name": "slice",
+            "required": false,
+            "description": "Slice of a stack, from 1; default 1"
+          },
+          {
+            "schema": {
+              "type": "integer",
               "minimum": 0,
               "maximum": 65535
             },
@@ -1315,6 +1637,17 @@
         ],
         "description": "An 8-bit PNG of the gradient magnitude after Gaussian smoothing (intensity units per pixel, on the original values). sobel: the magnitude mapped linearly from low (black) to high (white); canny: 255 on the thin edges found with the hysteresis thresholds low and high, 0 elsewhere. Reduced so the long side is at most maxSize (for canny, a reduced pixel is 255 when it covers any edge). Cached like display.png.",
         "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000
+            },
+            "in": "query",
+            "name": "slice",
+            "required": false,
+            "description": "Slice of a stack, from 1; default 1"
+          },
           {
             "schema": {
               "anyOf": [
@@ -1478,6 +1811,17 @@
           },
           {
             "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000
+            },
+            "in": "query",
+            "name": "slice",
+            "required": false,
+            "description": "Slice of a stack, from 1; default 1"
+          },
+          {
+            "schema": {
               "type": "string",
               "pattern": "^img_[0-9a-f]{32}$"
             },
@@ -1594,8 +1938,19 @@
         "tags": [
           "images"
         ],
-        "description": "Row-major samples from the top-left pixel, no header; 16-bit samples are little-endian. Size and format are in the X-Image-Width, X-Image-Height, X-Image-Bit-Depth and X-Image-Byte-Order headers. Compressed with zstd or gzip when accepted. Only for images with transfer \"raw\" (409 otherwise).",
+        "description": "Row-major samples of one slice from the top-left pixel, no header; 16-bit samples are little-endian. Size and format are in the X-Image-Width, X-Image-Height, X-Image-Bit-Depth and X-Image-Byte-Order headers. Compressed with zstd or gzip when accepted. Only for images with transfer \"raw\" (409 otherwise).",
         "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000
+            },
+            "in": "query",
+            "name": "slice",
+            "required": false,
+            "description": "Slice of a stack, from 1; default 1"
+          },
           {
             "schema": {
               "type": "string",
@@ -1725,6 +2080,17 @@
             "in": "query",
             "name": "y",
             "required": true
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000
+            },
+            "in": "query",
+            "name": "slice",
+            "required": false,
+            "description": "Slice of a stack, from 1; default 1"
           },
           {
             "schema": {
@@ -1931,6 +2297,12 @@
                         "id": {
                           "type": "string",
                           "maxLength": 100
+                        },
+                        "slice": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000,
+                          "description": "Slice of a stack, from 1; default 1"
                         },
                         "shape": {
                           "anyOf": [
@@ -2259,6 +2631,12 @@
                   "maxRegions"
                 ],
                 "properties": {
+                  "slice": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000,
+                    "description": "Slice of a stack, from 1; default 1"
+                  },
                   "min": {
                     "type": "integer",
                     "minimum": 0,
@@ -2460,6 +2838,12 @@
                   "tolerance"
                 ],
                 "properties": {
+                  "slice": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000,
+                    "description": "Slice of a stack, from 1; default 1"
+                  },
                   "x": {
                     "type": "integer",
                     "description": "Column of the clicked pixel"
@@ -3654,6 +4038,12 @@
                   "sigma"
                 ],
                 "properties": {
+                  "slice": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000,
+                    "description": "Slice of a stack, from 1; default 1"
+                  },
                   "from": {
                     "type": "object",
                     "required": [
@@ -3849,6 +4239,12 @@
                           "minLength": 1,
                           "maxLength": 100,
                           "description": "Class of the ROI, e.g. \"lesion\"; carried into the results and exports"
+                        },
+                        "slice": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000,
+                          "description": "The slice of a stack the ROI lies on, from 1; omitted for a single image (slice 1)"
                         },
                         "shape": {
                           "anyOf": [
@@ -6044,6 +6440,11 @@
                             "type": "string",
                             "description": "The ROI's class; omitted when it has none"
                           },
+                          "slice": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "description": "The ROI's slice of a stack; omitted for ROIs without one"
+                          },
                           "distance": {
                             "type": "integer"
                           },
@@ -6611,6 +7012,12 @@
                     "type": "string",
                     "pattern": "^img_[0-9a-f]{32}$"
                   },
+                  "slice": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000,
+                    "description": "Slice of a stack, from 1; default 1"
+                  },
                   "settings": {
                     "type": "object",
                     "required": [
@@ -6782,6 +7189,7 @@
                     "featureMapId",
                     "imageId",
                     "imageName",
+                    "slice",
                     "status",
                     "settings",
                     "step",
@@ -6804,6 +7212,11 @@
                     },
                     "imageName": {
                       "type": "string"
+                    },
+                    "slice": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "description": "The slice of the image the map covers"
                     },
                     "status": {
                       "anyOf": [
@@ -7174,6 +7587,7 @@
                     "featureMapId",
                     "imageId",
                     "imageName",
+                    "slice",
                     "status",
                     "settings",
                     "step",
@@ -7196,6 +7610,11 @@
                     },
                     "imageName": {
                       "type": "string"
+                    },
+                    "slice": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "description": "The slice of the image the map covers"
                     },
                     "status": {
                       "anyOf": [
@@ -8121,6 +8540,11 @@
                                 "type": "string",
                                 "description": "The ROI's class; omitted when it has none"
                               },
+                              "slice": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "description": "The ROI's slice of a stack; omitted for ROIs without one"
+                              },
                               "distance": {
                                 "type": "integer"
                               },
@@ -8429,7 +8853,7 @@
         "tags": [
           "exports"
         ],
-        "description": "Per ROI: the bounding-box crop with outside pixels 0 or transparent (PNG, or TIFF for 16-bit images), <name>_mask.png, optionally <name>_q<Ng>.png; plus manifest.json.",
+        "description": "Per ROI: the bounding-box crop with outside pixels 0 or transparent (PNG, or TIFF for 16-bit images), <name>_mask.png, optionally <name>_q<Ng>.png; plus manifest.json. For a stack, the files of each slice are in a folder slice-<n>/ with its own manifest.",
         "requestBody": {
           "required": true,
           "content": {
@@ -8474,6 +8898,12 @@
                           "minLength": 1,
                           "maxLength": 100,
                           "description": "Class of the ROI, e.g. \"lesion\"; carried into the results and exports"
+                        },
+                        "slice": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000,
+                          "description": "The slice of a stack the ROI lies on, from 1; omitted for a single image (slice 1)"
                         },
                         "shape": {
                           "anyOf": [
@@ -10261,6 +10691,7 @@
                     "width",
                     "height",
                     "bitDepth",
+                    "slices",
                     "sourceChannels",
                     "pixelSpacing",
                     "sha256",
@@ -10305,6 +10736,12 @@
                           ]
                         }
                       ]
+                    },
+                    "slices": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100000,
+                      "description": "Slices of a stack (TIFF pages, DICOM frames or series files, NIfTI slices), each width × height; 1 for a single image"
                     },
                     "sourceChannels": {
                       "type": "integer",
@@ -10369,7 +10806,7 @@
                     },
                     "sha256": {
                       "type": "string",
-                      "description": "SHA-256 of the uploaded file (hex)"
+                      "description": "SHA-256 of the uploaded file (hex); for a stack made from a NIfTI volume or a DICOM series, of the TIFF that stands for it"
                     },
                     "transfer": {
                       "anyOf": [
@@ -10390,11 +10827,11 @@
                     },
                     "windowMin": {
                       "type": "integer",
-                      "description": "Default display window: 0.5th percentile, or the DICOM file's WindowCenter/WindowWidth"
+                      "description": "Default display window: 0.5th percentile of all slices, or the DICOM file's WindowCenter/WindowWidth"
                     },
                     "windowMax": {
                       "type": "integer",
-                      "description": "Default display window: 99.5th percentile"
+                      "description": "Default display window: 99.5th percentile of all slices"
                     },
                     "histogram": {
                       "type": "array",
@@ -10403,7 +10840,328 @@
                       },
                       "minItems": 256,
                       "maxItems": 256,
-                      "description": "256 equal bins over 0-255 or 0-65535"
+                      "description": "256 equal bins over 0-255 or 0-65535, over all slices"
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error returned by every endpoint for 4xx and 5xx responses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error code, e.g. \"NotFound\" or \"PayloadTooLarge\""
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description"
+                    }
+                  },
+                  "description": "Error returned by every endpoint for 4xx and 5xx responses"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error returned by every endpoint for 4xx and 5xx responses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error code, e.g. \"NotFound\" or \"PayloadTooLarge\""
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description"
+                    }
+                  },
+                  "description": "Error returned by every endpoint for 4xx and 5xx responses"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error returned by every endpoint for 4xx and 5xx responses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error code, e.g. \"NotFound\" or \"PayloadTooLarge\""
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description"
+                    }
+                  },
+                  "description": "Error returned by every endpoint for 4xx and 5xx responses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/volumes/{id}/stack": {
+      "post": {
+        "summary": "Open a volume as a stack",
+        "tags": [
+          "volumes"
+        ],
+        "description": "Stores every slice of one volume in one orientation as a stack image (slice 1 is the most inferior, posterior or left slice), with the window of the whole volume. Its original file is an uncompressed multi-page TIFF of the slices with the pixel spacing, so uploading that file gives the same image.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "orientation"
+                ],
+                "properties": {
+                  "orientation": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "axial"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "coronal"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "sagittal"
+                        ]
+                      }
+                    ],
+                    "description": "Slice planes in RAS orientation: axial (right of the patient on the right, anterior at the top), coronal (superior at the top) and sagittal (anterior on the right, superior at the top)"
+                  },
+                  "volume": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Default 0"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^vol_[0-9a-f]{32}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Volume id returned by POST /volumes"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "imageId",
+                    "name",
+                    "sizeBytes",
+                    "width",
+                    "height",
+                    "bitDepth",
+                    "slices",
+                    "sourceChannels",
+                    "pixelSpacing",
+                    "sha256",
+                    "transfer",
+                    "windowMin",
+                    "windowMax",
+                    "histogram",
+                    "warnings",
+                    "createdAt"
+                  ],
+                  "properties": {
+                    "imageId": {
+                      "type": "string",
+                      "pattern": "^img_[0-9a-f]{32}$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "File name of the upload"
+                    },
+                    "sizeBytes": {
+                      "type": "integer",
+                      "description": "Size of the uploaded file"
+                    },
+                    "width": {
+                      "type": "integer"
+                    },
+                    "height": {
+                      "type": "integer"
+                    },
+                    "bitDepth": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "enum": [
+                            8
+                          ]
+                        },
+                        {
+                          "type": "number",
+                          "enum": [
+                            16
+                          ]
+                        }
+                      ]
+                    },
+                    "slices": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100000,
+                      "description": "Slices of a stack (TIFF pages, DICOM frames or series files, NIfTI slices), each width × height; 1 for a single image"
+                    },
+                    "sourceChannels": {
+                      "type": "integer",
+                      "description": "Channels before grayscale conversion (1 or 3)"
+                    },
+                    "pixelSpacing": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "x",
+                            "y"
+                          ],
+                          "properties": {
+                            "x": {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "maximum": 1000000,
+                              "description": "Millimetres per pixel, horizontally"
+                            },
+                            "y": {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "maximum": 1000000,
+                              "description": "Millimetres per pixel, vertically"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Physical size of one pixel"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "From the file's metadata (PNG pHYs, JPEG JFIF, BMP, TIFF resolution, DICOM PixelSpacing or ImagerPixelSpacing, NIfTI voxel size); null when the file has none, or only the 72/96 dpi default of image editors"
+                    },
+                    "valueConversion": {
+                      "type": "object",
+                      "required": [
+                        "scale",
+                        "offset",
+                        "unit",
+                        "description"
+                      ],
+                      "properties": {
+                        "scale": {
+                          "type": "number"
+                        },
+                        "offset": {
+                          "type": "number"
+                        },
+                        "unit": {
+                          "type": "string",
+                          "description": "HU for CT; empty when the file does not say"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "e.g. \"Rescale slope 1, intercept -1024; values stored + 1024; HU = stored value - 1024\""
+                        }
+                      },
+                      "description": "Absent when the stored samples are the file's values"
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "description": "SHA-256 of the uploaded file (hex); for a stack made from a NIfTI volume or a DICOM series, of the TIFF that stands for it"
+                    },
+                    "transfer": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "raw"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "server"
+                          ]
+                        }
+                      ],
+                      "description": "\"raw\": GET /raw is available and the browser renders the image; \"server\": use display.png and /pixel"
+                    },
+                    "windowMin": {
+                      "type": "integer",
+                      "description": "Default display window: 0.5th percentile of all slices, or the DICOM file's WindowCenter/WindowWidth"
+                    },
+                    "windowMax": {
+                      "type": "integer",
+                      "description": "Default display window: 99.5th percentile of all slices"
+                    },
+                    "histogram": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      },
+                      "minItems": 256,
+                      "maxItems": 256,
+                      "description": "256 equal bins over 0-255 or 0-65535, over all slices"
                     },
                     "warnings": {
                       "type": "array",

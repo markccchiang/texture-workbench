@@ -162,16 +162,25 @@ Namespace ``glcm``; include paths are relative to ``core/``.
        when ``AnalysisSettings::resampling`` is set.
    * - ``imaging/ImageLoader``
      - Decodes PNG, JPEG, BMP and 8/16-bit TIFF with OpenCV and converts color to grayscale (with a warning); DICOM and
-       2D NIfTI files, recognized by their content, go to the readers below.
+       2D NIfTI files, recognized by their content, go to the readers below. ``LoadImageStackFile`` reads a file as a
+       ``LoadedStack`` (the slices one below the other in one ``cv::Mat``): every page of a multi-page TIFF (up to a page
+       of another size or type), every frame of a DICOM file, or the single image. ``EncodeTiffStack`` writes a stack as an
+       uncompressed multi-page TIFF with the pixel spacing, the original file of stacks made on the server. Slices are
+       numbered from 1 outside the core: ``Roi::slice`` and ``MeasurementResult::slice`` (0 = none) are written as
+       ``slice`` in ROI sets, results and the CSV only when set, so files without slices stay byte-identical.
    * - ``imaging/DicomReader``
      - ``LoadDicomFile``: the first frame of an uncompressed DICOM file (implicit or explicit VR little endian; sequences
        are skipped), with the rescale, MONOCHROME1 inversion, PixelSpacing/ImagerPixelSpacing and the first window.
+       ``LoadDicomStackFile`` reads every frame and ``LoadDicomSeries`` the files of a series (largest SeriesInstanceUID,
+       ordered along the image normal, else by InstanceNumber); both decode through ``BuildDicomStack``, which chooses one
+       storage from the range of every frame and reads each file again only when its frames are stored.
        Compressed, deflated and big-endian transfer syntaxes throw ``std::invalid_argument``.
    * - ``imaging/NiftiReader``
      - ``InspectNiftiVolume`` reads a NIfTI-1/2 header (through zlib, so ``.nii.gz`` too), finds the RAS direction of
        each axis from the sform, else the qform, scans all voxels for their minimum and maximum, chooses the storage
        and writes an uncompressed copy. ``ExtractNiftiSlice`` reads one plane of one volume and lays it out in RAS
-       orientation.
+       orientation. ``ExtractNiftiStack`` reads one volume once, in file order, and lays out every slice of one orientation
+       as ``ExtractNiftiSlice`` would.
    * - ``imaging/ValueConversion``
      - ``ChooseStorage``: identity for integers within 0–65 535, + 1024 for integers with a negative minimum, linear
        min–max otherwise; ``value = stored × scale + offset``.
@@ -265,9 +274,11 @@ All files live under ``GLCM_DATA_DIR`` with random names:
 .. code-block:: text
 
    images/img_<32 hex>/original       the uploaded file (SHA-256 recorded in info.json)
-   images/img_<32 hex>/pixels.bin     decoded grayscale samples, row-major, 16-bit little-endian
+   images/img_<32 hex>/pixels.bin     decoded grayscale samples, row-major, 16-bit little-endian; the slices of a stack
+                                      one after the other (ImageStore reads one slice by its offset)
    images/img_<32 hex>/pixels.bin.gzip, pixels.bin.zstd
                                       compressed copies for GET /raw, created on first request
+                                      (pixels.<slice>.bin.gzip, .zstd for the slices of a stack)
    images/img_<32 hex>/info.json      ImageInfo
    results/ana_<32 hex>.json          finished analysis: AnalysisInfo and results
    cache/display/<sha256>.png         size-capped LRU of display.png renderings

@@ -19,8 +19,10 @@ export type NavigatorMode = 'auto' | 'shown' | 'hidden';
 
 export interface LoadedImage {
   info: ImageInfo;
-  /** Samples for in-browser rendering; null for images with transfer "server" (or when the download failed) */
+  /** Samples of the slice shown, for in-browser rendering; null for images with transfer "server" (or when the download failed) */
   raw: RawImage | null;
+  /** The slice shown of a stack, from 1; 1 when absent */
+  slice?: number;
 }
 
 export interface LoadingState {
@@ -75,6 +77,8 @@ export interface ViewerState {
 
   setLoading(loading: LoadingState | null): void;
   openImage(image: LoadedImage): void;
+  /** Shows another slice of the open stack (its samples already downloaded, when offered) */
+  showSlice(image: LoadedImage): void;
   /** Sets the spacing of the open image and remembers it for the image; null: no spacing */
   setPixelSpacing(spacing: PixelSpacing | null): void;
   closeImage(): void;
@@ -103,6 +107,16 @@ export interface ViewerState {
 }
 
 const INITIAL_VIEWPORT: Viewport = { scale: 1, x: 0, y: 0 };
+
+/** The slice shown of the open image, from 1 (1 for an image without slices) */
+export function shownSlice(): number {
+  return useViewer.getState().image?.slice ?? 1;
+}
+
+/** The slice field of a request about the slice shown: omitted for slice 1 */
+export function sliceField(slice: number): { slice?: number } {
+  return slice > 1 ? { slice } : {};
+}
 
 /** The spacing chosen for an image earlier, else the one from its file */
 export function spacingForImage(info: ImageInfo): PixelSpacing | null {
@@ -156,6 +170,7 @@ export const useViewer = create<ViewerState>()((set, get) => ({
     if (previous?.info.imageId !== image.info.imageId) {
       useRois.getState().reset();
     }
+    useRois.getState().setCurrentSlice(image.info.slices > 1 ? (image.slice ?? 1) : null);
     set({
       image,
       window: { min: image.info.windowMin, max: image.info.windowMax },
@@ -172,8 +187,18 @@ export const useViewer = create<ViewerState>()((set, get) => ({
     });
   },
 
+  showSlice: (image) => {
+    const { image: current } = get();
+    if (current?.info.imageId !== image.info.imageId) {
+      return;
+    }
+    useRois.getState().setCurrentSlice(image.info.slices > 1 ? (image.slice ?? 1) : null);
+    set({ image, hover: null });
+  },
+
   closeImage: () => {
     useRois.getState().reset();
+    useRois.getState().setCurrentSlice(null);
     set({ image: null, hover: null, displaySource: null, rendererKind: null, viewport: INITIAL_VIEWPORT, needsFit: false, ruler: null });
   },
 

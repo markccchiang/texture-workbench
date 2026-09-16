@@ -257,9 +257,11 @@ Each row shows, from left to right:
 - **visibility** (the eye) — hidden ROIs are not drawn, but they can still be selected here and measured;
 - **color** and **name** — double-click the name to rename it, then press :kbd:`Enter`; choose another color in the
   row menu;
-- **shape** — Rectangle, Ellipse, Polygon or Freehand;
+- **shape** — Rectangle, Ellipse, Polygon or Freehand, after the slice number for ROIs on a slice of a stack (see
+  :ref:`stacks`); clicking an ROI of another slice shows its slice;
 - **pixel count**, or ⚠ with an explanation when the ROI cannot be measured;
-- a **menu** (⋯) with *Zoom to ROI*, *Rename*, a choice of eight **colors**, *Duplicate* and *Delete*. Changing the color
+- a **menu** (⋯) with *Zoom to ROI*, *Rename*, a choice of eight **colors**, *Duplicate*, *Copy to All Slices* (stacks)
+  and *Delete*. Changing the color
   can be undone like other ROI changes.
 
 Click a row to select the ROI; :kbd:`⌘`/:kbd:`Ctrl`-click to add it to the selection; :kbd:`Shift`-click to select a

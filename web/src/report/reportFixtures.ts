@@ -71,6 +71,7 @@ export const IMAGE_INFO: ImageInfo = {
   width: 64,
   height: 48,
   bitDepth: 8,
+  slices: 1,
   sourceChannels: 1,
   pixelSpacing: null,
   sha256: 'camera.png-sha',

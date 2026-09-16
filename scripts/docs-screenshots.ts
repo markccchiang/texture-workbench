@@ -412,7 +412,7 @@ async function main(): Promise<void> {
 
     // Slice dialog of a NIfTI volume: a synthetic head phantom
     await page.getByTestId('file-input').setInputFiles({ name: 'phantom.nii.gz', mimeType: 'application/gzip', buffer: headPhantom() });
-    const sliceDialog = page.getByRole('dialog', { name: 'Open Slice of phantom.nii.gz' });
+    const sliceDialog = page.getByRole('dialog', { name: 'Open phantom.nii.gz' });
     await sliceDialog.getByTestId('volume-preview').and(page.locator('[data-shows="axial:47:0"]')).waitFor();
     await dialogShot(page, 'volume-import', sliceDialog);
     await sliceDialog.getByRole('button', { name: 'Cancel' }).click();
@@ -489,6 +489,21 @@ async function main(): Promise<void> {
     const bandTopLeft = await toPage(page, 250, 280);
     const bandBottomRight = await toPage(page, 500, 500);
     await shot(page, 'roi-band', { x: bandTopLeft.x, y: bandTopLeft.y, width: bandBottomRight.x - bandTopLeft.x, height: bandBottomRight.y - bandTopLeft.y });
+
+    // A stack: every axial slice of the head phantom, with an ROI on the slice shown and the slice slider
+    await page.getByTestId('file-input').setInputFiles({ name: 'phantom.nii.gz', mimeType: 'application/gzip', buffer: headPhantom() });
+    const stackDialog = page.getByRole('dialog', { name: 'Open phantom.nii.gz' });
+    await stackDialog.getByTestId('volume-preview').and(page.locator('[data-shows="axial:47:0"]')).waitFor();
+    await stackDialog.getByRole('button', { name: 'Open All Slices' }).click();
+    await expect(page.getByTestId('slice-readout')).toHaveText('48 / 96', { timeout: 30_000 });
+    await page.keyboard.press('e');
+    await drag(page, [30, 70], [62, 98]);
+    await page.keyboard.press('t');
+    await page.mouse.move(5, VIEWPORT.height - 5);
+    await page.waitForTimeout(600);
+    const canvasBox = (await page.getByTestId('image-canvas').boundingBox())!;
+    const sliceBarBox = (await page.getByTestId('slice-bar').boundingBox())!;
+    await shot(page, 'stack', { x: canvasBox.x, y: canvasBox.y, width: canvasBox.width, height: sliceBarBox.y + sliceBarBox.height - canvasBox.y });
     await context.close();
 
     // Access token prompt of a server that requires a token

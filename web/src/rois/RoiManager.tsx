@@ -5,6 +5,7 @@ import { IconAlertTriangle, IconCopy, IconDots, IconEye, IconEyeOff, IconPlus, I
 import type { MouseEvent } from 'react';
 import { PanelSection } from '../components/PanelSection';
 import { exportImageJRoisFile, exportRoiSetFile } from '../files/actions';
+import { showSlice } from '../stores/imageLoader';
 import { useUi } from '../stores/uiStore';
 import { useViewer } from '../stores/viewerStore';
 import { ROI_COLORS, SHAPE_LABELS, shapeBounds, shapeKind } from './geometry';
@@ -20,9 +21,16 @@ function RoiRow({ roi, pixelCount, problem }: { roi: ManagedRoi; pixelCount: num
   const hovered = useRois((state) => state.hoveredId === roi.id);
   const renaming = useUi((state) => state.renamingRoiId === roi.id);
   const classes = useRois((state) => state.classes);
+  const slices = useViewer((state) => state.image?.info.slices ?? 1);
   const store = useRois.getState;
 
   const onClick = (event: MouseEvent) => {
+    // An ROI on another slice of the stack: show its slice first, which clears a selection on the slice shown
+    const { image } = useViewer.getState();
+    if (roi.slice !== undefined && image && (image.slice ?? 1) !== roi.slice) {
+      void showSlice(roi.slice).then((shown) => shown && store().select([roi.id]));
+      return;
+    }
     if (event.metaKey || event.ctrlKey) {
       store().toggleSelected(roi.id);
     } else if (event.shiftKey) {
@@ -92,6 +100,7 @@ function RoiRow({ roi, pixelCount, problem }: { roi: ManagedRoi; pixelCount: num
         </Text>
       )}
       <Text size="xs" c="dimmed">
+        {roi.slice !== undefined && <span data-testid="roi-slice">{`slice ${roi.slice} · `}</span>}
         {SHAPE_LABELS[shapeKind(roi.shape)]}
       </Text>
       <Text size="xs" className="mono roi-pixels" ta="right">
@@ -157,6 +166,7 @@ function RoiRow({ roi, pixelCount, problem }: { roi: ManagedRoi; pixelCount: num
           <Menu.Item onClick={() => useUi.getState().setModal('roiClasses')}>Manage Classes…</Menu.Item>
           <Menu.Divider />
           <Menu.Item onClick={() => store().duplicateRois([roi.id])}>Duplicate</Menu.Item>
+          {slices > 1 && <Menu.Item onClick={() => store().copyToAllSlices([roi.id], slices)}>Copy to All Slices</Menu.Item>}
           <Menu.Item color="red" onClick={() => store().deleteRois([roi.id])}>
             Delete
           </Menu.Item>
@@ -172,6 +182,7 @@ export function RoiManager() {
   const selectedCount = useRois((state) => state.selectedIds.length);
   const hasActive = useRois((state) => state.activeShape !== null);
   const hasImage = useViewer((state) => state.image !== null);
+  const slices = useViewer((state) => state.image?.info.slices ?? 1);
   const statistics = useRoiStatistics();
   const store = useRois.getState;
 
@@ -214,6 +225,11 @@ export function RoiManager() {
             <Menu.Item disabled={selectedCount === 0} onClick={() => openGrowDialog('band')}>
               Make Band…
             </Menu.Item>
+            {slices > 1 && (
+              <Menu.Item disabled={selectedCount === 0} onClick={() => store().copyToAllSlices(store().selectedIds, slices)}>
+                Copy to All Slices
+              </Menu.Item>
+            )}
             <Menu.Divider />
             <Menu.Item disabled={!hasImage} onClick={() => useUi.getState().requestFile('roiSet')}>
               Import ROI Set…

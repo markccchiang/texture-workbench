@@ -71,6 +71,7 @@ export const RoiSetImage = Type.Object({
   width: Type.Optional(Type.Integer()),
   height: Type.Optional(Type.Integer()),
   bitDepth: Type.Optional(Type.Integer()),
+  slices: Type.Optional(Type.Integer({ minimum: 1, description: 'Slices of the stack the ROIs were drawn on; omitted for a single image' })),
   sha256: Type.Optional(Type.String()),
 });
 export type RoiSetImage = Static<typeof RoiSetImage>;

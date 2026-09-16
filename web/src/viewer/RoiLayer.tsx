@@ -4,10 +4,10 @@
 
 import type { RoiShape } from '@glcm/api';
 import type Konva from 'konva';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Circle, Ellipse, Group, Layer, Line, Rect, Shape, Text, Transformer } from 'react-konva';
 import { cutEdges, hasCuts } from '../rois/geometry';
-import { useRois } from '../rois/roiStore';
+import { isOnSlice, useRois } from '../rois/roiStore';
 import { useUi } from '../stores/uiStore';
 import { imageToScreen, type Point, type Viewport } from './viewport';
 
@@ -99,7 +99,10 @@ function ShapeNode({ shape, color, id, name, strokeWidth, dash, fill, listening,
 }
 
 export function RoiLayer({ viewport, draft, interactive }: { viewport: Viewport; draft: PolygonDraft | null; interactive: boolean }) {
-  const rois = useRois((state) => state.rois);
+  const allRois = useRois((state) => state.rois);
+  const currentSlice = useRois((state) => state.currentSlice);
+  // Only the ROIs of the slice shown
+  const rois = useMemo(() => allRois.filter((roi) => isOnSlice(roi, currentSlice)), [allRois, currentSlice]);
   const selectedIds = useRois((state) => state.selectedIds);
   const hoveredId = useRois((state) => state.hoveredId);
   const activeShape = useRois((state) => state.activeShape);

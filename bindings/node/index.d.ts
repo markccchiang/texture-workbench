@@ -42,6 +42,8 @@ export interface DecodedImage {
   width: number;
   height: number;
   bitDepth: 8 | 16;
+  /** Slices of a stack (TIFF pages, DICOM frames); 1 for a single image. Width and height are those of one slice. */
+  slices: number;
   /** Channels of the file before grayscale conversion (1 or 3) */
   sourceChannels: number;
   /** Millimetres per pixel from the file's resolution metadata (DICOM PixelSpacing, NIfTI voxel size); null when the file has none */
@@ -49,12 +51,12 @@ export interface DecodedImage {
   /** DICOM and NIfTI: how the file's values became the stored samples; null when they are stored unchanged */
   valueConversion: NativeValueConversion | null;
   warnings: string[];
-  /** 0.5th and 99.5th percentiles (nearest rank); DICOM: the file's first WindowCenter/WindowWidth when present */
+  /** 0.5th and 99.5th percentiles (nearest rank) over all slices; DICOM: the file's first WindowCenter/WindowWidth when present */
   windowMin: number;
   windowMax: number;
-  /** 256 equal bins over the full range of the bit depth */
+  /** 256 equal bins over the full range of the bit depth, over all slices */
   histogram: number[];
-  /** Row-major grayscale samples; 16-bit samples are little-endian */
+  /** Row-major grayscale samples, slice after slice; 16-bit samples are little-endian */
   pixels: Buffer;
 }
 
@@ -83,9 +85,14 @@ export interface DecodeOptions {
    * with DECODE_FAILED. 0 or absent: no limit.
    */
   maxPixels?: number;
+  /** Largest width × height × slices of a stack, checked before its pixels are decoded (IMAGE_TOO_LARGE). 0 or absent: no limit. */
+  maxStackPixels?: number;
 }
 
-/** Decodes an image file (PNG, JPEG, BMP, 8/16-bit TIFF, ...); color is converted to grayscale. */
+/**
+ * Decodes an image file (PNG, JPEG, BMP, 8/16-bit TIFF, DICOM, 2D NIfTI); color is converted to grayscale. Every page of a
+ * multi-page TIFF (up to a page of another size or type) and every frame of a DICOM file become the slices of a stack.
+ */
 export function decodeImageFile(path: string, options?: DecodeOptions): Promise<DecodedImage>;
 
 /** value = stored sample × scale + offset, in the file's values after its rescale slope and intercept */
@@ -158,6 +165,33 @@ export interface SliceRequest {
 
 /** One slice of a NIfTI volume in RAS orientation; rejects with INVALID_ARGUMENT when the slice or volume is out of range. */
 export function extractNiftiSlice(path: string, request: SliceRequest): Promise<DecodedImage & { png: Buffer | null }>;
+
+export interface StackRequest {
+  orientation: SliceOrientation;
+  /** 0-based */
+  volume: number;
+  storage: NativeStorage;
+  /** Largest slice */
+  maxPixels?: number;
+  maxStackPixels?: number;
+}
+
+/** A stack made on the server, with an uncompressed multi-page TIFF of it that decodeImageFile reads back with the same samples */
+export interface DecodedStack extends DecodedImage {
+  tiff: Buffer;
+  /** DICOM series: SeriesDescription; otherwise empty */
+  seriesDescription: string;
+}
+
+/** Every slice of one volume of a NIfTI file in one orientation, slice 0 first, as extractNiftiSlice lays each out. */
+export function extractNiftiStack(path: string, request: StackRequest): Promise<DecodedStack>;
+
+/**
+ * The files of a DICOM series as one stack: non-DICOM files are left out (with a warning), only the largest series is
+ * used, slices are ordered along the image normal (else instance number, else path) and stored with one storage.
+ * Rejects with UNSUPPORTED_IMAGE when no file is a DICOM image or the images differ in size, IMAGE_TOO_LARGE or DECODE_FAILED.
+ */
+export function decodeDicomSeries(paths: string[], options?: DecodeOptions): Promise<DecodedStack>;
 
 /** 8-bit PNG of the pixels with the window/level mapping, downscaled so the long side is at most maxSize (0 = no limit). */
 export function renderDisplay(

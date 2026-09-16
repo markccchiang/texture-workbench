@@ -8,6 +8,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { localClient, type ApiClient } from '../src/client.js';
 import { createMcpServer } from '../src/mcp.js';
+import { encodeTiffPages } from '../../bindings/node/test/tiff.js';
 
 const SAMPLE = 'sample:textures/brick.png';
 
@@ -125,6 +126,26 @@ describe('the MCP server', () => {
     const result = await call('feature_map', { image: SAMPLE, feature: 'Contrast', window: 15 });
     expect(textOf(result)).toContain('Contrast over brick.png');
     expect(textOf(result)).toMatch(/values \d/);
+  });
+
+  it('works on the slices of a stack', async () => {
+    const pages = [0, 1].map((page) => ({
+      width: 8,
+      height: 8,
+      bitsPerSample: 8 as const,
+      samplesPerPixel: 1 as const,
+      data: Array.from({ length: 64 }, (_, i) => 50 * page + (i % 3)),
+    }));
+    const file = path.join(dataDir, 'two-slices.tif');
+    await fs.writeFile(file, encodeTiffPages(pages));
+    expect(textOf(await call('open_image', { image: file }))).toContain('8 × 8 px × 2 slices');
+    expect(textOf(await call('view_image', { image: file, slice: 2 }))).toContain('slice 2 of 2');
+
+    const whole = textOf(await call('measure', { image: file, features: ['Mean'] }));
+    expect(whole).toContain('Whole slice 1 (slice 1)');
+    expect(whole).toContain('Whole slice 2 (slice 2)');
+    const rectangle = textOf(await call('measure', { image: file, features: ['Mean'], rectangles: [{ name: 'Box', x: 0, y: 0, width: 4, height: 4 }], slice: 2 }));
+    expect(rectangle).toContain('Box (slice 2)');
   });
 
   it('reports a failure as a tool error instead of throwing', async () => {

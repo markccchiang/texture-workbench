@@ -156,6 +156,28 @@ describe('writing ImageJ ROIs', () => {
   });
 });
 
+describe('stack positions', () => {
+  it('writes the slice as the ROI position and reads it back, also from hyperstack positions', () => {
+    const shape: RoiShape = { type: 'rectangle', x: 2, y: 3, width: 5, height: 4 };
+    const rois: Roi[] = [
+      { id: 'a', name: 'On 3', slice: 3, shape },
+      { id: 'b', name: 'Everywhere', shape },
+    ];
+    const written = writeImageJRois(rois, { width: 32, height: 32 });
+    const files = unzipSync(written.bytes);
+    const position = (name: string) => new DataView(files[name].buffer, files[name].byteOffset).getInt32(56);
+    expect(position('On 3.roi')).toBe(3);
+    expect(position('Everywhere.roi')).toBe(0);
+    expect(readImageJRois(written.bytes, 'RoiSet.zip').document.rois.map((roi) => roi.slice)).toEqual([3, undefined]);
+
+    // A hyperstack ROI keeps its slice in header 2 (z, else t) with position 0
+    const hyperstack = new Uint8Array(files['Everywhere.roi']);
+    const view = new DataView(hyperstack.buffer);
+    view.setInt32(view.getInt32(60) + 8, 7);
+    expect(readImageJRois(hyperstack, 'z.roi').document.rois[0].slice).toBe(7);
+  });
+});
+
 describe('pixels as runs', () => {
   it('match the core for rectangles, ellipses and polygons, also where they leave the image', async () => {
     const random = mulberry32(7);

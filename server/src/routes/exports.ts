@@ -6,6 +6,7 @@ import { ErrorResponse, ResultsExportRequest, RoiImagesExportRequest, type Expor
 import * as native from '@glcm/native';
 import { Type } from 'typebox';
 import { ApiError } from '../errors.js';
+import { requireSlice } from '../imageInfo.js';
 import { attachment, createZip, fileStem } from '../files.js';
 import type { ImageStore } from '../storage/ImageStore.js';
 
@@ -92,7 +93,7 @@ export const exportRoutes: FastifyPluginAsyncTypebox<ExportRoutesOptions> = asyn
       schema: {
         summary: 'Export ROI images as a ZIP',
         description:
-          'Per ROI: the bounding-box crop with outside pixels 0 or transparent (PNG, or TIFF for 16-bit images), <name>_mask.png, optionally <name>_q<Ng>.png; plus manifest.json.',
+          'Per ROI: the bounding-box crop with outside pixels 0 or transparent (PNG, or TIFF for 16-bit images), <name>_mask.png, optionally <name>_q<Ng>.png; plus manifest.json. For a stack, the files of each slice are in a folder slice-<n>/ with its own manifest.',
         tags: ['exports'],
         body: RoiImagesExportRequest,
         response: { 200: Download('ZIP file', ['application/zip']), 400: ErrorResponse, 404: ErrorResponse },
@@ -107,18 +108,24 @@ export const exportRoutes: FastifyPluginAsyncTypebox<ExportRoutesOptions> = asyn
       if (includeQuantized && !settings) {
         throw new ApiError(400, 'BadRequest', 'includeQuantized needs settings');
       }
-      const files = await native
-        .exportRoiImages(
-          await store.pixels(imageId),
-          info.width,
-          info.height,
-          info.bitDepth,
-          JSON.stringify(rois),
-          settings ? JSON.stringify(settings) : '',
-          transparentOutside,
-          includeQuantized,
-        )
-        .catch(nativeError);
+      // A stack: the ROIs of each slice in a folder slice-<n>/ with its own manifest
+      const slices = [...new Set(rois.map((roi) => roi.slice ?? 1))].sort((a, b) => a - b);
+      const files: Array<{ name: string; data: Buffer }> = [];
+      for (const slice of slices) {
+        const exported = await native
+          .exportRoiImages(
+            await store.pixels(info, requireSlice(info, slice)),
+            info.width,
+            info.height,
+            info.bitDepth,
+            JSON.stringify(rois.filter((roi) => (roi.slice ?? 1) === slice)),
+            settings ? JSON.stringify(settings) : '',
+            transparentOutside,
+            includeQuantized,
+          )
+          .catch(nativeError);
+        files.push(...exported.map(({ name, data }) => ({ name: info.slices > 1 ? `slice-${slice}/${name}` : name, data })));
+      }
       return reply
         .header('Content-Disposition', attachment(`${fileStem(info.name)}-rois.zip`))
         .type('application/zip')

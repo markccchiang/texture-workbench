@@ -118,7 +118,9 @@ The server is configured with environment variables:
 | `GLCM_DATA_DIR` | `~/.glcm-texture-analysis`; `/data` in server mode | Uploaded images, results and caches |
 | `GLCM_MAX_UPLOAD_BYTES` | 209,857,600 (200 MiB); 100 MiB in server mode | Largest upload |
 | `GLCM_MAX_IMAGE_PIXELS` | 400,000,000; 100,000,000 in server mode | Largest image; checked from the file header before decoding |
-| `GLCM_MAX_VOLUME_BYTES` | 4 GiB; 1 GiB in server mode | Largest NIfTI volume (uncompressed voxel data); checked from the file header |
+| `GLCM_MAX_VOLUME_BYTES` | 4 GiB; 1 GiB in server mode | Largest NIfTI volume (uncompressed voxel data); checked from the file header. Also the largest DICOM series upload |
+| `GLCM_MAX_STACK_PIXELS` | 1,000,000,000; 400,000,000 in server mode | Largest stack (pixels of all slices together: TIFF pages, DICOM frames and series, NIfTI volumes opened as stacks); checked before decoding |
+| `GLCM_MAX_SERIES_FILES` | 10,000; 2,000 in server mode | Files of one DICOM series upload |
 | `GLCM_RAW_TRANSFER_MAX_PIXELS` | 16,777,216 (4096²) | Images up to this size are sent to the browser as raw data |
 | `GLCM_DISPLAY_MAX_SIZE` | `4096` | Largest long side of `display.png` |
 | `GLCM_DISPLAY_CACHE_BYTES` | 536,870,912 (512 MiB) | Disk space for cached `display.png` renderings |
@@ -141,11 +143,12 @@ Endpoints (full details in `packages/api/openapi.json` and the Developer guide):
 | --- | --- |
 | `GET /api/v1/health` | Liveness and core version |
 | `GET /api/v1/catalog` | Features (with non-standard flags), presets and limits |
-| `POST /api/v1/images` | Upload an image as a multipart `file` field |
+| `POST /api/v1/images` | Upload an image as a multipart `file` field; TIFF pages and DICOM frames become the slices of a stack |
+| `POST /api/v1/images/series` | Upload the files of a DICOM series (multipart `file` fields) as one stack |
 | `GET`, `DELETE /api/v1/images/{id}` | Image info (size, bit depth, default window, histogram); delete |
-| `GET /api/v1/images/{id}/display.png?min&max&maxSize` | 8-bit rendering with window/level |
-| `GET /api/v1/images/{id}/raw` | Raw little-endian samples, zstd or gzip compressed, for images up to 4096 × 4096 |
-| `GET /api/v1/images/{id}/pixel?x&y` | One pixel value |
+| `GET /api/v1/images/{id}/display.png?min&max&maxSize&slice` | 8-bit rendering with window/level (of one slice of a stack) |
+| `GET /api/v1/images/{id}/raw?slice` | Raw little-endian samples (of one slice), zstd or gzip compressed, for images up to 4096 × 4096 |
+| `GET /api/v1/images/{id}/pixel?x&y&slice` | One pixel value |
 | `GET /api/v1/images/{id}/edges.png?method&sigma&low&high` | Sobel or Canny edge map as an 8-bit PNG |
 | `GET /api/v1/images/{id}/gradient-stats?sigma` | Percentiles of the gradient magnitude, for choosing edge map limits |
 | `POST /api/v1/images/{id}/roi-stats` | Pixel count, bounding box, min/max/mean/STD of ROIs |

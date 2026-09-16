@@ -18,14 +18,15 @@ export function useRoiStatistics(): Map<string, RoiStatistics> {
   const imageId = useViewer((state) => state.image?.info.imageId ?? null);
   const rois = useRois((state) => state.rois);
   const activeShape = useRois((state) => state.activeShape);
+  const currentSlice = useRois((state) => state.currentSlice);
 
   const request = useMemo(
     () =>
       JSON.stringify([
-        ...rois.map(({ id, shape }) => ({ id, shape })),
-        ...(activeShape ? [{ id: ACTIVE_ROI_ID, shape: activeShape }] : []),
+        ...rois.map(({ id, shape, slice }) => ({ id, shape, ...(slice !== undefined ? { slice } : {}) })),
+        ...(activeShape ? [{ id: ACTIVE_ROI_ID, shape: activeShape, ...(currentSlice !== null ? { slice: currentSlice } : {}) }] : []),
       ]),
-    [rois, activeShape],
+    [rois, activeShape, currentSlice],
   );
   const [debounced] = useDebouncedValue(request, DEBOUNCE_MS);
 

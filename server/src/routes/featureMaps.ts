@@ -5,6 +5,7 @@ import { Type } from 'typebox';
 import type { FeatureMapManager, FeatureMapState } from '../analysis/FeatureMapManager.js';
 import { JobLimitError } from '../analysis/JobManager.js';
 import { ApiError } from '../errors.js';
+import { requireSlice } from '../imageInfo.js';
 import type { ImageStore } from '../storage/ImageStore.js';
 
 export interface FeatureMapRoutesOptions {
@@ -52,9 +53,10 @@ export const featureMapRoutes: FastifyPluginAsyncTypebox<FeatureMapRoutesOptions
         }
         throw error;
       }
-      const pixels = await store.pixels(imageId);
+      const slice = requireSlice(image, request.body.slice);
+      const pixels = await store.pixels(image, slice);
       try {
-        return reply.code(202).send(maps.start(settings, image, pixels).info);
+        return reply.code(202).send(maps.start(settings, image, pixels, slice).info);
       } catch (error) {
         if (!(error instanceof JobLimitError)) {
           throw error;

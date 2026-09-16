@@ -56,6 +56,7 @@ const TOOL_ITEMS: Array<{ tool: Tool; label: string; key: string }> = [
 
 export function MenuBar() {
   const hasImage = useViewer((state) => state.image !== null);
+  const slices = useViewer((state) => state.image?.info.slices ?? 1);
   const tool = useViewer((state) => state.tool);
   const navigatorVisible = useViewer(isNavigatorVisible);
   const canUndo = useRois((state) => state.past.length > 0);
@@ -90,6 +91,7 @@ export function MenuBar() {
         <Menu.Item rightSection={<Shortcut>{MOD_KEY}O</Shortcut>} onClick={() => ui().requestFile('image')}>
           Open Image…
         </Menu.Item>
+        <Menu.Item onClick={() => ui().requestFile('dicomSeries')}>Open DICOM Series…</Menu.Item>
         <Menu.Item onClick={() => ui().setModal('samples')}>Open Sample Image…</Menu.Item>
         <Menu.Divider />
         <Menu.Item onClick={() => ui().requestFile('project')}>Open Project…</Menu.Item>
@@ -242,6 +244,11 @@ export function MenuBar() {
         <Menu.Item disabled={selectedCount === 0} onClick={() => rois().duplicateRois(rois().selectedIds)}>
           Duplicate
         </Menu.Item>
+        {slices > 1 && (
+          <Menu.Item disabled={selectedCount === 0} onClick={() => rois().copyToAllSlices(rois().selectedIds, slices)}>
+            Copy to All Slices
+          </Menu.Item>
+        )}
         <Menu.Item disabled={selectedCount !== 1} onClick={renameSelectedRoi}>
           Rename
         </Menu.Item>

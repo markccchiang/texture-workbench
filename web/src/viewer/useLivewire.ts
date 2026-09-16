@@ -5,6 +5,7 @@
 import { notifications } from '@mantine/notifications';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { livewirePath } from '../api/client';
+import { shownSlice, sliceField } from '../stores/viewerStore';
 import { joinSegments, pixelCentre, type LivewireSegment } from '../rois/livewire';
 import { regionShape } from '../rois/regions';
 import { useRois } from '../rois/roiStore';
@@ -69,7 +70,9 @@ export function useLivewire(imageId: string | null) {
   }, [stopPreview, update]);
 
   const request = useCallback((from: Point, to: Point, signal?: AbortSignal) => {
-    return livewirePath(imageRef.current!, { from, to, sigma: useEdgeMap.getState().sigma }, signal).then((response) => response.points);
+    return livewirePath(imageRef.current!, { from, to, sigma: useEdgeMap.getState().sigma, ...sliceField(shownSlice()) }, signal).then(
+      (response) => response.points,
+    );
   }, []);
 
   const completeIfClosed = useCallback(() => {

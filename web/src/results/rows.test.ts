@@ -118,6 +118,14 @@ describe('formatting, columns and export', () => {
     expect(columns[0].value(two[two.length - 1])).toBe('brick.png');
   });
 
+  it('adds a Slice column only for ROIs on the slices of a stack', () => {
+    expect(columnsForRows(rowsForResult(ok, context), features).some((column) => column.id === 'slice')).toBe(false);
+    const rows = rowsForResult({ ...ok, slice: 4 }, context);
+    const slice = columnsForRows(rows, features).find((column) => column.id === 'slice')!;
+    expect(slice).toMatchObject({ label: 'Slice', numeric: true });
+    expect(slice.value(rows[0])).toBe(4);
+  });
+
   it('keeps pasted text from running as a spreadsheet formula', () => {
     expect(spreadsheetText('=HYPERLINK("http://example.org")')).toBe(`'=HYPERLINK("http://example.org")`);
     for (const text of ['+1', '-left', '@SUM(A1)']) {

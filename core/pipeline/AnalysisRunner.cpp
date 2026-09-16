@@ -474,6 +474,7 @@ AnalysisOutput MeasureImage(const cv::Mat& gray, const std::vector<Roi>& rois, c
             result.roi_id = roi.id;
             result.roi_name = roi.name;
             result.roi_class = roi.class_name;
+            result.slice = roi.slice;
             result.distance = distance;
             result.pixel_count = pixel_count;
 

@@ -21,6 +21,8 @@ export type ViewerAction =
   /** Add the active ROI to the ROI Manager */
   | { kind: 'addRoi' }
   | { kind: 'measure'; scope: 'selected' | 'all' }
+  /** Show the next (1) or previous (-1) slice of a stack */
+  | { kind: 'slice'; step: 1 | -1 }
   | { kind: 'deleteSelection' }
   /** Remove the last vertex of the polygon being drawn */
   | { kind: 'removeLastVertex' }
@@ -113,6 +115,13 @@ export function keyToAction(input: KeyInput, context: KeyContext): ViewerAction 
       return { kind: 'fit' };
     case 'Escape':
       return { kind: 'cancel' };
+    // ImageJ's keys for the next and previous slice
+    case '.':
+    case '>':
+      return { kind: 'slice', step: 1 };
+    case ',':
+    case '<':
+      return { kind: 'slice', step: -1 };
     case 'Backspace':
     case 'Delete':
       if (context.drawing) {

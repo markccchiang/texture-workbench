@@ -3,7 +3,7 @@
 
 import { Type, type Static } from 'typebox';
 import { AnalysisSettings, Direction } from './analysis.js';
-import { IMAGE_ID_PATTERN } from './schemas.js';
+import { IMAGE_ID_PATTERN, Slice } from './schemas.js';
 
 // Limits of core/pipeline/FeatureMap.hpp
 export const FEATURE_MAP_MIN_WINDOW = 3;
@@ -37,6 +37,7 @@ export type FeatureMapSettings = Static<typeof FeatureMapSettings>;
 
 export const FeatureMapRequest = Type.Object({
   imageId: Type.String({ pattern: IMAGE_ID_PATTERN }),
+  slice: Type.Optional(Slice),
   settings: FeatureMapSettings,
 });
 export type FeatureMapRequest = Static<typeof FeatureMapRequest>;
@@ -59,6 +60,7 @@ export const FeatureMapInfo = Type.Object({
   featureMapId: Type.String({ pattern: FEATURE_MAP_ID_PATTERN }),
   imageId: Type.String({ pattern: IMAGE_ID_PATTERN }),
   imageName: Type.String(),
+  slice: Type.Integer({ minimum: 1, description: 'The slice of the image the map covers' }),
   status: FeatureMapStatus,
   settings: FeatureMapSettings,
   step: Type.Integer({ minimum: 1, description: 'Grid spacing used, also when the settings chose it automatically' }),

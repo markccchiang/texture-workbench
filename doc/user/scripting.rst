@@ -86,6 +86,10 @@ Without ROIs the whole image is measured:
 
    glcm measure ct-chest.png --preset haralick --out chest.csv
 
+For a stack (see :ref:`stacks`), that is the whole of every slice, one row per slice with a ``slice`` column;
+``--slice 12`` measures only slice 12. ROIs from ``--rois`` are measured on their own slices, and ``glcm regions`` finds
+regions on the slice given with ``--slice`` (slice 1 by default) and saves them on it.
+
 The usual way to measure the *same* regions is to draw them once in the application, save them with *ROI ▸ Export ROI
 Set…*, and use that file:
 
@@ -168,7 +172,8 @@ with a token.
    assistant.
 
 The assistant can then open an image, **look** at it (it receives the rendering, or the edge map, as a picture), choose
-regions — as rectangles it names by number, or by intensity as above — measure them, and compute a feature map. It
+regions — as rectangles it names by number, or by intensity as above — measure them, and compute a feature map. On a
+stack every tool takes a ``slice`` (from 1), and ``measure`` without regions measures every slice. It
 cannot draw an outline by hand, which is what the browser is for; a practical way to work is to draw the difficult ROIs
 yourself, export them, and let the assistant measure and compare them.
 

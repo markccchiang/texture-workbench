@@ -40,8 +40,8 @@ export interface AnalysisState {
 interface InternalState extends AnalysisState {
   image: ImageInfo;
   request: AnalysisRequest;
-  /** Released when the analysis finishes */
-  pixels: Buffer | null;
+  /** The pixels of each slice the ROIs lie on (1 for a single image); released when the analysis finishes */
+  pixels: Map<number, Buffer> | null;
   running: number;
   cancelRequested: boolean;
 }
@@ -116,7 +116,7 @@ export class JobManager {
    * Queues the jobs of an analysis; the request must already be validated. Throws JobLimitError when the jobs do not
    * fit into maxPendingJobs.
    */
-  start(request: AnalysisRequest, image: ImageInfo, pixels: Buffer): AnalysisState {
+  start(request: AnalysisRequest, image: ImageInfo, pixels: Map<number, Buffer>): AnalysisState {
     const { distances } = request.settings;
     const total = request.rois.length * distances.length;
     if (total > this.options.maxPendingJobs) {
@@ -226,7 +226,7 @@ export class JobManager {
     try {
       const { image, request } = state;
       const json = await native.runAnalysis(
-        state.pixels!,
+        state.pixels!.get(job.roi.slice ?? 1)!,
         image.width,
         image.height,
         image.bitDepth,

@@ -13,6 +13,8 @@ export interface ImageRenderer {
   readonly canvas: HTMLCanvasElement;
   /** table: 256 RGB bytes for the display values (colorTables.ts) */
   render(windowMin: number, windowMax: number, table: Uint8Array): void;
+  /** Shows other samples of the same size and bit depth (another slice of a stack); render() draws them */
+  setSamples(image: RawImage): void;
   dispose(): void;
 }
 
@@ -122,11 +124,15 @@ export function createWebGlRenderer(image: RawImage, onContextLost?: () => void)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-  if (image.bitDepth === 16) {
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16UI, image.width, image.height, 0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, image.samples);
-  } else {
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8UI, image.width, image.height, 0, gl.RED_INTEGER, gl.UNSIGNED_BYTE, image.samples);
-  }
+  const upload = (samples: RawImage) => {
+    gl.activeTexture(gl.TEXTURE0);
+    if (samples.bitDepth === 16) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16UI, samples.width, samples.height, 0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, samples.samples);
+    } else {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8UI, samples.width, samples.height, 0, gl.RED_INTEGER, gl.UNSIGNED_BYTE, samples.samples);
+    }
+  };
+  upload(image);
   if (gl.getError() !== gl.NO_ERROR) {
     gl.getExtension('WEBGL_lose_context')?.loseContext();
     return null;
@@ -172,6 +178,14 @@ export function createWebGlRenderer(image: RawImage, onContextLost?: () => void)
       gl.uniform1ui(maxLocation, windowMax);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     },
+    setSamples(samples) {
+      if (samples.width !== image.width || samples.height !== image.height || samples.bitDepth !== image.bitDepth) {
+        throw new Error('The samples differ in size or bit depth from the image');
+      }
+      if (!gl.isContextLost()) {
+        upload(samples);
+      }
+    },
     dispose() {
       disposed = true;
       canvas.removeEventListener('webglcontextlost', onLost);
@@ -194,12 +208,19 @@ export function createLutRenderer(image: RawImage): ImageRenderer {
     throw new Error('Canvas 2D is not available');
   }
   const imageData = context.createImageData(image.width, image.height);
+  let current = image;
   return {
     kind: 'lut',
     canvas,
     render(windowMin, windowMax, table) {
-      renderToRgba(image, windowMin, windowMax, imageData.data, table);
+      renderToRgba(current, windowMin, windowMax, imageData.data, table);
       context.putImageData(imageData, 0, 0);
+    },
+    setSamples(samples) {
+      if (samples.width !== image.width || samples.height !== image.height || samples.bitDepth !== image.bitDepth) {
+        throw new Error('The samples differ in size or bit depth from the image');
+      }
+      current = samples;
     },
     dispose() {
       canvas.width = 0;

@@ -9,6 +9,7 @@
 #include <fstream>
 #include <limits>
 #include <opencv2/core.hpp>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -291,6 +292,74 @@ TEST(DicomReaderTest, UsesTheFirstFrameWithAWarning) {
     const glcm::LoadedImage image = glcm::LoadDicomBytes(Dicom(EXPLICIT_LE, elements));
     EXPECT_EQ(image.gray.at<uchar>(0, 1), 2);
     EXPECT_EQ(image.warnings, std::vector<std::string>{"The DICOM file contains 2 frames; only the first is used"});
+}
+
+TEST(DicomReaderTest, ReadsEveryFrameAsAStackWithOneStorage) {
+    // Two frames of signed CT values; the second frame's range makes both be stored + 1024
+    std::vector<Element> elements = Inserted(Monochrome(1, 2, 16, 16, 1, "MONOCHROME2", Words({10, 20, -500, 30})),
+        {{0x0008, 0x0060, "CS", Text("CT")}, {0x0028, 0x0008, "IS", Text("2")}});
+    std::sort(elements.begin(), elements.end(),
+        [](const Element& a, const Element& b) { return std::make_pair(a.group, a.element) < std::make_pair(b.group, b.element); });
+    TemporaryFile file("frames.dcm");
+    WriteFile(file.path, Dicom(EXPLICIT_LE, elements));
+
+    const glcm::LoadedStack stack = glcm::LoadDicomStackFile(file.path.string());
+    ASSERT_EQ(stack.slices, 2);
+    ASSERT_EQ(stack.pixels.size(), cv::Size(2, 2));
+    EXPECT_EQ(stack.Slice(0).at<uint16_t>(0, 0), 1034);
+    EXPECT_EQ(stack.Slice(0).at<uint16_t>(0, 1), 1044);
+    EXPECT_EQ(stack.Slice(1).at<uint16_t>(0, 0), 524);
+    EXPECT_EQ(stack.Slice(1).at<uint16_t>(0, 1), 1054);
+    ASSERT_TRUE(stack.info.value_conversion.has_value());
+    EXPECT_EQ(stack.info.value_conversion->offset, -1024);
+    EXPECT_TRUE(stack.warnings.empty());
+    // The same file as an image keeps its first frame, as before
+    const glcm::LoadedStack as_stack = glcm::LoadImageStackFile(file.path.string());
+    EXPECT_EQ(as_stack.slices, 2);
+    EXPECT_THROW(glcm::LoadDicomStackFile(file.path.string(), 0, 3), glcm::StackTooLargeError);
+}
+
+std::vector<uint8_t> SeriesFile(const std::string& series, double z, int instance, double slope, const std::vector<int>& values) {
+    std::ostringstream position;
+    position << "0\\0\\" << z;
+    std::vector<Element> elements = Inserted(Monochrome(1, 2, 16, 12, 0, "MONOCHROME2", Words(values)),
+        {{0x0008, 0x0060, "CS", Text("MR")}, {0x0008, 0x103E, "LO", Text("T1 axial")}, {0x0020, 0x000E, "UI", Text(series, '\0')},
+            {0x0020, 0x0013, "IS", Text(std::to_string(instance))}, {0x0020, 0x0032, "DS", Text(position.str())},
+            {0x0020, 0x0037, "DS", Text("1\\0\\0\\0\\1\\0")}, {0x0028, 0x0030, "DS", Text("0.5\\0.25")},
+            {0x0028, 0x1053, "DS", Text(slope == 1 ? "1" : "2")}});
+    std::sort(elements.begin(), elements.end(),
+        [](const Element& a, const Element& b) { return std::make_pair(a.group, a.element) < std::make_pair(b.group, b.element); });
+    return Dicom(EXPLICIT_LE, elements);
+}
+
+TEST(DicomReaderTest, OrdersASeriesAlongTheImageNormalWithOneStorage) {
+    // Files written in a shuffled order, with instance numbers that disagree with the positions, one of another series
+    // and one that is not DICOM
+    TemporaryFile a("series_a.dcm"), b("series_b.dcm"), c("series_c.dcm"), other("series_other.dcm"), text("series_notes.txt");
+    WriteFile(a.path, SeriesFile("1.2.3", 5.0, 1, 1, {1, 2}));
+    WriteFile(b.path, SeriesFile("1.2.3", -5.0, 2, 2, {3, 4}));
+    WriteFile(c.path, SeriesFile("1.2.3", 0.0, 3, 1, {5, 6}));
+    WriteFile(other.path, SeriesFile("9.9", 0.0, 1, 1, {7, 8}));
+    WriteFile(text.path, {'h', 'i'});
+
+    const glcm::LoadedStack stack =
+        glcm::LoadDicomSeries({a.path.string(), b.path.string(), c.path.string(), other.path.string(), text.path.string()});
+    ASSERT_EQ(stack.slices, 3);
+    // z = -5, 0, 5; the slope 2 of one file applies to its samples
+    EXPECT_EQ(stack.Slice(0).at<uint16_t>(0, 0), 6);
+    EXPECT_EQ(stack.Slice(0).at<uint16_t>(0, 1), 8);
+    EXPECT_EQ(stack.Slice(1).at<uint16_t>(0, 0), 5);
+    EXPECT_EQ(stack.Slice(2).at<uint16_t>(0, 1), 2);
+    ASSERT_TRUE(stack.info.pixel_spacing.has_value());
+    EXPECT_EQ(stack.info.pixel_spacing->x_mm, 0.25);
+    EXPECT_EQ(stack.series_description, "T1 axial");
+    ASSERT_TRUE(stack.info.value_conversion.has_value());
+    EXPECT_NE(stack.info.value_conversion->description.find("rescale slope and intercept of each file"), std::string::npos);
+    EXPECT_EQ(stack.warnings, (std::vector<std::string>{"1 file is not a DICOM image and was left out",
+                                  "The files belong to 2 series; only the largest (3 files) is used"}));
+
+    EXPECT_THROW(glcm::LoadDicomSeries({text.path.string()}), std::invalid_argument);
+    EXPECT_THROW(glcm::LoadDicomSeries({a.path.string(), b.path.string()}, 0, 3), glcm::StackTooLargeError);
 }
 
 // ---- NIfTI ----
@@ -683,3 +752,28 @@ TEST(PngEncoderTest, WritesThePixelSpacing) {
 }
 
 } // namespace
+
+TEST(NiftiReaderTest, ExtractsAStackEqualToItsSlices) {
+    // Oblique permutation with flips, two volumes
+    Nifti nifti;
+    nifti.dim = {4, 4, 3, 2, 2};
+    nifti.sform_code = 1;
+    nifti.srow = {{{0, -1, 0, 0}, {0, 0, 1, 0}, {-1, 0, 0, 0}}};
+    nifti.data = Ramp(4, 3, 2, 2);
+    TemporaryFile file("stack.nii");
+    WriteFile(file.path, NiftiBytes(nifti));
+    const glcm::NiftiVolumeInfo info = glcm::InspectNiftiVolume(file.path.string());
+    for (auto orientation : {SliceOrientation::Axial, SliceOrientation::Coronal, SliceOrientation::Sagittal}) {
+        const glcm::LoadedStack stack = glcm::ExtractNiftiStack(file.path.string(), orientation, 1, info.storage);
+        const auto& geometry = info.slices[static_cast<size_t>(orientation)];
+        ASSERT_EQ(stack.slices, geometry.count);
+        for (int slice = 0; slice < stack.slices; ++slice) {
+            const glcm::LoadedImage expected = glcm::ExtractNiftiSlice(file.path.string(), orientation, slice, 1, info.storage);
+            EXPECT_EQ(cv::norm(stack.Slice(slice), expected.gray, cv::NORM_INF), 0)
+                << glcm::SliceOrientationId(orientation) << " " << slice;
+            EXPECT_EQ(stack.info.pixel_spacing.has_value(), expected.info.pixel_spacing.has_value());
+        }
+    }
+    EXPECT_THROW(glcm::ExtractNiftiStack(file.path.string(), SliceOrientation::Axial, 2, info.storage), std::invalid_argument);
+    EXPECT_THROW(glcm::ExtractNiftiStack(file.path.string(), SliceOrientation::Axial, 0, info.storage, 0, 5), glcm::StackTooLargeError);
+}

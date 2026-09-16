@@ -6,6 +6,7 @@
 #include <limits>
 #include <stdexcept>
 
+#include "imaging/ImageLoader.hpp"
 #include "io/Identifiers.hpp"
 #include "io/JsonConversions.hpp"
 #include "pipeline/FeatureCatalog.hpp"
@@ -125,6 +126,10 @@ Json RoiToJson(const Roi& roi) {
     if (!roi.class_name.empty()) {
         result["class"] = roi.class_name;
     }
+    // Only for ROIs on a slice of a stack
+    if (roi.slice > 0) {
+        result["slice"] = roi.slice;
+    }
     result["shape"] = shape;
     return result;
 }
@@ -149,6 +154,13 @@ Roi RoiFromJson(const Json& value, const std::string& path) {
         roi.class_name = Text(value.at("class"), class_path);
         if (roi.class_name.empty() || roi.class_name.size() > MAX_CLASS_NAME_LENGTH) {
             Fail(class_path, "must be between 1 and " + std::to_string(MAX_CLASS_NAME_LENGTH) + " characters");
+        }
+    }
+    if (value.contains("slice")) {
+        const std::string slice_path = Child(path, "slice");
+        roi.slice = Integer(value.at("slice"), slice_path);
+        if (roi.slice < 1 || roi.slice > MAX_SLICES) {
+            Fail(slice_path, "must be between 1 and " + std::to_string(MAX_SLICES));
         }
     }
 
@@ -436,6 +448,12 @@ MeasurementResult MeasurementFromJson(const Json& value, const std::string& path
     if (value.contains("roiClass")) {
         result.roi_class = Text(value.at("roiClass"), Child(path, "roiClass"));
     }
+    if (value.contains("slice")) {
+        result.slice = Integer(value.at("slice"), Child(path, "slice"));
+        if (result.slice < 1) {
+            Fail(Child(path, "slice"), "must be at least 1");
+        }
+    }
     result.distance = integer("distance");
     result.pixel_count = integer("pixelCount");
 
@@ -668,6 +686,9 @@ std::string ResultsToJson(const std::vector<MeasurementResult>& results, const A
         item["roiName"] = result.roi_name;
         if (!result.roi_class.empty()) {
             item["roiClass"] = result.roi_class;
+        }
+        if (result.slice > 0) {
+            item["slice"] = result.slice;
         }
         item["distance"] = result.distance;
         item["status"] = MeasurementStatusId(result.status);

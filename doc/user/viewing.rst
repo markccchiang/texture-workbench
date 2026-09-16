@@ -57,6 +57,34 @@ The status bar shows the column (``x``), row (``y``) and value of the pixel unde
 stored image: 0–255 for 8-bit images and 0–65535 for 16-bit images, after conversion to grayscale for color images.
 Column 0, row 0 is the upper left pixel.
 
+.. _stacks:
+
+Stacks
+------
+
+A multi-page TIFF, a DICOM file with several frames, a DICOM series and the slices of a NIfTI volume open as a
+**stack**: one image with several slices of the same size, as in ImageJ. The status bar shows the number of slices
+(for example ``64×64×40 slices``), and a **slice slider** below the image shows which slice is on screen:
+
+.. figure:: images/stack.png
+   :alt: Slice 48 of 96 of a head phantom opened as a stack, with an elliptical ROI on it and the slice slider with its arrows and the readout 48 / 96 below the image.
+   :width: 100%
+
+   A NIfTI volume opened as a stack, with an ROI on the slice shown.
+
+- Drag the slider, click the arrows beside it, or press :kbd:`.` (or :kbd:`>`) for the next slice and :kbd:`,` (or
+  :kbd:`<`) for the previous one. Slices count from 1.
+- The display window, the colour table, zoom and pan stay the same on every slice; the default window and the
+  histogram cover all slices.
+- The pixel readout, the magic wand, *Threshold ROI*, the livewire, the edge map and the feature map work on the slice
+  shown. A feature map belongs to the slice it was computed on and is hidden on the others.
+
+**ROIs belong to a slice.** An ROI drawn, added by the wand or *Threshold ROI*, or imported without a slice lies on the
+slice shown, and the canvas shows only the ROIs of the slice shown. The ROI Manager lists the ROIs of every slice with
+their slice number; clicking an ROI of another slice shows that slice. *Copy to All Slices* (in the ROI menu and the ROI
+Manager's menus) copies the selected ROIs onto every other slice, for example to measure the same region through the
+stack. Each ROI is measured on its own slice (see :ref:`measure-rois`).
+
 .. _pixel-spacing:
 
 Pixel spacing and scale bar

@@ -4,7 +4,7 @@ import type { SliceOrientation } from '@glcm/api';
 import { Button, Group, List, Loader, Modal, SegmentedControl, Slider, Stack, Text } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { deleteVolume, fetchVolumePreview } from '../api/client';
-import { openVolumeSlice } from '../stores/imageLoader';
+import { openVolumeSlice, openVolumeStack } from '../stores/imageLoader';
 import { ORIENTATION_LABELS, ORIENTATIONS, previewSize, sliceSummary, useVolumeImport, volumeSummary } from './volumeImport';
 
 const PREVIEW_SIZE = 320;
@@ -35,7 +35,10 @@ function usePreview(volumeId: string | null, orientation: SliceOrientation, slic
             URL.revokeObjectURL(urlRef.current);
           }
           urlRef.current = URL.createObjectURL(blob);
-          setPreview({ url: urlRef.current, key: `${orientation}:${slice}:${volumeIndex}` });
+          setPreview({
+            url: urlRef.current,
+            key: `${orientation}:${slice}:${volumeIndex}`,
+          });
           setError(null);
         })
         .catch((reason: Error) => {
@@ -87,9 +90,13 @@ export function VolumeImportDialog() {
     store().close();
     void openVolumeSlice(volume, orientation, slice, volumeIndex).finally(() => deleteVolume(volume.volumeId).catch(() => undefined));
   };
+  const openStack = () => {
+    store().close();
+    void openVolumeStack(volume, orientation, volumeIndex, slice).finally(() => deleteVolume(volume.volumeId).catch(() => undefined));
+  };
 
   return (
-    <Modal opened onClose={cancel} title={`Open Slice of ${volume.name}`} size="auto">
+    <Modal opened onClose={cancel} title={`Open ${volume.name}`} size="auto">
       <Stack gap="sm" className="volume-import">
         <Text size="sm" c="dimmed">
           {volumeSummary(volume)}
@@ -97,7 +104,10 @@ export function VolumeImportDialog() {
         <SegmentedControl
           value={orientation}
           onChange={(value) => store().setOrientation(value as SliceOrientation)}
-          data={ORIENTATIONS.map((value) => ({ value, label: ORIENTATION_LABELS[value] }))}
+          data={ORIENTATIONS.map((value) => ({
+            value,
+            label: ORIENTATION_LABELS[value],
+          }))}
           aria-label="Orientation"
         />
         <div className="volume-preview-frame">
@@ -164,14 +174,19 @@ export function VolumeImportDialog() {
           </List>
         )}
         <Text size="xs" c="dimmed">
-          The slice opens as a 2D image named “{volume.name} [{orientation} {slice}
-          {volume.volumes > 1 ? `, volume ${volumeIndex}` : ''}]”. Open the file again for another slice.
+          Open All Slices opens the {geometry.count} {ORIENTATION_LABELS[orientation].toLowerCase()} slices as a stack named “{volume.name} [{orientation}
+          {volume.volumes > 1 ? `, volume ${volumeIndex}` : ''}]”, showing slice {slice + 1} of it; Open Slice opens only this slice as a 2D image.
         </Text>
         <Group justify="flex-end">
           <Button variant="default" onClick={cancel}>
             Cancel
           </Button>
-          <Button onClick={open}>Open Slice</Button>
+          <Button variant="default" onClick={open}>
+            Open Slice
+          </Button>
+          <Button onClick={openStack} disabled={geometry.count <= 1}>
+            Open All Slices
+          </Button>
         </Group>
       </Stack>
     </Modal>

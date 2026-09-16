@@ -46,24 +46,35 @@ Endpoints
      - Description
    * - ``POST /images``
      - Upload one file as ``multipart/form-data``: PNG, JPEG, BMP, TIFF, uncompressed DICOM or a single-slice NIfTI file;
-       ``201`` with ``ImageInfo``. ``413`` too large, ``415`` not multipart, ``422`` ``InvalidImage``,
-       ``UnsupportedImage`` (for example compressed DICOM, or a NIfTI volume: use ``POST /volumes``) or ``ImageTooLarge``
+       ``201`` with ``ImageInfo``. The pages of a multi-page TIFF (up to the first page of another size or type) and the
+       frames of a DICOM file become the ``slices`` of a stack. ``413`` too large, ``415`` not multipart, ``422``
+       ``InvalidImage``, ``UnsupportedImage`` (for example compressed DICOM, or a NIfTI volume: use ``POST /volumes``) or
+       ``ImageTooLarge`` (a slice above ``GLCM_MAX_IMAGE_PIXELS``, or all slices above ``GLCM_MAX_STACK_PIXELS``)
+   * - ``POST /images/series``
+     - The files of a DICOM series as ``multipart/form-data`` (one ``file`` field per file, at most
+       ``GLCM_MAX_SERIES_FILES``, together at most ``GLCM_MAX_VOLUME_BYTES``) and an optional ``name`` field; ``201`` with
+       the ``ImageInfo`` of one stack. Files that are not DICOM images are left out, only the series (SeriesInstanceUID)
+       with the most files is used, and the slices are ordered along the normal of the image plane (ImagePositionPatient
+       and ImageOrientationPatient), else by InstanceNumber, else by file name; all files are stored with one value
+       conversion. The name is the ``name`` field, else the SeriesDescription. The image's original file is an
+       uncompressed multi-page TIFF of the slices, whose SHA-256 identifies it. ``422`` ``UnsupportedImage`` when no
+       file is a DICOM image or the images differ in size
    * - ``GET /images?sha256=``
      - Stored images, newest first, optionally only those whose uploaded file has this SHA-256
    * - ``GET /images/{id}``, ``DELETE /images/{id}``
      - ``ImageInfo``; delete the image (``204``)
-   * - ``GET /images/{id}/raw``
-     - Grayscale samples for images with ``transfer: "raw"`` (``409 RawNotAvailable`` otherwise), compressed with zstd
+   * - ``GET /images/{id}/raw?slice``
+     - Grayscale samples (of one slice) for images with ``transfer: "raw"`` (``409 RawNotAvailable`` otherwise), compressed with zstd
        or gzip when accepted, ``ETag`` and immutable caching
-   * - ``GET /images/{id}/display.png?min&max&maxSize``
+   * - ``GET /images/{id}/display.png?min&max&maxSize&slice``
      - 8-bit PNG with window/level, long side at most ``maxSize``; ``ETag`` and ``304``
-   * - ``GET /images/{id}/edges.png?method&sigma&low&high&maxSize``
+   * - ``GET /images/{id}/edges.png?method&sigma&low&high&maxSize&slice``
      - 8-bit PNG edge map of the gradient magnitude after Gaussian smoothing (``sigma`` pixels): ``sobel`` maps
        ``[low, high]`` to black–white, ``canny`` marks the edges found with the hysteresis thresholds ``low`` and
        ``high``; limits in intensity units per pixel; cached with ``ETag`` like ``display.png``
-   * - ``GET /images/{id}/gradient-stats?sigma``
+   * - ``GET /images/{id}/gradient-stats?sigma&slice``
      - ``{sigma, percentiles: {"50", "90", "95", "99"}, max}`` of the gradient magnitude, for choosing edge map limits
-   * - ``GET /images/{id}/pixel?x&y``
+   * - ``GET /images/{id}/pixel?x&y&slice``
      - ``{x, y, value}`` for one pixel
    * - ``GET /images/{id}/original``
      - The uploaded file, as a download
@@ -75,17 +86,18 @@ Endpoints
    * - Method and path
      - Description
    * - ``POST /images/{id}/roi-stats``
-     - ``{rois: [{id, shape}]}`` → ``{stats: [{roiId, pixelCount, boundingBox, min, max, mean, std, error}]}``
+     - ``{rois: [{id, slice?, shape}]}`` → ``{stats: [{roiId, pixelCount, boundingBox, min, max, mean, std, error}]}``, each
+       ROI on its slice
    * - ``POST /images/{id}/threshold-rois``
-     - ``{min, max, minPixels, maxRegions, maxPixels?, minSphericity?}`` → ``{regions: [{points, pixelCount,
+     - ``{min, max, minPixels, maxRegions, maxPixels?, minSphericity?, slice?}`` → ``{regions: [{points, pixelCount,
        boundingBox}], total}``: the 8-connected parts of the pixels in ``[min, max]`` with holes filled, outlined along
        the pixel edges, with ``minPixels`` to ``maxPixels`` pixels and a sphericity (the shape feature, in pixels) of at
        least ``minSphericity``, the largest ``maxRegions`` (at most 1000; 0 returns only ``total``)
    * - ``POST /images/{id}/wand-roi``
-     - ``{x, y, tolerance}`` → ``{region}``: the 8-connected region around pixel ``(x, y)`` whose values differ from its
+     - ``{x, y, tolerance, slice?}`` → ``{region}``: the 8-connected region around pixel ``(x, y)`` whose values differ from its
        value by at most ``tolerance``, outlined the same way; ``null`` outside the image
    * - ``POST /images/{id}/livewire``
-     - ``{from: {x, y}, to: {x, y}, sigma}`` → ``{points}``: the livewire path between two pixels along strong edges,
+     - ``{from: {x, y}, to: {x, y}, sigma, slice?}`` → ``{points}``: the livewire path between two pixels along strong edges,
        as the pixel centres where it turns; ``400`` for points outside the image or more than 1024 pixels apart
    * - ``POST /images/{id}/combine-rois``
      - ``{operation: "union"|"subtract"|"intersect"|"xor", shapes}`` → ``{shape, pixelCount, boundingBox}``: the shapes
@@ -101,7 +113,8 @@ Endpoints
      - ``{shape, path, radius, erase}`` → the same result: the pixels whose centres lie within ``radius`` of ``path``,
        added to ``shape`` (a new shape when ``null``) or removed from it
    * - ``POST /analyses``
-     - ``{imageId, rois, settings}`` → ``202`` with ``AnalysisInfo``; ``400`` for invalid settings or ROIs; ``422``
+     - ``{imageId, rois, settings}`` → ``202`` with ``AnalysisInfo``; each ROI is measured on its ``slice``; ``400`` for
+       invalid settings or ROIs, or a slice the image does not have; ``422``
        ``TooManyJobs`` when ROIs × distances exceed ``GLCM_MAX_PENDING_JOBS``; ``503`` ``ServerBusy`` (with
        ``Retry-After``) while the job queue is full
    * - ``GET /analyses/{id}``
@@ -135,6 +148,10 @@ Endpoints
      - ``{orientation: "axial"|"coronal"|"sagittal", slice, volume?}`` → ``201`` with the ``ImageInfo`` of a new image
        named ``<file> [<orientation> <slice>]`` (``, volume <n>`` for 4D files), whose original file is a PNG of the
        slice with its pixel spacing
+   * - ``POST /volumes/{id}/stack``
+     - ``{orientation, volume?}`` → ``201`` with the ``ImageInfo`` of a stack of every slice in that orientation (slice 1
+       is the most inferior, posterior or left one), named ``<file> [<orientation>]``, with the window of the whole
+       volume; its original file is an uncompressed multi-page TIFF of the slices with the pixel spacing
 
 .. list-table:: Feature maps
    :header-rows: 1
@@ -143,7 +160,7 @@ Endpoints
    * - Method and path
      - Description
    * - ``POST /feature-maps``
-     - ``{imageId, settings}`` → ``202`` with ``FeatureMapInfo``; ``400`` for invalid settings, ``404`` for an unknown
+     - ``{imageId, slice?, settings}`` → ``202`` with ``FeatureMapInfo`` (which records the ``slice``); ``400`` for invalid settings, ``404`` for an unknown
        image; ``422`` ``TooManyJobs`` when the map needs more bands of rows (about a second of computing each) than
        ``GLCM_MAX_FEATURE_MAP_BANDS`` or ``GLCM_MAX_PENDING_JOBS``; ``503`` ``ServerBusy`` while the job queue is full
    * - ``GET /feature-maps/{id}``
@@ -239,7 +256,7 @@ A request may contain up to 1000 ROIs; a polygon up to 10 000 vertices.
 .. code-block:: json
 
    {
-     "roiId": "7f3c", "roiName": "ROI 1", "roiClass": "lesion", "distance": 1,
+     "roiId": "7f3c", "roiName": "ROI 1", "roiClass": "lesion", "slice": 12, "distance": 1,
      "status": "ok", "error": "", "pixelCount": 4096,
      "pairCounts": {"0": 8064, "45": 7938, "90": 8064, "135": 7938},
      "quantization": {"lower": 0, "upper": 255},
@@ -248,7 +265,8 @@ A request may contain up to 1000 ROIs; a polygon up to 10 000 vertices.
      "warnings": []
    }
 
-``roiClass`` is the ROI's class and is omitted for ROIs without one. Values are ``null`` for directions that were not selected. ``status`` is ``skipped`` (e.g. fewer than 2 pixels) or
+``roiClass`` is the ROI's class and is omitted for ROIs without one; ``slice`` is the ROI's slice of a stack (from
+1) and is omitted for ROIs without one. Values are ``null`` for directions that were not selected. ``status`` is ``skipped`` (e.g. fewer than 2 pixels) or
 ``failed`` (e.g. intensities outside the gray levels without quantization) with ``error`` explaining why.
 
 .. _api-events:
@@ -617,8 +635,9 @@ Every JSON file has ``format`` and an integer ``version``; readers reject other 
      - Contents
    * - ``glcm-roi-set``
      - ``*.roi.json``
-     - ``image`` (name, width, height, bitDepth, sha256), optional ``classes`` (``[{name, color}]``) and ``rois``
-       (each with an optional ``class``); written by the web app and by ``glcm::RoiSetToJson``
+     - ``image`` (name, width, height, bitDepth, ``slices`` for a stack, sha256), optional ``classes`` (``[{name, color}]``)
+       and ``rois`` (each with an optional ``class`` and, on a stack, ``slice`` from 1); written by the web app and by
+       ``glcm::RoiSetToJson``
    * - ``glcm-results``
      - ``*-results.json``
      - ``coreVersion``, ``timestamp``, ``image`` (name, sha256), ``settings`` and ``results``
@@ -626,7 +645,8 @@ Every JSON file has ``format`` and an integer ``version``; readers reject other 
    * - ``glcm-results-csv``
      - ``*-results.csv``
      - ``# key=value`` lines with the format, versions, image and settings, then a header row and one row per ROI ×
-       distance × direction (or per aggregation); a ``roiClass`` column follows ``roiId`` when an ROI has a class.
+       distance × direction (or per aggregation); a ``roiClass`` column follows ``roiId`` when an ROI has a class, then a
+       ``slice`` column when an ROI lies on a slice of a stack.
        With resampling, ``# resampledPixelSpacingMm=x;y`` follows ``# pixelSpacingMm`` and ``areaMm2`` counts the
        resampled pixels; with a filter, ``# filter=laplacianOfGaussian;sigma=s`` or ``# filter=wavelet;wavelet=coif1;band=HH`` comes
        before it. The ``quantization``
@@ -636,17 +656,19 @@ Every JSON file has ``format`` and an integer ``version``; readers reject other 
        with ``=``, ``+``, ``-``, ``@``, tab or carriage return get a leading ``'`` (CSV injection)
    * - ``glcm-roi-images``
      - ``manifest.json`` in the ROI images ZIP
-     - One entry per ROI with its geometry, bounding box, pixel count and file names, or why it was skipped
+     - One entry per ROI with its geometry, bounding box, pixel count and file names, or why it was skipped; for a
+       stack, the files of each slice are in a folder ``slice-<n>/`` with its own manifest
    * - ``glcm-project``
      - ``*.glcmproj``
      - ``image`` (name, size, bit depth, sha256, optional base64 ``data``), optional ``classes``, ``rois`` (with
-       visibility and class), ``settings``
+       visibility, class and slice), ``settings``
        and ``results`` (finished analyses with their settings)
    * - ImageJ ROI
      - ``*.roi``, ``RoiSet.zip``
      - ImageJ's binary format (``ij/io/RoiDecoder.java``, version 228), not JSON: read into ``glcm-roi-set`` documents
        and written from ROIs by ``readImageJRois`` and ``writeImageJRois`` in ``@glcm/api``, covering the same pixels as
-       in ImageJ 1.54p. Names and stroke colours are kept; classes, positions in stacks and groups are not
+       in ImageJ 1.54p. Names, stroke colours and positions in stacks are kept (the ROI's ``slice`` is written as its
+       position; reading takes the position, else the z, else the t position of a hyperstack); classes and groups are not
 
 Example ROI set:
 

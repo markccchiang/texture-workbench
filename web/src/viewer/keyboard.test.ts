@@ -64,4 +64,13 @@ describe('keyToAction', () => {
     expect(keyToAction(key('+', { ctrlKey: true }), context)).toBeNull();
     expect(keyToAction(key('q'), context)).toBeNull();
   });
+
+  it('steps through the slices of a stack with ImageJ\'s keys', () => {
+    const context = { hasSelection: false, view };
+    const key = (value: string): KeyInput => ({ key: value, shiftKey: false, ctrlKey: false, metaKey: false, altKey: false });
+    expect(keyToAction(key('.'), context)).toEqual({ kind: 'slice', step: 1 });
+    expect(keyToAction(key('>'), context)).toEqual({ kind: 'slice', step: 1 });
+    expect(keyToAction(key(','), context)).toEqual({ kind: 'slice', step: -1 });
+    expect(keyToAction(key('<'), context)).toEqual({ kind: 'slice', step: -1 });
+  });
 });

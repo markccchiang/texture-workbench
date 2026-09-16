@@ -200,13 +200,15 @@ export function ImageCanvas() {
     window.clearTimeout(lookup.timer);
     lookup.controller?.abort();
     const { imageId } = state.image.info;
+    const slice = state.image.slice ?? 1;
     lookup.timer = window.setTimeout(async () => {
       const controller = new AbortController();
       lookup.controller = controller;
       try {
-        const result = await getPixel(imageId, pixel.x, pixel.y, controller.signal);
+        const result = await getPixel(imageId, pixel.x, pixel.y, controller.signal, slice);
         const hover = useViewer.getState().hover;
-        if (hover && hover.x === result.x && hover.y === result.y && useViewer.getState().image?.info.imageId === imageId) {
+        const current = useViewer.getState().image;
+        if (hover && hover.x === result.x && hover.y === result.y && current?.info.imageId === imageId && (current.slice ?? 1) === slice) {
           useViewer.getState().setHover({ x: result.x, y: result.y, value: result.value });
         }
       } catch {

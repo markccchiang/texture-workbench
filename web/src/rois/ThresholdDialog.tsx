@@ -7,7 +7,7 @@ import { notifications } from '@mantine/notifications';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { selectThresholdRois } from '../api/client';
-import { useViewer } from '../stores/viewerStore';
+import { useViewer, sliceField } from '../stores/viewerStore';
 import { addThresholdRois, thresholdFilterFields, type ThresholdFilters } from './regionActions';
 import { DEFAULT_THRESHOLD_MIN_PIXELS } from './regions';
 
@@ -23,11 +23,13 @@ export function ThresholdRoiContent({ onClose }: { onClose(): void }) {
   const [debouncedMinSphericity] = useDebouncedValue(minSphericity, 250);
   const [adding, setAdding] = useState(false);
   const imageId = image?.info.imageId ?? null;
+  const slice = image?.slice ?? 1;
   const filters = validFilters(debouncedMinPixels, debouncedMaxPixels, debouncedMinSphericity);
 
   const count = useQuery({
-    queryKey: ['threshold-rois', imageId, window.min, window.max, filters],
-    queryFn: ({ signal }) => selectThresholdRois(imageId!, { min: window.min, max: window.max, ...thresholdFilterFields(filters!), maxRegions: 0 }, signal),
+    queryKey: ['threshold-rois', imageId, slice, window.min, window.max, filters],
+    queryFn: ({ signal }) =>
+      selectThresholdRois(imageId!, { min: window.min, max: window.max, ...thresholdFilterFields(filters!), maxRegions: 0, ...sliceField(slice) }, signal),
     enabled: imageId !== null && filters !== null,
     staleTime: Infinity,
   });

@@ -214,7 +214,14 @@ export async function growSelectedRois({ operation, distance, unit }: GrowReques
     return [{ roi, shape: outline.shape }];
   });
   if (operation === 'band') {
-    store.importRois(outcomes.map(({ roi, shape }) => ({ name: `${roi.name} band ${formatDistance(distance, unit)}`, color: '', shape })));
+    store.importRois(
+      outcomes.map(({ roi, shape }) => ({
+        name: `${roi.name} band ${formatDistance(distance, unit)}`,
+        color: '',
+        shape,
+        ...(roi.slice !== undefined ? { slice: roi.slice } : {}),
+      })),
+    );
   } else {
     store.replaceShapes(outcomes.map(({ roi, shape }) => ({ id: roi.id, shape })));
   }

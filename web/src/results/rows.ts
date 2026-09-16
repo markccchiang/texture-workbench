@@ -14,6 +14,8 @@ export interface ResultRow {
   roiName: string;
   /** Empty when the ROI has no class */
   roiClass: string;
+  /** The ROI's slice of a stack; null for an image without slices */
+  slice: number | null;
   distance: number;
   /** null for skipped and failed measurements */
   direction: RowDirection | null;
@@ -57,6 +59,7 @@ export function rowsForResult(
     roiId: result.roiId,
     roiName: result.roiName,
     roiClass: result.roiClass ?? '',
+    slice: result.slice ?? null,
     distance: result.distance,
     status: result.status,
     error: result.error,
@@ -110,6 +113,8 @@ export function columnsForRows(rows: readonly ResultRow[], features: readonly Fe
     ...(new Set(rows.map((row) => row.imageName)).size > 1 ? [{ id: 'image', label: 'Image', numeric: false, value: (row: ResultRow) => row.imageName }] : []),
     { id: 'roi', label: 'ROI', numeric: false, value: (row) => row.roiName },
     ...(rows.some((row) => row.roiClass) ? [{ id: 'class', label: 'Class', numeric: false, value: (row: ResultRow) => row.roiClass }] : []),
+    // Only for ROIs on the slices of a stack
+    ...(rows.some((row) => row.slice !== null) ? [{ id: 'slice', label: 'Slice', numeric: true, value: (row: ResultRow) => row.slice }] : []),
     { id: 'distance', label: 'd', numeric: true, value: (row) => row.distance },
     { id: 'direction', label: 'Dir', numeric: false, value: (row) => (row.direction ? DIRECTION_LABELS[row.direction] : '') },
     { id: 'pixels', label: 'Pixels', numeric: true, value: (row) => row.pixelCount },

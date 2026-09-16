@@ -10,6 +10,10 @@ export interface ServerConfig {
   dataDir: string;
   maxUploadBytes: number;
   maxImagePixels: number;
+  /** Pixels of all slices of a stack together (TIFF pages, DICOM frames and series, NIfTI volumes opened as stacks) */
+  maxStackPixels: number;
+  /** Files of one DICOM series upload */
+  maxSeriesFiles: number;
   /** Voxel data of one NIfTI volume, uncompressed (checked from the header) */
   maxVolumeBytes: number;
   /** Images up to this many pixels are sent to the browser as raw data (GET /raw) */
@@ -60,6 +64,8 @@ export const DEFAULT_CONFIG: Defaults = {
   port: 8080,
   maxUploadBytes: 200 * MIB,
   maxImagePixels: 20_000 * 20_000,
+  maxStackPixels: 1_000_000_000,
+  maxSeriesFiles: 10_000,
   maxVolumeBytes: 4096 * MIB,
   rawTransferMaxPixels: 4096 * 4096,
   displayMaxSize: 4096,
@@ -80,6 +86,8 @@ export const DEFAULT_CONFIG: Defaults = {
 export const SERVER_MODE_DEFAULTS: Partial<Defaults> = {
   maxUploadBytes: 100 * MIB,
   maxImagePixels: 10_000 * 10_000,
+  maxStackPixels: 400_000_000,
+  maxSeriesFiles: 2_000,
   maxVolumeBytes: 1024 * MIB,
   maxPendingJobs: 20_000,
   maxFeatureMapBands: 1024,
@@ -133,6 +141,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     dataDir: path.resolve(env.GLCM_DATA_DIR || defaultDataDir),
     maxUploadBytes: integerSetting(env, 'GLCM_MAX_UPLOAD_BYTES', defaults.maxUploadBytes, 1),
     maxImagePixels: integerSetting(env, 'GLCM_MAX_IMAGE_PIXELS', defaults.maxImagePixels, 1),
+    maxStackPixels: integerSetting(env, 'GLCM_MAX_STACK_PIXELS', defaults.maxStackPixels, 1),
+    maxSeriesFiles: integerSetting(env, 'GLCM_MAX_SERIES_FILES', defaults.maxSeriesFiles, 1),
     maxVolumeBytes: integerSetting(env, 'GLCM_MAX_VOLUME_BYTES', defaults.maxVolumeBytes, 1),
     rawTransferMaxPixels: integerSetting(env, 'GLCM_RAW_TRANSFER_MAX_PIXELS', defaults.rawTransferMaxPixels, 0),
     displayMaxSize: integerSetting(env, 'GLCM_DISPLAY_MAX_SIZE', defaults.displayMaxSize, 1),

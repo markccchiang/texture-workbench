@@ -58,7 +58,15 @@ export function buildProject({ info, rois, classes = [], settings, runs, pixelSp
       ...(imageBytes ? { data: bytesToBase64(imageBytes) } : {}),
     },
     ...(classes.length > 0 ? { classes: classes.map(({ name, color }) => ({ name, color })) } : {}),
-    rois: rois.map(({ id, name, color, visible, shape, className }) => ({ id, name, color, visible, ...(className ? { class: className } : {}), shape })),
+    rois: rois.map(({ id, name, color, visible, shape, className, slice }) => ({
+      id,
+      name,
+      color,
+      visible,
+      ...(className ? { class: className } : {}),
+      ...(slice !== undefined ? { slice } : {}),
+      shape,
+    })),
     settings,
     results: runs
       .filter((run) => run.status !== 'queued' && run.status !== 'running')

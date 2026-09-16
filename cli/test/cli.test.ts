@@ -5,6 +5,7 @@ import type { ResultsDocument, RoiSetDocument } from '@glcm/api';
 import { buildApp, type App } from '@glcm/server/app';
 import { DEFAULT_CONFIG } from '@glcm/server/config';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { encodeTiffPages } from '../../bindings/node/test/tiff.js';
 import { run } from '../src/main.js';
 
 const REPOSITORY = path.resolve(import.meta.dirname, '..', '..');
@@ -105,6 +106,42 @@ describe('glcm', () => {
       expect(result.values.ShapePixelSurface.mean).toBe(result.pixelCount * 0.25);
       expect(result.values.ShapeSphericity.mean).toBeGreaterThanOrEqual(0.5);
     }
+  });
+
+  it('measures every slice of a stack, or one, and selects regions on a slice', async () => {
+    const pages = [0, 1, 2].map((page) => ({
+      width: 16,
+      height: 12,
+      bitsPerSample: 8 as const,
+      samplesPerPixel: 1 as const,
+      data: Array.from({ length: 192 }, (_, i) => (page === 2 && i % 16 < 8 ? 200 : 10 * page + (i % 5))),
+    }));
+    const file = path.join(dataDir, 'stack.tif');
+    await fs.writeFile(file, encodeTiffPages(pages));
+
+    const info = await glcm('info', file);
+    expect(info.out).toContain('16 × 12 px × 3 slices, 8-bit');
+
+    const every = JSON.parse((await glcm('measure', file, '--features', 'Mean', '--aggregation', 'meanOnly', '--json')).out) as ResultsDocument;
+    expect(every.results.map((result) => [result.roiName, result.slice])).toEqual([
+      ['Whole slice 1', 1],
+      ['Whole slice 2', 2],
+      ['Whole slice 3', 3],
+    ]);
+    const one = JSON.parse((await glcm('measure', file, '--features', 'Mean', '--aggregation', 'meanOnly', '--slice', '2', '--json')).out) as ResultsDocument;
+    expect(one.results.map((result) => result.slice)).toEqual([2]);
+    expect(one.results[0].values.Mean.mean).toBe(every.results[1].values.Mean.mean);
+    expect((await glcm('measure', file, '--slice', '4')).err).toContain('slice 4 does not exist');
+
+    const roiFile = path.join(dataDir, 'stack-regions.roi.json');
+    const regions = await glcm('regions', file, '--slice', '3', '--min', '150', '--max', '255', '--min-pixels', '10', '--out', roiFile);
+    expect(regions.code).toBe(0);
+    const set = JSON.parse(await fs.readFile(roiFile, 'utf8')) as RoiSetDocument;
+    expect(set.image?.slices).toBe(3);
+    expect(set.rois.map((roi) => roi.slice)).toEqual([3]);
+    const measured = JSON.parse((await glcm('measure', file, '--rois', roiFile, '--features', 'Mean', '--aggregation', 'meanOnly', '--json')).out) as ResultsDocument;
+    expect(measured.results[0]).toMatchObject({ slice: 3, pixelCount: 96 });
+    expect(measured.results[0].values.Mean.mean).toBe(200);
   });
 
   it('measures the Laplacian of Gaussian with --log-sigma', async () => {

@@ -6,6 +6,7 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Image as KonvaImage, Layer } from 'react-konva';
 import { fetchEdgeMap, getGradientStats } from '../api/client';
+import { sliceField, useViewer } from '../stores/viewerStore';
 import { autoEdgeLimits, roundLimit, useEdgeMap } from './edgeMap';
 import type { Viewport } from './viewport';
 
@@ -39,9 +40,10 @@ async function colourEdgeMap(blob: Blob, method: EdgeMethod): Promise<HTMLCanvas
 
 /** The gradient statistics of an image at a smoothing, shared by the layer and the card */
 export function useGradientStats(imageId: string | null, sigma: number, enabled: boolean) {
+  const slice = useViewer((state) => state.image?.slice ?? 1);
   return useQuery({
-    queryKey: ['gradient-stats', imageId, sigma],
-    queryFn: ({ signal }) => getGradientStats(imageId!, sigma, signal),
+    queryKey: ['gradient-stats', imageId, slice, sigma],
+    queryFn: ({ signal }) => getGradientStats(imageId!, sigma, signal, slice),
     enabled: enabled && imageId !== null,
     staleTime: Infinity,
   });
@@ -54,13 +56,14 @@ export function EdgeMapLayer({ viewport, imageId, width, height }: { viewport: V
   const chosen = useEdgeMap((state) => state.limits);
   const opacity = useEdgeMap((state) => state.opacity);
   const statistics = useGradientStats(imageId, sigma, shown);
+  const slice = useViewer((state) => state.image?.slice ?? 1);
   const automatic = statistics.data ? autoEdgeLimits(method, statistics.data) : null;
   const limits = chosen ?? automatic;
   const [request] = useDebouncedValue(limits ? { method, sigma, low: roundLimit(limits.low), high: roundLimit(limits.high) } : null, 250);
 
   const map = useQuery({
-    queryKey: ['edge-map', imageId, request],
-    queryFn: async ({ signal }) => colourEdgeMap(await fetchEdgeMap(imageId, request!, signal), request!.method),
+    queryKey: ['edge-map', imageId, slice, request],
+    queryFn: async ({ signal }) => colourEdgeMap(await fetchEdgeMap(imageId, { ...request!, ...sliceField(slice) }, signal), request!.method),
     enabled: shown && request !== null,
     staleTime: Infinity,
     placeholderData: keepPreviousData,

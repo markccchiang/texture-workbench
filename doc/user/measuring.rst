@@ -114,6 +114,8 @@ fitted for 8-bit images with 256 gray levels, distance 1 and all four directions
 0–255 using the display window. With the **Current settings** profile the inputs use the panel's settings, and the
 results carry a warning that the coefficients may not apply. **Reset age and coefficients** restores the defaults.
 
+.. _measure-rois:
+
 Measuring ROIs
 --------------
 
@@ -124,6 +126,9 @@ Measuring ROIs
 Each ROI is measured at each distance as a separate job. While jobs run, the status bar shows their progress, for
 example *3/8 jobs*; the **×** next to it cancels the measurement (jobs already started still finish, and their results
 are kept). You can keep working — drawing ROIs or changing the settings does not affect a running measurement.
+
+In a stack, each ROI is measured on the slice it lies on, whichever slice is shown; *Measure All* measures the ROIs of
+every slice (see :ref:`stacks`).
 
 Measuring many images
 ---------------------
@@ -193,7 +198,8 @@ corner of the image shows the progress; its **×** cancels the map at once. When
   floating-point TIFF (one pixel per point, points without a value as NaN) for other image tools; its description
   records the image and settings.
 
-There is one map at a time. The **×** closes it, and opening another image closes it too. Maps are not saved in projects;
+In a stack the map covers the slice shown when it was started, and it is hidden on other slices. There is one map at a
+time. The **×** closes it, and opening another image closes it too. Maps are not saved in projects;
 save them as PNG or TIFF to keep them.
 
 Results
@@ -212,7 +218,8 @@ Every measurement adds rows to the **Results** table:
   :doc:`viewing`), the **gray levels** and one column per feature. The **Score** column
   appears when a measurement included the score.
 - Values are shown with six significant digits; copied and exported values have full precision.
-- Once a measured ROI has a class (see :ref:`roi-classes`), a **Class** column follows the ROI name.
+- Once a measured ROI has a class (see :ref:`roi-classes`), a **Class** column follows the ROI name, and once a
+  measured ROI lies on a slice of a stack, a **Slice** column.
 - **Status** is empty for normal results, **⚠** when the result has warnings, or *skipped* / *failed* with the reason —
   for example an ROI with fewer than 2 pixels, or intensities above the gray levels when quantization is *None*.
 - Hover a row to see the image and settings it was measured with, and its warnings. Hovering also highlights the ROI

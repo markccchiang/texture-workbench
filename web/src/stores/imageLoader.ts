@@ -2,7 +2,17 @@
 
 import type { ImageInfo, SliceOrientation, VolumeInfo } from '@glcm/api';
 import { notifications } from '@mantine/notifications';
-import { ApiRequestError, deleteVolume, downloadSample, fetchRawImage, openVolumeSliceImage, uploadImage, uploadVolume } from '../api/client';
+import {
+  ApiRequestError,
+  deleteVolume,
+  downloadSample,
+  fetchRawImage,
+  openVolumeSliceImage,
+  openVolumeStackImage,
+  uploadDicomSeries,
+  uploadImage,
+  uploadVolume,
+} from '../api/client';
 import type { RawImage } from '../image/raw';
 import { isVolumeFile, needsSliceChoice, useVolumeImport } from '../volumes/volumeImport';
 import { useViewer } from './viewerStore';
@@ -65,7 +75,11 @@ async function showImage(info: ImageInfo, controller: AbortController): Promise<
       }
       // display.png and /pixel work for every image, so the image still opens
       console.warn('Raw download failed; using server rendering', error);
-      notifications.show({ color: 'yellow', title: 'Using server rendering', message: errorMessage(error) });
+      notifications.show({
+        color: 'yellow',
+        title: 'Using server rendering',
+        message: errorMessage(error),
+      });
     }
   }
 
@@ -74,7 +88,12 @@ async function showImage(info: ImageInfo, controller: AbortController): Promise<
   }
   useViewer.getState().openImage({ info, raw });
   for (const warning of info.warnings) {
-    notifications.show({ color: 'yellow', title: info.name, message: warning, autoClose: 8000 });
+    notifications.show({
+      color: 'yellow',
+      title: info.name,
+      message: warning,
+      autoClose: 8000,
+    });
   }
   return info;
 }
@@ -92,7 +111,12 @@ async function run(name: string, load: (controller: AbortController) => Promise<
     return await load(controller);
   } catch (error) {
     if (!isAbort(error)) {
-      notifications.show({ color: 'red', title: `Could not open ${name}`, message: errorMessage(error), autoClose: 10000 });
+      notifications.show({
+        color: 'red',
+        title: `Could not open ${name}`,
+        message: errorMessage(error),
+        autoClose: 10000,
+      });
     }
     return null;
   } finally {
@@ -139,9 +163,108 @@ export function openVolumeSlice(volume: VolumeInfo, orientation: SliceOrientatio
   return run(volume.name, (controller) => sliceAndShow(volume, orientation, slice, volumeIndex, controller));
 }
 
+/** Opens every slice of one volume in one orientation as a stack, showing `slice` (from 0, as in the slice dialog) */
+export function openVolumeStack(volume: VolumeInfo, orientation: SliceOrientation, volumeIndex: number, slice = 0): Promise<ImageInfo | null> {
+  return run(volume.name, async (controller) => {
+    if (currentLoad === controller) {
+      useViewer.getState().setLoading({
+        name: volume.name,
+        phase: 'openingSlice',
+        progress: null,
+      });
+    }
+    const info = await openVolumeStackImage(volume.volumeId, { orientation, volume: volumeIndex }, controller.signal);
+    const shown = await showImage(info, controller);
+    if (shown && slice > 0) {
+      void showSlice(slice + 1);
+    }
+    return shown;
+  });
+}
+
+/** Uploads the files of a DICOM series (a chosen folder) and opens them as one stack */
+export function openDicomSeries(files: readonly File[], name: string): Promise<ImageInfo | null> {
+  return run(name, async (controller) => {
+    const setLoading = progressReporter(controller, name);
+    setLoading('uploading', 0);
+    const info = await uploadDicomSeries(files, name, (loaded, total) => setLoading('uploading', loaded / total), controller.signal);
+    return showImage(info, controller);
+  });
+}
+
 /** Opens an image the server already has */
 export function openStoredImage(info: ImageInfo): Promise<ImageInfo | null> {
   return run(info.name, (controller) => showImage(info, controller));
+}
+
+/** Raw samples of recently shown slices of stacks, so going back and forth does not download them again */
+const SLICE_CACHE_BYTES = 256 * 1024 * 1024;
+const sliceCache = new Map<string, RawImage>();
+let sliceCacheBytes = 0;
+let sliceLoad: AbortController | null = null;
+
+function rememberSlice(key: string, raw: RawImage): void {
+  if (sliceCache.has(key)) {
+    return;
+  }
+  sliceCache.set(key, raw);
+  sliceCacheBytes += raw.samples.byteLength;
+  for (const [oldest, cached] of sliceCache) {
+    if (sliceCacheBytes <= SLICE_CACHE_BYTES || oldest === key) {
+      break;
+    }
+    sliceCache.delete(oldest);
+    sliceCacheBytes -= cached.samples.byteLength;
+  }
+}
+
+/**
+ * Shows another slice (from 1) of the open stack. Raw samples are downloaded first, so the canvas changes once they
+ * are there; a newer request cancels an older one. Resolves to false when the slice was not shown.
+ */
+export async function showSlice(slice: number): Promise<boolean> {
+  const { image } = useViewer.getState();
+  if (!image || slice < 1 || slice > image.info.slices || slice === (image.slice ?? 1)) {
+    return false;
+  }
+  sliceLoad?.abort();
+  const controller = new AbortController();
+  sliceLoad = controller;
+  const { info } = image;
+  let raw: RawImage | null = null;
+  // The slice shown has raw samples when the image offers them and the first download worked
+  if (image.raw) {
+    const key = `${info.imageId}#${slice}`;
+    raw = sliceCache.get(key) ?? null;
+    if (!raw) {
+      try {
+        raw = await fetchRawImage(info, undefined, controller.signal, slice);
+      } catch (error) {
+        if (!isAbort(error)) {
+          notifications.show({
+            color: 'red',
+            title: `Could not show slice ${slice}`,
+            message: errorMessage(error),
+          });
+        }
+        return false;
+      }
+      rememberSlice(key, raw);
+    } else {
+      sliceCache.delete(key);
+      sliceCache.set(key, raw);
+    }
+  }
+  if (controller.signal.aborted) {
+    return false;
+  }
+  sliceLoad = null;
+  // Keep the first slice's samples for coming back to it
+  if (image.raw && (image.slice ?? 1) !== slice) {
+    rememberSlice(`${info.imageId}#${image.slice ?? 1}`, image.raw);
+  }
+  useViewer.getState().showSlice({ info, raw, slice });
+  return true;
 }
 
 export function openSample(samplePath: string): Promise<ImageInfo | null> {

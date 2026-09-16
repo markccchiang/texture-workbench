@@ -58,7 +58,7 @@ export class FeatureMapManager {
    * Queues the bands of a map; throws an Error with code INVALID_ARGUMENT for invalid settings and JobLimitError when the
    * map has more bands than maxBands or than fit into maxPendingJobs
    */
-  start(settings: FeatureMapSettings, image: ImageInfo, pixels: Buffer): FeatureMapState {
+  start(settings: FeatureMapSettings, image: ImageInfo, pixels: Buffer, slice = 1): FeatureMapState {
     const settingsJson = JSON.stringify(settings);
     const grid = native.featureMapGrid(settingsJson, image.width, image.height);
     const bandWork = this.options.bandWork ?? FEATURE_MAP_BAND_WORK;
@@ -78,6 +78,7 @@ export class FeatureMapManager {
         featureMapId: newFeatureMapId(),
         imageId: image.imageId,
         imageName: image.name,
+        slice,
         status: 'queued',
         settings,
         step: grid.step,

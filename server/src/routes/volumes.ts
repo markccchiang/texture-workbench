@@ -5,16 +5,19 @@ import {
   ErrorResponse,
   ImageInfo,
   sliceImageName,
+  stackImageName,
   VolumeIdParams,
   VolumeInfo,
   VolumePreviewQuery,
   VolumeSliceRequest,
+  VolumeStackRequest,
   type SliceOrientation,
 } from '@glcm/api';
 import * as native from '@glcm/native';
 import { Type } from 'typebox';
 import type { ServerConfig } from '../config.js';
 import { ApiError } from '../errors.js';
+import { decodedImageInfo } from '../imageInfo.js';
 import { newImageId, type ImageStore } from '../storage/ImageStore.js';
 import { newVolumeId, type StoredVolume, type VolumeStore } from '../storage/VolumeStore.js';
 import { withUpload } from '../uploads.js';
@@ -205,6 +208,7 @@ export const volumeRoutes: FastifyPluginAsyncTypebox<VolumeRoutesOptions> = asyn
         width: image.width,
         height: image.height,
         bitDepth: image.bitDepth,
+        slices: 1,
         sourceChannels: 1,
         pixelSpacing: image.pixelSpacing,
         ...(image.valueConversion ? { valueConversion: image.valueConversion } : {}),
@@ -223,6 +227,68 @@ export const volumeRoutes: FastifyPluginAsyncTypebox<VolumeRoutesOptions> = asyn
         await store.save(info, image.pixels, pngPath);
       } finally {
         await fs.rm(pngPath, { force: true });
+      }
+      return reply.code(201).send(info);
+    },
+  );
+
+  app.post(
+    '/volumes/:id/stack',
+    {
+      schema: {
+        summary: 'Open a volume as a stack',
+        description:
+          'Stores every slice of one volume in one orientation as a stack image (slice 1 is the most inferior, posterior or left slice), with the window of the whole volume. Its original file is an uncompressed multi-page TIFF of the slices with the pixel spacing, so uploading that file gives the same image.',
+        tags: ['volumes'],
+        params: VolumeIdParams,
+        body: VolumeStackRequest,
+        response: { 201: ImageInfo, 400: ErrorResponse, 404: ErrorResponse, 422: ErrorResponse },
+      },
+    },
+    async (request, reply) => {
+      const volume = await requireVolume(request.params.id);
+      const { orientation, volume: volumeIndex = 0 } = request.body;
+      const geometry = volume.info.slices[orientation];
+      if (volumeIndex >= volume.info.volumes) {
+        throw new ApiError(400, 'BadRequest', `The volume must be 0 to ${volume.info.volumes - 1}`);
+      }
+      let stack: native.DecodedStack;
+      try {
+        stack = await native.extractNiftiStack(volumes.volumePath(volume.info.volumeId), {
+          orientation,
+          volume: volumeIndex,
+          storage: volume.storage,
+          maxPixels: config.maxImagePixels,
+          maxStackPixels: config.maxStackPixels,
+        });
+      } catch (error) {
+        if ((error as { code?: string }).code === 'IMAGE_TOO_LARGE') {
+          throw new ApiError(422, 'ImageTooLarge', (error as Error).message);
+        }
+        throw error;
+      }
+      const info: ImageInfo = {
+        ...decodedImageInfo(
+          stack,
+          {
+            name: stackImageName(volume.info.name, orientation, volumeIndex, volume.info.volumes),
+            sizeBytes: stack.tiff.length,
+            sha256: createHash('sha256').update(stack.tiff).digest('hex'),
+          },
+          config,
+        ),
+        // The window of the whole volume, as for a single slice
+        windowMin: volume.info.windowMin,
+        windowMax: volume.info.windowMax,
+        warnings: volume.info.warnings,
+        pixelSpacing: geometry.pixelSpacing,
+      };
+      const tiffPath = store.temporaryUploadPath();
+      try {
+        await fs.writeFile(tiffPath, stack.tiff);
+        await store.save(info, stack.pixels, tiffPath);
+      } finally {
+        await fs.rm(tiffPath, { force: true });
       }
       return reply.code(201).send(info);
     },

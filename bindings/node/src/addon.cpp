@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <initializer_list>
 #include <map>
 #include <memory>
@@ -21,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "imaging/DicomReader.hpp"
 #include "imaging/DisplayRenderer.hpp"
 #include "imaging/EdgeDetection.hpp"
 #include "imaging/ImageLoader.hpp"
@@ -263,6 +265,7 @@ struct DecodedResult {
     std::vector<std::string> warnings;
     glcm::DisplayStatistics statistics;
     std::vector<uint8_t> pixels;
+    int slices = 1;
 
     void Take(const glcm::LoadedImage& image) {
         info = image.info;
@@ -275,11 +278,25 @@ struct DecodedResult {
         pixels = ToLittleEndianBytes(image.gray);
     }
 
+    // A stack: the pixels of every slice one after the other; the window and histogram over all of them
+    void Take(const glcm::LoadedStack& stack) {
+        info = stack.info;
+        warnings = stack.warnings;
+        slices = stack.slices;
+        statistics = glcm::ComputeDisplayStatistics(stack.pixels);
+        if (stack.window) {
+            statistics.window_min = stack.window->min;
+            statistics.window_max = stack.window->max;
+        }
+        pixels = ToLittleEndianBytes(stack.pixels);
+    }
+
     Napi::Object ToObject(Napi::Env env) const {
         Napi::Object result = Napi::Object::New(env);
         result.Set("width", Napi::Number::New(env, info.width));
         result.Set("height", Napi::Number::New(env, info.height));
         result.Set("bitDepth", Napi::Number::New(env, info.bit_depth));
+        result.Set("slices", Napi::Number::New(env, slices));
         result.Set("sourceChannels", Napi::Number::New(env, info.source_channels));
         result.Set("pixelSpacing", PixelSpacingValue(env, info.pixel_spacing));
         result.Set("valueConversion", ValueConversionValue(env, info.value_conversion));
@@ -299,13 +316,15 @@ struct DecodedResult {
 
 class DecodeImageWorker : public PromiseWorker {
 public:
-    DecodeImageWorker(Napi::Env env, std::string path, int64_t max_pixels)
-        : PromiseWorker(env), _path(std::move(path)), _max_pixels(max_pixels) {}
+    DecodeImageWorker(Napi::Env env, std::string path, int64_t max_pixels, int64_t max_stack_pixels)
+        : PromiseWorker(env), _path(std::move(path)), _max_pixels(max_pixels), _max_stack_pixels(max_stack_pixels) {}
 
     void Execute() override {
         try {
-            _result.Take(glcm::LoadImageFile(_path, _max_pixels));
+            _result.Take(glcm::LoadImageStackFile(_path, _max_pixels, _max_stack_pixels));
         } catch (const glcm::ImageTooLargeError& error) {
+            Fail(CODE_IMAGE_TOO_LARGE, error.what());
+        } catch (const glcm::StackTooLargeError& error) {
             Fail(CODE_IMAGE_TOO_LARGE, error.what());
         } catch (const std::invalid_argument& error) {
             Fail(CODE_UNSUPPORTED_IMAGE, error.what());
@@ -321,7 +340,47 @@ public:
 private:
     std::string _path;
     int64_t _max_pixels;
+    int64_t _max_stack_pixels;
     DecodedResult _result;
+};
+
+// A stack made on the server (NIfTI volume, DICOM series), decoded and encoded as a TIFF that stands for its original file
+class StackWorker : public PromiseWorker {
+public:
+    using Load = std::function<glcm::LoadedStack()>;
+
+    StackWorker(Napi::Env env, Load load) : PromiseWorker(env), _load(std::move(load)) {}
+
+    void Execute() override {
+        try {
+            glcm::LoadedStack stack = _load();
+            _result.Take(stack);
+            _tiff = glcm::EncodeTiffStack(stack);
+            _series_description = stack.series_description;
+        } catch (const glcm::ImageTooLargeError& error) {
+            Fail(CODE_IMAGE_TOO_LARGE, error.what());
+        } catch (const glcm::StackTooLargeError& error) {
+            Fail(CODE_IMAGE_TOO_LARGE, error.what());
+        } catch (const std::invalid_argument& error) {
+            Fail(CODE_UNSUPPORTED_IMAGE, error.what());
+        } catch (const std::exception& error) {
+            Fail(CODE_DECODE_FAILED, error.what());
+        }
+    }
+
+    void OnOK() override {
+        Napi::Env env = Env();
+        Napi::Object result = _result.ToObject(env);
+        result.Set("tiff", Napi::Buffer<uint8_t>::Copy(env, _tiff.data(), _tiff.size()));
+        result.Set("seriesDescription", Napi::String::New(env, _series_description));
+        Resolve(result);
+    }
+
+private:
+    Load _load;
+    DecodedResult _result;
+    std::vector<uchar> _tiff;
+    std::string _series_description;
 };
 
 const char* StorageKindId(glcm::StorageKind kind) {
@@ -736,9 +795,26 @@ int64_t MaxPixelsOption(const Napi::CallbackInfo& info, size_t index) {
     return static_cast<int64_t>(number);
 }
 
-// decodeImageFile(path: string, options?: {maxPixels?: number}): Promise<DecodedImage>
+// maxStackPixels of an optional options object at `index`; 0 (no limit) when absent
+int64_t MaxStackPixelsOption(const Napi::CallbackInfo& info, size_t index) {
+    if (info.Length() <= index || !info[index].IsObject()) {
+        return 0;
+    }
+    const Napi::Value value = info[index].As<Napi::Object>().Get("maxStackPixels");
+    if (value.IsUndefined()) {
+        return 0;
+    }
+    const double number = value.IsNumber() ? value.As<Napi::Number>().DoubleValue() : -1.0;
+    if (!std::isfinite(number) || std::floor(number) != number || number < 0 || number > 9007199254740991.0) {
+        throw Napi::TypeError::New(info.Env(), "options.maxStackPixels must be a non-negative integer");
+    }
+    return static_cast<int64_t>(number);
+}
+
+// decodeImageFile(path: string, options?: {maxPixels?, maxStackPixels?}): Promise<DecodedImage>
 Napi::Value DecodeImageFile(const Napi::CallbackInfo& info) {
-    auto* worker = new DecodeImageWorker(info.Env(), StringArgument(info, 0, "path"), MaxPixelsOption(info, 1));
+    auto* worker =
+        new DecodeImageWorker(info.Env(), StringArgument(info, 0, "path"), MaxPixelsOption(info, 1), MaxStackPixelsOption(info, 1));
     const Napi::Promise promise = worker->Promise();
     worker->Queue();
     return promise;
@@ -781,14 +857,8 @@ Napi::Value InspectNiftiVolume(const Napi::CallbackInfo& info) {
     return promise;
 }
 
-// extractNiftiSlice(path, {orientation, slice, volume, storage, maxPixels?, encodePng?}): Promise<DecodedImage & {png}>
-Napi::Value ExtractNiftiSlice(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-    const std::string path = StringArgument(info, 0, "path");
-    if (info.Length() <= 1 || !info[1].IsObject()) {
-        throw Napi::TypeError::New(env, "request must be an object");
-    }
-    const Napi::Object object = info[1].As<Napi::Object>();
+// The request object of extractNiftiSlice (with_slice) and extractNiftiStack
+SliceRequest ParseSliceRequest(const Napi::Env& env, const Napi::Object& object, bool with_slice) {
     SliceRequest request;
     const Napi::Value orientation = object.Get("orientation");
     const std::string orientation_id = orientation.IsString() ? orientation.As<Napi::String>().Utf8Value() : "";
@@ -801,7 +871,9 @@ Napi::Value ExtractNiftiSlice(const Napi::CallbackInfo& info) {
     } else {
         throw Napi::TypeError::New(env, "orientation must be axial, coronal or sagittal");
     }
-    request.slice = IntegerField(env, object, "slice");
+    if (with_slice) {
+        request.slice = IntegerField(env, object, "slice");
+    }
     request.volume = IntegerField(env, object, "volume");
     if (!object.Get("storage").IsObject()) {
         throw Napi::TypeError::New(env, "storage must be an object");
@@ -833,7 +905,62 @@ Napi::Value ExtractNiftiSlice(const Napi::CallbackInfo& info) {
     const Napi::Value encode = object.Get("encodePng");
     request.encode_png = encode.IsBoolean() && encode.As<Napi::Boolean>().Value();
 
+    return request;
+}
+
+// extractNiftiSlice(path, {orientation, slice, volume, storage, maxPixels?, encodePng?}): Promise<DecodedImage & {png}>
+Napi::Value ExtractNiftiSlice(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    const std::string path = StringArgument(info, 0, "path");
+    if (info.Length() <= 1 || !info[1].IsObject()) {
+        throw Napi::TypeError::New(env, "request must be an object");
+    }
+    const Napi::Object object = info[1].As<Napi::Object>();
+    const SliceRequest request = ParseSliceRequest(env, object, true);
+
     auto* worker = new ExtractNiftiSliceWorker(env, path, request);
+    const Napi::Promise promise = worker->Promise();
+    worker->Queue();
+    return promise;
+}
+
+// extractNiftiStack(path, {orientation, volume, storage, maxPixels?, maxStackPixels?}): Promise<DecodedImage & {tiff}>
+Napi::Value ExtractNiftiStack(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    const std::string path = StringArgument(info, 0, "path");
+    if (info.Length() <= 1 || !info[1].IsObject()) {
+        throw Napi::TypeError::New(env, "request must be an object");
+    }
+    // The same fields as extractNiftiSlice, with slice 0
+    Napi::Object object = info[1].As<Napi::Object>();
+    const SliceRequest request = ParseSliceRequest(env, object, false);
+    const int64_t max_stack_pixels = MaxStackPixelsOption(info, 1);
+    auto* worker = new StackWorker(env, [path, request, max_stack_pixels] {
+        return glcm::ExtractNiftiStack(path, request.orientation, request.volume, request.storage, request.max_pixels, max_stack_pixels);
+    });
+    const Napi::Promise promise = worker->Promise();
+    worker->Queue();
+    return promise;
+}
+
+// decodeDicomSeries(paths: string[], options?: {maxPixels?, maxStackPixels?}): Promise<DecodedImage & {tiff, seriesDescription}>
+Napi::Value DecodeDicomSeries(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 1 || !info[0].IsArray()) {
+        throw Napi::TypeError::New(env, "paths must be an array of strings");
+    }
+    const Napi::Array array = info[0].As<Napi::Array>();
+    std::vector<std::string> paths;
+    for (uint32_t i = 0; i < array.Length(); ++i) {
+        if (!array.Get(i).IsString()) {
+            throw Napi::TypeError::New(env, "paths must be an array of strings");
+        }
+        paths.push_back(array.Get(i).As<Napi::String>().Utf8Value());
+    }
+    const int64_t max_pixels = MaxPixelsOption(info, 1);
+    const int64_t max_stack_pixels = MaxStackPixelsOption(info, 1);
+    auto* worker =
+        new StackWorker(env, [paths, max_pixels, max_stack_pixels] { return glcm::LoadDicomSeries(paths, max_pixels, max_stack_pixels); });
     const Napi::Promise promise = worker->Promise();
     worker->Queue();
     return promise;
@@ -1529,6 +1656,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("decodeImageFile", Napi::Function::New(env, DecodeImageFile, "decodeImageFile"));
     exports.Set("inspectNiftiVolume", Napi::Function::New(env, InspectNiftiVolume, "inspectNiftiVolume"));
     exports.Set("extractNiftiSlice", Napi::Function::New(env, ExtractNiftiSlice, "extractNiftiSlice"));
+    exports.Set("extractNiftiStack", Napi::Function::New(env, ExtractNiftiStack, "extractNiftiStack"));
+    exports.Set("decodeDicomSeries", Napi::Function::New(env, DecodeDicomSeries, "decodeDicomSeries"));
     exports.Set("renderDisplay", Napi::Function::New(env, RenderDisplay, "renderDisplay"));
     exports.Set("roiStats", Napi::Function::New(env, RoiStats, "roiStats"));
     exports.Set("validateAnalysis", Napi::Function::New(env, ValidateAnalysis, "validateAnalysis"));

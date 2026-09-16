@@ -10,9 +10,23 @@ export function buildRoiSet(info: ImageInfo, rois: readonly ManagedRoi[], classe
   return {
     format: 'glcm-roi-set',
     version: 1,
-    image: { name: info.name, width: info.width, height: info.height, bitDepth: info.bitDepth, sha256: info.sha256 },
+    image: {
+      name: info.name,
+      width: info.width,
+      height: info.height,
+      bitDepth: info.bitDepth,
+      ...(info.slices > 1 ? { slices: info.slices } : {}),
+      sha256: info.sha256,
+    },
     ...(classes.length > 0 ? { classes: classes.map(({ name, color }) => ({ name, color })) } : {}),
-    rois: rois.map(({ id, name, color, shape, className }) => ({ id, name, color, ...(className ? { class: className } : {}), shape })),
+    rois: rois.map(({ id, name, color, shape, className, slice }) => ({
+      id,
+      name,
+      color,
+      ...(className ? { class: className } : {}),
+      ...(slice !== undefined ? { slice } : {}),
+      shape,
+    })),
   };
 }
 
@@ -47,10 +61,17 @@ export function imageMismatches(reference: RoiSetImage | undefined, info: ImageI
   if (reference.sha256 && reference.sha256 !== info.sha256) {
     messages.push(`The ROIs were drawn on a different image file${reference.name ? ` (${reference.name})` : ''}.`);
   }
+  if ((reference.slices ?? 1) !== info.slices && (reference.slices !== undefined || info.slices > 1)) {
+    messages.push(`The ROIs were drawn on ${describeSlices(reference.slices ?? 1)}; this one has ${describeSlices(info.slices)}.`);
+  }
   if (reference.bitDepth !== undefined && reference.bitDepth !== info.bitDepth) {
     messages.push(`The ROIs were drawn on a ${reference.bitDepth}-bit image; this one is ${info.bitDepth}-bit.`);
   }
   return messages;
+}
+
+function describeSlices(slices: number): string {
+  return slices === 1 ? 'an image without slices' : `a stack of ${slices} slices`;
 }
 
 type Point = [number, number];
@@ -128,7 +149,7 @@ export function clipShape(shape: RoiShape, size: Size): ClipOutcome {
 }
 
 export interface PreparedImport {
-  rois: Array<{ id: string; name: string; color: string; shape: RoiShape; className?: string }>;
+  rois: Array<{ id: string; name: string; color: string; shape: RoiShape; className?: string; slice?: number }>;
   /** The set's classes, and classes its ROIs use without the set listing them */
   classes: RoiClass[];
   warnings: string[];
@@ -139,8 +160,14 @@ export function prepareRoiImport(document: RoiSetDocument, info: ImageInfo): Pre
   const warnings = imageMismatches(document.image, info);
   const rois: PreparedImport['rois'] = [];
   const skipped: string[] = [];
+  const beyond: string[] = [];
   let clipped = 0;
   for (const roi of document.rois) {
+    // A slice the image does not have; slice 1 of an image without slices is the image itself
+    if (roi.slice !== undefined && roi.slice > info.slices) {
+      beyond.push(roi.name || roi.id);
+      continue;
+    }
     const outcome = clipShape(roi.shape, info);
     if (!outcome.shape) {
       skipped.push(roi.name || roi.id);
@@ -149,10 +176,20 @@ export function prepareRoiImport(document: RoiSetDocument, info: ImageInfo): Pre
     if (outcome.clipped) {
       clipped += 1;
     }
-    rois.push({ id: roi.id, name: roi.name, color: roi.color ?? '', shape: outcome.shape, ...(roi.class ? { className: roi.class } : {}) });
+    rois.push({
+      id: roi.id,
+      name: roi.name,
+      color: roi.color ?? '',
+      shape: outcome.shape,
+      ...(roi.class ? { className: roi.class } : {}),
+      ...(roi.slice !== undefined && info.slices > 1 ? { slice: roi.slice } : {}),
+    });
   }
   if (clipped > 0) {
     warnings.push(`${clipped} ROI${clipped === 1 ? ' was' : 's were'} clipped to the image.`);
+  }
+  if (beyond.length > 0) {
+    warnings.push(`Skipped ${beyond.length} ROI${beyond.length === 1 ? '' : 's'} on slices the image does not have: ${beyond.join(', ')}.`);
   }
   if (skipped.length > 0) {
     warnings.push(`Skipped ${skipped.length} ROI${skipped.length === 1 ? '' : 's'} outside the image: ${skipped.join(', ')}.`);

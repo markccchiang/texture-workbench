@@ -117,7 +117,7 @@ function ImageInfoContent() {
         rows={[
           ['Name', info.name],
           ['File size', formatBytes(info.sizeBytes)],
-          ['Dimensions', `${info.width} × ${info.height} px`],
+          ['Dimensions', `${info.width} × ${info.height} px${info.slices > 1 ? ` × ${info.slices} slices` : ''}`],
           ['Bit depth', `${info.bitDepth}-bit`],
           ['Channels', info.sourceChannels > 1 ? `${info.sourceChannels} (converted to grayscale)` : '1 (grayscale)'],
           ...(info.valueConversion ? [['Values', info.valueConversion.description] as [string, string]] : []),
