@@ -123,16 +123,21 @@ jobs:
           done
           node scripts/smoke-test.mjs http://127.0.0.1:8080
 
-      # The image also ships the command line, which goes through the server running in the same container
+      # The image also ships the command line, which goes through the server running in the same container.
+      # No `-e GLCM_API_TOKEN`: the variable belongs to the step above, and passing it unset would blank the token the
+      # container already has; `docker exec` inherits the container's own environment.
       - name: The command line in the image
         run: |
-          docker exec -e GLCM_API_TOKEN glcm glcm features --presets --server http://127.0.0.1:9090 | grep -q haralick
-          docker exec -e GLCM_API_TOKEN glcm glcm measure sample:textures/brick.png \
+          docker exec glcm glcm features --presets --server http://127.0.0.1:9090 | grep -q haralick
+          docker exec glcm glcm measure sample:textures/brick.png \
             --server http://127.0.0.1:9090 --features Contrast --aggregation meanOnly --json | grep -q '"Contrast"'
+          # These two are meant to fail, so their output is captured before it is read
           # Without --server it would build a second server on /data and empty the folders the running one uses
-          docker exec glcm glcm features 2>&1 | grep -q 'is using /data'
+          guard="$(docker exec glcm glcm features 2>&1 || true)"
+          echo "$guard" | grep -q 'is using /data'
           # MCP is left out of the image on purpose, and says so instead of failing obscurely
-          docker exec glcm glcm mcp 2>&1 | grep -q 'MCP support is not installed here'
+          mcp="$(docker exec glcm glcm mcp 2>&1 || true)"
+          echo "$mcp" | grep -q 'MCP support is not installed here'
 
       - name: Health check reports healthy
         run: |
