@@ -192,6 +192,56 @@ describe('analyses', () => {
     expect((await start({ settings: { ...settings, resampling: { x: 0, y: 1 } }, pixelSpacing: { x: 1, y: 1 } })).statusCode).toBe(400);
   });
 
+  it('measures the Laplacian of Gaussian of the image when the settings ask for it', async () => {
+    const settings = {
+      ...SETTINGS,
+      features: ['Mean', 'Median'],
+      aggregation: 'meanOnly' as const,
+      quantization: { method: 'fixedBinWidth' as const, min: 0, max: 0, binWidth: 1 },
+      filter: { type: 'laplacianOfGaussian' as const, sigma: 1 },
+    };
+    const response = await start({ settings });
+    expect(response.statusCode).toBe(202);
+    const info = response.json<AnalysisInfo>();
+    await t.app.inject({ method: 'GET', url: `/api/v1/analyses/${info.analysisId}/events` });
+    const results = (await t.app.inject({ method: 'GET', url: `/api/v1/analyses/${info.analysisId}/results` })).json<AnalysisResults>();
+    const [whole] = results.results;
+    expect(whole.status).toBe('ok');
+    expect(results.settings.filter).toEqual({ type: 'laplacianOfGaussian', sigma: 1 });
+    // Filtered values are real: the mean is no longer the image's 1.25, the range tops out at the largest real value, and
+    // with a bin width of 1 the bins start at the whole number below the smallest value, as PyRadiomics aligns them
+    expect(whole.values.Mean.mean).not.toBe(1.25);
+    expect(Number.isInteger(whole.quantization.upper)).toBe(false);
+    expect(Number.isInteger(whole.quantization.lower)).toBe(true);
+    const csv = (await t.app.inject({ method: 'GET', url: `/api/v1/analyses/${info.analysisId}/results.csv` })).body;
+    expect(csv).toContain('# filter=laplacianOfGaussian;sigma=1');
+
+    // A fixed range assumes whole intensities
+    const refused = await start({ settings: { ...settings, quantization: SETTINGS.quantization } });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().message).toContain('fixed bin width or ROI min-max');
+  });
+
+  it('measures a wavelet sub-band of the image when the settings ask for it', async () => {
+    const settings = {
+      ...SETTINGS,
+      features: ['Mean'],
+      aggregation: 'meanOnly' as const,
+      quantization: { method: 'roiMinMax' as const, min: 0, max: 0, binWidth: 1 },
+      filter: { type: 'wavelet' as const, band: 'LL' as const },
+    };
+    const response = await start({ settings });
+    expect(response.statusCode).toBe(202);
+    const info = response.json<AnalysisInfo>();
+    await t.app.inject({ method: 'GET', url: `/api/v1/analyses/${info.analysisId}/events` });
+    const results = (await t.app.inject({ method: 'GET', url: `/api/v1/analyses/${info.analysisId}/results` })).json<AnalysisResults>();
+    expect(results.results[0].status).toBe('ok');
+    expect(results.settings.filter).toEqual({ type: 'wavelet', band: 'LL' });
+    const csv = (await t.app.inject({ method: 'GET', url: `/api/v1/analyses/${info.analysisId}/results.csv` })).body;
+    expect(csv).toContain('# filter=wavelet;wavelet=coif1;band=LL');
+    expect((await start({ settings: { ...settings, filter: { type: 'wavelet', band: 'XY' } } as never })).statusCode).toBe(400);
+  });
+
   it('measures shape features in millimetres with the pixel spacing of the request', async () => {
     const settings = { ...SETTINGS, features: ['ShapePixelSurface'], aggregation: 'meanOnly' as const };
     const surface = async (request: Partial<AnalysisRequest>) => {

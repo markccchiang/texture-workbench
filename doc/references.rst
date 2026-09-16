@@ -43,6 +43,16 @@ Sources of additional features
 Standardized definitions
 ------------------------
 
+.. [Deriche1993] R. Deriche, "Recursively Implementing the Gaussian and Its Derivatives," INRIA Research Report 1893,
+   1993.
+
+.. [Daubechies1992] I. Daubechies, *Ten Lectures on Wavelets*, CBMS-NSF Regional Conference Series in Applied
+   Mathematics 61, SIAM, 1992.
+
+.. [Lee2019] G. R. Lee, R. Gommers, F. Waselewski, K. Wohlfahrt and A. O'Leary, "PyWavelets: A Python package for
+   wavelet analysis," *Journal of Open Source Software*, vol. 4, no. 36, p. 1237, 2019.
+   `doi:10.21105/joss.01237 <https://doi.org/10.21105/joss.01237>`__
+
 .. [Unser1999] M. Unser, "Splines: A Perfect Fit for Signal and Image Processing," *IEEE Signal Processing Magazine*,
    vol. 16, no. 6, pp. 22–38, 1999. `doi:10.1109/79.799930 <https://doi.org/10.1109/79.799930>`__
 

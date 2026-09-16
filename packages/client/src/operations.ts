@@ -119,6 +119,10 @@ export interface SettingsOverrides {
   score?: boolean;
   /** Resample to this pixel spacing (mm) before measuring */
   resampling?: { x: number; y: number };
+  /** Measure the Laplacian of Gaussian with this sigma (mm with a pixel spacing, pixels without) */
+  logSigma?: number;
+  /** Measure this sub-band of the Coiflet 1 wavelet transform */
+  waveletBand?: 'LL' | 'LH' | 'HL' | 'HH';
 }
 
 /** The defaults, then stored settings, then a preset, then single options — the order the app applies them in */
@@ -152,6 +156,8 @@ export function buildSettings(catalog: CatalogResponse, bitDepth: 8 | 16, overri
     ...(overrides.quantization ? { quantization: { ...settings.quantization, ...overrides.quantization } } : {}),
     ...(overrides.score !== undefined ? { score: { ...settings.score, enabled: overrides.score } } : {}),
     ...(overrides.resampling ? { resampling: overrides.resampling } : {}),
+    ...(overrides.logSigma !== undefined ? { filter: { type: 'laplacianOfGaussian' as const, sigma: overrides.logSigma } } : {}),
+    ...(overrides.waveletBand !== undefined ? { filter: { type: 'wavelet' as const, band: overrides.waveletBand } } : {}),
   };
 }
 

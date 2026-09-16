@@ -146,6 +146,13 @@ std::string ResultsToCsv(const std::vector<MeasurementResult>& results, const An
     if (!context.value_conversion.empty()) {
         out << "# valueConversion=" << OneLine(context.value_conversion) << "\n";
     }
+    if (settings.filter) {
+        if (settings.filter->type == ImageFilterType::Wavelet) {
+            out << "# filter=wavelet;wavelet=coif1;band=" << WaveletBandName(settings.filter->band) << "\n";
+        } else {
+            out << "# filter=laplacianOfGaussian;sigma=" << FormatNumber(settings.filter->sigma) << "\n";
+        }
+    }
     if (settings.resampling) {
         out << "# resampledPixelSpacingMm=" << FormatNumber(settings.resampling->x_mm) << ";" << FormatNumber(settings.resampling->y_mm)
             << "\n";

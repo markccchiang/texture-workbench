@@ -7,6 +7,7 @@
 
 #include "analysis/Score.hpp"
 #include "analysis/TextureAnalysis.hpp"
+#include "imaging/ImageFilters.hpp"
 #include "imaging/ImageHeader.hpp"
 #include "imaging/Quantizer.hpp"
 
@@ -34,6 +35,19 @@ struct ScoreSettings {
     int intensity_max = 65535;
 };
 
+// A filter applied to the image before measuring (imaging/ImageFilters). The filtered image holds real values, so it is
+// measured on the real-valued path: PyRadiomics' binning, and no local binary patterns or score.
+enum class ImageFilterType {
+    LaplacianOfGaussian, // sigma in millimetres with a pixel spacing, in pixels without
+    Wavelet              // one sub-band of the Coiflet 1 stationary wavelet transform
+};
+
+struct ImageFilterSettings {
+    ImageFilterType type = ImageFilterType::LaplacianOfGaussian;
+    double sigma = 1.0;                 // LaplacianOfGaussian
+    WaveletBand band = WaveletBand::LL; // Wavelet
+};
+
 struct AnalysisSettings {
     std::set<Type> features;
     int gray_levels = 32;
@@ -46,6 +60,8 @@ struct AnalysisSettings {
     // Resample the image and the ROIs to this pixel spacing (mm) before measuring (imaging/Resampling); needs the image's
     // pixel spacing. Absent: measure the pixels as they are.
     std::optional<PixelSpacing> resampling;
+    // Filter the image (after resampling) and measure the filtered image. Absent: measure the intensities.
+    std::optional<ImageFilterSettings> filter;
 };
 
 // Defaults for an image of the given bit depth (8 or 16): Haralick preset, Ng = 32, fixed range over the full

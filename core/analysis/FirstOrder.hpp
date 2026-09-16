@@ -15,7 +15,8 @@ bool IsFirstOrderStatistic(Type type);
 
 // First-order statistics of the pixels inside the mask (255), defined as in PyRadiomics (doc/equations.rst,
 // "First-order statistics"): FirstOrderEntropy and Uniformity from the histogram of the quantized gray levels in levels
-// (each below gray_levels), all others from the original 8- or 16-bit intensities in gray. Percentiles interpolate
+// (each below gray_levels), all others from the original 8- or 16-bit intensities in gray, or the values of a filtered
+// CV_32F image. Percentiles interpolate
 // linearly between order statistics; Variance, Skewness and Kurtosis use population moments, and Skewness and Kurtosis
 // are 0 for a constant region. Every value is NaN for an empty mask.
 // Throws std::invalid_argument for images of the wrong type or size, a gray level of gray_levels or more, or a type

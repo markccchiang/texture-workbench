@@ -55,6 +55,13 @@ sessions, and results already in the table keep the settings they were measured 
      - Natural logarithm, or log₂ to compare entropies with tools such as PyRadiomics or mahotas.
    * - **Age-based score** (Advanced)
      - Adds a *Score* column computed from the age, mean, entropy and contrast with the given coefficients.
+   * - **Filter** (Advanced)
+     - *Laplacian of Gaussian* measures the image after a filter that brings out spots and edges about **Sigma** wide
+       (in mm with a pixel spacing, in pixels without). *Wavelet (Coiflet 1)* measures one **Sub-band** of a wavelet
+       transform: LL a smoothed image, LH horizontal edges, HL vertical edges, HH fine diagonal detail. Filtered values
+       are real numbers, so the quantization must be a fixed
+       bin width or ROI min–max (choosing the filter switches to a bin width of 25, PyRadiomics' default), and local
+       binary patterns and the score are not available. See :ref:`Resampling <resampling>` below.
    * - **Resample before measuring** (Advanced)
      - Resamples the image to other pixels, in millimetres, before measuring — usually square pixels (**Square pixels
        of …** chooses the finer of the image's two spacings), so that neighbours in all four directions lie equally far
@@ -84,8 +91,8 @@ size: the intensities are interpolated with a cubic B-spline, as PyRadiomics res
 values, and each ROI is laid on the new pixels with its exact shape. The image in the viewer does not change. Pixel
 counts, areas and shape features then refer to the new pixels, and the exported results record the new spacing
 (``# resampledPixelSpacingMm``) next to the image's own. Resampling to finer pixels does not add detail: it makes
-distances and directions comparable between images of different or non-square pixels. Details are in
-:doc:`../equations`.
+distances and directions comparable between images of different or non-square pixels. With a **Filter** as well, the
+image is resampled first and then filtered. Details of both are in :doc:`../equations`.
 
 **Shape features** (perimeter, sphericity, maximum diameter, axis lengths and others) describe the outline of each ROI
 rather than its texture. They are in millimetres, and surfaces in mm², when the image has a pixel spacing (see

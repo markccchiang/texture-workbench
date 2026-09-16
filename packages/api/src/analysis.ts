@@ -256,6 +256,33 @@ export const AnalysisSettings = Type.Object({
       },
     ),
   ),
+  filter: Type.Optional(
+    Type.Union(
+      [
+        Type.Object(
+          {
+            type: Type.Literal('laplacianOfGaussian'),
+            sigma: Type.Number({ exclusiveMinimum: 0, maximum: 1000, description: 'Millimetres with a pixel spacing, pixels without one' }),
+          },
+          { additionalProperties: false },
+        ),
+        Type.Object(
+          {
+            type: Type.Literal('wavelet'),
+            wavelet: Type.Optional(Type.Literal('coif1')),
+            band: Type.Union([Type.Literal('LL'), Type.Literal('LH'), Type.Literal('HL'), Type.Literal('HH')], {
+              description: 'First letter along x (between columns), second along y: L low-pass, H high-pass',
+            }),
+          },
+          { additionalProperties: false },
+        ),
+      ],
+      {
+        description:
+          'Measure a filtered image (after resampling), as PyRadiomics computes it: the Laplacian of Gaussian, or one sub-band of the Coiflet 1 stationary wavelet transform. Its values are real, so quantization must be fixedBinWidth or roiMinMax (binned as PyRadiomics bins), and local binary patterns and the score are not available.',
+      },
+    ),
+  ),
 });
 export type AnalysisSettings = Static<typeof AnalysisSettings>;
 
@@ -305,7 +332,7 @@ export const MeasurementResult = Type.Object({
   error: Type.String({ description: 'Reason for skipped or failed results' }),
   pixelCount: Type.Integer(),
   pairCounts: Type.Object({ '0': Type.Integer(), '45': Type.Integer(), '90': Type.Integer(), '135': Type.Integer() }),
-  quantization: Type.Object({ lower: Type.Integer(), upper: Type.Integer() }),
+  quantization: Type.Object({ lower: Type.Number(), upper: Type.Number() }, { description: 'Whole numbers, except on a filtered image' }),
   values: Type.Record(Type.String(), FeatureValues),
   score: Type.Union([FeatureValues, Type.Null()]),
   warnings: Type.Array(Type.String()),

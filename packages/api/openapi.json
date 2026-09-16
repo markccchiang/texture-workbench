@@ -4219,6 +4219,84 @@
                         },
                         "additionalProperties": false,
                         "description": "Resample the image (cubic B-spline) and the ROIs to this pixel spacing before measuring; needs the image's pixel spacing. Pixel counts, areas and shape features then refer to the resampled pixels."
+                      },
+                      "filter": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "type",
+                              "sigma"
+                            ],
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "laplacianOfGaussian"
+                                ]
+                              },
+                              "sigma": {
+                                "type": "number",
+                                "exclusiveMinimum": 0,
+                                "maximum": 1000,
+                                "description": "Millimetres with a pixel spacing, pixels without one"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "required": [
+                              "type",
+                              "band"
+                            ],
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "wavelet"
+                                ]
+                              },
+                              "wavelet": {
+                                "type": "string",
+                                "enum": [
+                                  "coif1"
+                                ]
+                              },
+                              "band": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "LL"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "LH"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "HL"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "HH"
+                                    ]
+                                  }
+                                ],
+                                "description": "First letter along x (between columns), second along y: L low-pass, H high-pass"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        ],
+                        "description": "Measure a filtered image (after resampling), as PyRadiomics computes it: the Laplacian of Gaussian, or one sub-band of the Coiflet 1 stationary wavelet transform. Its values are real, so quantization must be fixedBinWidth or roiMinMax (binned as PyRadiomics bins), and local binary patterns and the score are not available."
                       }
                     }
                   },
@@ -4618,6 +4696,84 @@
                           },
                           "additionalProperties": false,
                           "description": "Resample the image (cubic B-spline) and the ROIs to this pixel spacing before measuring; needs the image's pixel spacing. Pixel counts, areas and shape features then refer to the resampled pixels."
+                        },
+                        "filter": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "type",
+                                "sigma"
+                              ],
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "laplacianOfGaussian"
+                                  ]
+                                },
+                                "sigma": {
+                                  "type": "number",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 1000,
+                                  "description": "Millimetres with a pixel spacing, pixels without one"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "required": [
+                                "type",
+                                "band"
+                              ],
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "wavelet"
+                                  ]
+                                },
+                                "wavelet": {
+                                  "type": "string",
+                                  "enum": [
+                                    "coif1"
+                                  ]
+                                },
+                                "band": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "LL"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "LH"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "HL"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "HH"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "First letter along x (between columns), second along y: L low-pass, H high-pass"
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          ],
+                          "description": "Measure a filtered image (after resampling), as PyRadiomics computes it: the Laplacian of Gaussian, or one sub-band of the Coiflet 1 stationary wavelet transform. Its values are real, so quantization must be fixedBinWidth or roiMinMax (binned as PyRadiomics bins), and local binary patterns and the score are not available."
                         }
                       }
                     },
@@ -5141,6 +5297,84 @@
                           },
                           "additionalProperties": false,
                           "description": "Resample the image (cubic B-spline) and the ROIs to this pixel spacing before measuring; needs the image's pixel spacing. Pixel counts, areas and shape features then refer to the resampled pixels."
+                        },
+                        "filter": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "type",
+                                "sigma"
+                              ],
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "laplacianOfGaussian"
+                                  ]
+                                },
+                                "sigma": {
+                                  "type": "number",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 1000,
+                                  "description": "Millimetres with a pixel spacing, pixels without one"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "required": [
+                                "type",
+                                "band"
+                              ],
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "wavelet"
+                                  ]
+                                },
+                                "wavelet": {
+                                  "type": "string",
+                                  "enum": [
+                                    "coif1"
+                                  ]
+                                },
+                                "band": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "LL"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "LH"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "HL"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "HH"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "First letter along x (between columns), second along y: L low-pass, H high-pass"
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          ],
+                          "description": "Measure a filtered image (after resampling), as PyRadiomics computes it: the Laplacian of Gaussian, or one sub-band of the Coiflet 1 stationary wavelet transform. Its values are real, so quantization must be fixedBinWidth or roiMinMax (binned as PyRadiomics bins), and local binary patterns and the score are not available."
                         }
                       }
                     },
@@ -5701,6 +5935,84 @@
                           },
                           "additionalProperties": false,
                           "description": "Resample the image (cubic B-spline) and the ROIs to this pixel spacing before measuring; needs the image's pixel spacing. Pixel counts, areas and shape features then refer to the resampled pixels."
+                        },
+                        "filter": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "type",
+                                "sigma"
+                              ],
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "laplacianOfGaussian"
+                                  ]
+                                },
+                                "sigma": {
+                                  "type": "number",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 1000,
+                                  "description": "Millimetres with a pixel spacing, pixels without one"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "required": [
+                                "type",
+                                "band"
+                              ],
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "wavelet"
+                                  ]
+                                },
+                                "wavelet": {
+                                  "type": "string",
+                                  "enum": [
+                                    "coif1"
+                                  ]
+                                },
+                                "band": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "LL"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "LH"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "HL"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "HH"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "First letter along x (between columns), second along y: L low-pass, H high-pass"
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          ],
+                          "description": "Measure a filtered image (after resampling), as PyRadiomics computes it: the Laplacian of Gaussian, or one sub-band of the Coiflet 1 stationary wavelet transform. Its values are real, so quantization must be fixedBinWidth or roiMinMax (binned as PyRadiomics bins), and local binary patterns and the score are not available."
                         }
                       }
                     },
@@ -5795,12 +6107,13 @@
                             ],
                             "properties": {
                               "lower": {
-                                "type": "integer"
+                                "type": "number"
                               },
                               "upper": {
-                                "type": "integer"
+                                "type": "number"
                               }
-                            }
+                            },
+                            "description": "Whole numbers, except on a filtered image"
                           },
                           "values": {
                             "type": "object",
@@ -7699,6 +8012,84 @@
                               },
                               "additionalProperties": false,
                               "description": "Resample the image (cubic B-spline) and the ROIs to this pixel spacing before measuring; needs the image's pixel spacing. Pixel counts, areas and shape features then refer to the resampled pixels."
+                            },
+                            "filter": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "type",
+                                    "sigma"
+                                  ],
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "laplacianOfGaussian"
+                                      ]
+                                    },
+                                    "sigma": {
+                                      "type": "number",
+                                      "exclusiveMinimum": 0,
+                                      "maximum": 1000,
+                                      "description": "Millimetres with a pixel spacing, pixels without one"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "type",
+                                    "band"
+                                  ],
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "wavelet"
+                                      ]
+                                    },
+                                    "wavelet": {
+                                      "type": "string",
+                                      "enum": [
+                                        "coif1"
+                                      ]
+                                    },
+                                    "band": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "LL"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "LH"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "HL"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "HH"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "First letter along x (between columns), second along y: L low-pass, H high-pass"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                }
+                              ],
+                              "description": "Measure a filtered image (after resampling), as PyRadiomics computes it: the Laplacian of Gaussian, or one sub-band of the Coiflet 1 stationary wavelet transform. Its values are real, so quantization must be fixedBinWidth or roiMinMax (binned as PyRadiomics bins), and local binary patterns and the score are not available."
                             }
                           }
                         },
@@ -7793,12 +8184,13 @@
                                 ],
                                 "properties": {
                                   "lower": {
-                                    "type": "integer"
+                                    "type": "number"
                                   },
                                   "upper": {
-                                    "type": "integer"
+                                    "type": "number"
                                   }
-                                }
+                                },
+                                "description": "Whole numbers, except on a filtered image"
                               },
                               "values": {
                                 "type": "object",
@@ -8452,6 +8844,84 @@
                         },
                         "additionalProperties": false,
                         "description": "Resample the image (cubic B-spline) and the ROIs to this pixel spacing before measuring; needs the image's pixel spacing. Pixel counts, areas and shape features then refer to the resampled pixels."
+                      },
+                      "filter": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "type",
+                              "sigma"
+                            ],
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "laplacianOfGaussian"
+                                ]
+                              },
+                              "sigma": {
+                                "type": "number",
+                                "exclusiveMinimum": 0,
+                                "maximum": 1000,
+                                "description": "Millimetres with a pixel spacing, pixels without one"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "required": [
+                              "type",
+                              "band"
+                            ],
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "wavelet"
+                                ]
+                              },
+                              "wavelet": {
+                                "type": "string",
+                                "enum": [
+                                  "coif1"
+                                ]
+                              },
+                              "band": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "LL"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "LH"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "HL"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "HH"
+                                    ]
+                                  }
+                                ],
+                                "description": "First letter along x (between columns), second along y: L low-pass, H high-pass"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        ],
+                        "description": "Measure a filtered image (after resampling), as PyRadiomics computes it: the Laplacian of Gaussian, or one sub-band of the Coiflet 1 stationary wavelet transform. Its values are real, so quantization must be fixedBinWidth or roiMinMax (binned as PyRadiomics bins), and local binary patterns and the score are not available."
                       }
                     }
                   },

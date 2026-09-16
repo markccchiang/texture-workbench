@@ -96,7 +96,7 @@ export function checkSettings(settings: AnalysisSettings, bitDepth: 8 | 16, cata
   }
 
   const { quantization } = settings;
-  if (quantization.method === 'fixedRange') {
+  if (quantization.method === 'fixedRange' && !settings.filter) {
     if (quantization.min < 0 || quantization.max > limit) {
       errors.push(`The quantization range must be within 0–${limit}.`);
     } else if (quantization.min >= quantization.max) {
@@ -106,7 +106,7 @@ export function checkSettings(settings: AnalysisSettings, bitDepth: 8 | 16, cata
   if (quantization.method === 'fixedBinWidth' && !(quantization.binWidth > 0)) {
     errors.push('The bin width must be greater than 0.');
   }
-  if (quantization.method === 'none' && settings.grayLevels <= limit) {
+  if (quantization.method === 'none' && settings.grayLevels <= limit && !settings.filter) {
     warnings.push(`Without quantization, ROIs with intensities of ${settings.grayLevels} or more fail.`);
   }
 
@@ -117,6 +117,22 @@ export function checkSettings(settings: AnalysisSettings, bitDepth: 8 | 16, cata
   }
   if (settings.directions.length === 0) {
     errors.push('Select at least one direction.');
+  }
+
+  if (settings.filter) {
+    if (settings.filter.type === 'laplacianOfGaussian' && !(settings.filter.sigma > 0)) {
+      errors.push('The sigma of the Laplacian of Gaussian must be greater than 0.');
+    }
+    if (quantization.method !== 'fixedBinWidth' && quantization.method !== 'roiMinMax') {
+      errors.push('A filtered image has real values: choose the quantization Fixed bin width or ROI min–max.');
+    }
+    // Local binary pattern feature ids all start with Lbp
+    if (settings.features.some((id) => id.startsWith('Lbp'))) {
+      errors.push('Local binary patterns cannot be computed on a filtered image; remove them or turn the filter off.');
+    }
+    if (settings.score.enabled) {
+      errors.push('The age-based score cannot be computed on a filtered image.');
+    }
   }
 
   if (settings.features.includes('MaximalCorrelationCoefficient') && settings.grayLevels > MCC_WARNING_GRAY_LEVELS) {

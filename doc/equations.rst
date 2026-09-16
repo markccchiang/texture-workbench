@@ -734,8 +734,14 @@ The analysis pipeline therefore computes the score's inputs with those settings 
 whatever the analysis settings are; 16-bit intensities are first mapped to 0–255 with a fixed range. The *current
 settings* profile uses the analysis settings instead and adds a warning that the coefficients may not apply.
 
+Preprocessing
+-------------
+
+Two settings change the image before it is measured: *resampling* to another pixel spacing, and a *filter*. Both are
+recorded in the results. Without them, every feature is computed from the image's own intensities as described above.
+
 Resampling
-----------
+~~~~~~~~~~
 
 With the *resampling* setting (``AnalysisSettings::resampling``), ``RunAnalysis`` measures a resampled image instead of the
 original (``core/imaging/Resampling``), as PyRadiomics does with ``resampledPixelSpacing`` and its default B-spline
@@ -760,6 +766,71 @@ PyRadiomics truncate towards zero instead, so a resampled intensity there can be
 it to — so that a new pixel belongs to the ROI when its centre lies inside the original shape. (PyRadiomics resamples its
 label mask with nearest-neighbour interpolation instead, which can differ at the edge.) Pixel counts, the area in mm²
 and the shape features then use the new pixels and the new spacing.
+
+Laplacian of Gaussian
+~~~~~~~~~~~~~~~~~~~~~
+
+With the *filter* setting ``laplacianOfGaussian`` (``AnalysisSettings::filter``), the image — resampled first, if
+resampling is on — is replaced by its Laplacian of Gaussian before measuring, as PyRadiomics' ``getLoGImage`` computes it
+(``core/imaging/ImageFilters``):
+
+.. math:: \text{LoG}(x, y) = \sigma^2 \left( \frac{\partial^2}{\partial x^2} + \frac{\partial^2}{\partial y^2} \right) (G_\sigma * I)(x, y)
+
+It is large where the intensity has a dark or bright spot or edge about :math:`\sigma` wide, and close to 0 in flat areas:
+fine textures stand out for a small :math:`\sigma`, coarse ones for a large one. The factor :math:`\sigma^2` (ITK's
+*normalize across scale*) keeps values comparable between :math:`\sigma` values. :math:`\sigma` is in millimetres when the
+measurement has a pixel spacing, and in pixels without one.
+
+The Gaussian and its second derivative are ITK's recursive filters (``LaplacianRecursiveGaussianImageFilter``): the
+fourth-order approximations of Deriche [Deriche1993]_, run forwards and backwards along each axis with the value at the
+edge extended beyond the image. Each term is the second derivative along one axis and the Gaussian along the other, with
+the intermediate images kept as 32-bit floating point, as ITK keeps them. The core tests compare the filtered image with
+SimpleITK's, which it matches to the last bit on the test images; the image needs at least 4 pixels along each axis.
+
+Wavelet
+~~~~~~~
+
+With the *filter* setting ``wavelet`` and a sub-band ``LL``, ``LH``, ``HL`` or ``HH``, the image is replaced by one
+sub-band of its one-level **stationary wavelet transform** with the Coiflet 1 wavelet [Daubechies1992]_, as PyRadiomics'
+``getWaveletImage`` computes it with PyWavelets [Lee2019]_ (``swtn``, level 1). Unlike the ordinary (decimated) wavelet
+transform, it keeps every pixel, so each sub-band has the image's size.
+
+Along one axis, with the Coiflet 1 decomposition filters :math:`h` (low-pass, :math:`L`) and :math:`g` (high-pass,
+:math:`H`) of length 6, a line :math:`u` of even length :math:`N` becomes
+
+.. math:: (h \star u)_k = \sum_{j=0}^{5} h_j\, u_{(k + 3 - j) \bmod N}
+
+with periodic boundaries. The first letter of the sub-band is the filter along :math:`x` (between columns, applied
+first), the second the filter along :math:`y`: **LL** is a smoothed image, **LH** (smooth along :math:`x`, differences
+along :math:`y`) brings out horizontal edges, **HL** vertical ones and **HH** fine diagonal detail. An axis of odd length is
+first extended periodically by one pixel (its first row or column is repeated at the end), and that pixel is removed
+again afterwards, as PyRadiomics does. The values are 64-bit floating point, and the core tests compare all four
+sub-bands with PyWavelets', which they match to the last bit on the test images. The pixel spacing plays no part.
+
+Measuring a filtered image
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The values of a filtered image are real and can be negative, so
+
+- first-order statistics (and Mean and Std) use those real values;
+- gray levels come from PyRadiomics' discretization, which the core tests follow exactly: with a **fixed bin width**
+  :math:`w`, the bins are aligned to multiples of :math:`w` — the lowest edge is :math:`\min - (\min \bmod w)` — and with
+  **ROI min–max**, :math:`N_g` equal bins span the minimum to the maximum of the ROI, the maximum falling into the last
+  bin. (For the intensities of an image, a fixed bin width starts at the ROI minimum instead; see *Gray-level
+  quantization* above.) A fixed range and no quantization assume whole intensities and are not available;
+- local binary patterns, which compare intensities to a pixel's own, and the score, which was calibrated on intensities,
+  are not available. Shape features do not depend on the intensities and are the same as without the filter.
+
+The core tests compare first-order, run length, size zone and gray tone difference features of Laplacian of Gaussian
+and wavelet images with PyRadiomics on sample images, with fixed bin widths and bin counts, 8- and 16-bit images and
+non-square pixels. Gray levels are binned in the arithmetic PyRadiomics uses for each: 32-bit for the Laplacian of
+Gaussian, whose image ITK stores in 32 bits, and 64-bit for the wavelet.
+
+.. note::
+
+   PyRadiomics filters only the part of a resampled image around the ROI (its bounding box and 5 pixels more), so its
+   values near that border differ when resampling and a filter are combined. Here the filter always runs over the whole
+   (resampled) image.
 
 Choosing features and gray levels
 ---------------------------------

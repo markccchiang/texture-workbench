@@ -37,6 +37,25 @@ void ValidateSettings(const AnalysisSettings& settings) {
             throw std::invalid_argument("The resampled pixel spacing must be positive");
         }
     }
+    if (settings.filter) {
+        if (settings.filter->type == ImageFilterType::LaplacianOfGaussian &&
+            !(settings.filter->sigma > 0.0 && settings.filter->sigma <= 1000.0)) {
+            throw std::invalid_argument("The sigma of the Laplacian of Gaussian must be above 0 and at most 1000");
+        }
+        // A filtered image holds real values: only binning that does not assume whole intensities applies
+        if (settings.quantization.method != QuantizationMethod::FixedBinWidth &&
+            settings.quantization.method != QuantizationMethod::RoiMinMax) {
+            throw std::invalid_argument("A filtered image needs a fixed bin width or ROI min-max quantization");
+        }
+        if (settings.score.enabled) {
+            throw std::invalid_argument("The score cannot be computed on a filtered image");
+        }
+        for (Type type : settings.features) {
+            if (FindFeature(type).group == FeatureGroup::LocalBinaryPattern) {
+                throw std::invalid_argument("Local binary patterns cannot be computed on a filtered image");
+            }
+        }
+    }
     for (Type type : settings.features) {
         FindFeature(type); // throws for Score and Age
     }

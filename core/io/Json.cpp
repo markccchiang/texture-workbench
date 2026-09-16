@@ -217,9 +217,16 @@ Json SettingsToJsonValue(const AnalysisSettings& settings) {
     result["score"] = {{"enabled", score.enabled}, {"age", score.age},
         {"coefficients", Json::array({c.age, c.mean, c.entropy, c.contrast})}, {"profile", ScoreProfileId(score.profile)},
         {"intensityMin", score.intensity_min}, {"intensityMax", score.intensity_max}};
-    // Written only when set, so documents without resampling stay as they were
+    // Written only when set, so documents without resampling or a filter stay as they were
     if (settings.resampling) {
         result["resampling"] = {{"x", settings.resampling->x_mm}, {"y", settings.resampling->y_mm}};
+    }
+    if (settings.filter) {
+        if (settings.filter->type == ImageFilterType::Wavelet) {
+            result["filter"] = {{"type", "wavelet"}, {"band", WaveletBandName(settings.filter->band)}};
+        } else {
+            result["filter"] = {{"type", "laplacianOfGaussian"}, {"sigma", settings.filter->sigma}};
+        }
     }
     return result;
 }
@@ -306,6 +313,37 @@ AnalysisSettings SettingsFromJsonValue(const Json& value, const std::string& pat
             Fail(log_base_path, "must be \"natural\" or \"log2\"");
         }
         settings.log_base = *log_base;
+    }
+
+    if (value.contains("filter") && !value.at("filter").is_null()) {
+        const std::string filter_path = Child(path, "filter");
+        const Json& filter = value.at("filter");
+        if (!filter.is_object()) {
+            Fail(filter_path, "must be an object {type, sigma} or {type, wavelet, band}");
+        }
+        const std::string type_path = Child(filter_path, "type");
+        const std::string type = Text(Field(filter, "type", filter_path), type_path);
+        if (type == "laplacianOfGaussian") {
+            ImageFilterSettings log;
+            log.sigma = Number(Field(filter, "sigma", filter_path), Child(filter_path, "sigma"));
+            settings.filter = log;
+        } else if (type == "wavelet") {
+            const std::string wavelet_path = Child(filter_path, "wavelet");
+            if (filter.contains("wavelet") && Text(filter.at("wavelet"), wavelet_path) != "coif1") {
+                Fail(wavelet_path, "must be \"coif1\"");
+            }
+            const std::string band_path = Child(filter_path, "band");
+            const std::optional<WaveletBand> band = WaveletBandFromName(Text(Field(filter, "band", filter_path), band_path));
+            if (!band) {
+                Fail(band_path, "must be \"LL\", \"LH\", \"HL\" or \"HH\"");
+            }
+            ImageFilterSettings wavelet;
+            wavelet.type = ImageFilterType::Wavelet;
+            wavelet.band = *band;
+            settings.filter = wavelet;
+        } else {
+            Fail(type_path, "must be \"laplacianOfGaussian\" or \"wavelet\"");
+        }
     }
 
     if (value.contains("resampling") && !value.at("resampling").is_null()) {
@@ -422,8 +460,8 @@ MeasurementResult MeasurementFromJson(const Json& value, const std::string& path
     if (value.contains("quantization")) {
         const std::string quantization_path = Child(path, "quantization");
         const Json& quantization = value.at("quantization");
-        result.quantization_lower = Integer(Field(quantization, "lower", quantization_path), Child(quantization_path, "lower"));
-        result.quantization_upper = Integer(Field(quantization, "upper", quantization_path), Child(quantization_path, "upper"));
+        result.quantization_lower = Number(Field(quantization, "lower", quantization_path), Child(quantization_path, "lower"));
+        result.quantization_upper = Number(Field(quantization, "upper", quantization_path), Child(quantization_path, "upper"));
     }
 
     if (value.contains("values")) {
@@ -636,7 +674,11 @@ std::string ResultsToJson(const std::vector<MeasurementResult>& results, const A
         item["error"] = result.error;
         item["pixelCount"] = result.pixel_count;
         item["pairCounts"] = pair_counts;
-        item["quantization"] = {{"lower", result.quantization_lower}, {"upper", result.quantization_upper}};
+        // Whole numbers as integers, as they were written before bounds could be real (filtered images)
+        const auto bound = [](double value) {
+            return std::floor(value) == value && std::abs(value) < 9.0e15 ? Json(static_cast<int64_t>(value)) : Json(value);
+        };
+        item["quantization"] = {{"lower", bound(result.quantization_lower)}, {"upper", bound(result.quantization_upper)}};
         item["values"] = values;
         item["score"] = result.score ? json_detail::FeaturesToJson(*result.score) : Json(nullptr);
         item["warnings"] = result.warnings;

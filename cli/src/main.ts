@@ -94,6 +94,18 @@ async function settingsOverrides(context: Context): Promise<operations.SettingsO
     throw new ApiError(0, 'BadOption', '--resample takes the new pixel width and height in millimetres, e.g. --resample 0.5,0.5');
   }
   const resampling = resample ? { x: resample[0], y: resample[1] } : undefined;
+  const logSigmaText = text(context, 'log-sigma');
+  const logSigma = logSigmaText === undefined ? undefined : Number(logSigmaText);
+  if (logSigma !== undefined && !(logSigma > 0)) {
+    throw new ApiError(0, 'BadOption', '--log-sigma takes the sigma of the Laplacian of Gaussian, e.g. --log-sigma 2');
+  }
+  const waveletBand = text(context, 'wavelet')?.toUpperCase();
+  if (waveletBand !== undefined && !isWaveletBand(waveletBand)) {
+    throw new ApiError(0, 'BadOption', '--wavelet takes the sub-band LL, LH, HL or HH');
+  }
+  if (waveletBand !== undefined && logSigma !== undefined) {
+    throw new ApiError(0, 'BadOption', 'Choose one filter: --log-sigma or --wavelet');
+  }
   const quantization = text(context, 'quantization');
   const parsedQuantization = quantization
     ? (() => {
@@ -125,12 +137,20 @@ async function settingsOverrides(context: Context): Promise<operations.SettingsO
     quantization: parsedQuantization,
     ...(flag(context, 'score') ? { score: true } : {}),
     ...(resampling ? { resampling } : {}),
+    ...(logSigma !== undefined ? { logSigma } : {}),
+    ...(waveletBand !== undefined ? { waveletBand } : {}),
   };
+}
+
+function isWaveletBand(band: string): band is 'LL' | 'LH' | 'HL' | 'HH' {
+  return band === 'LL' || band === 'LH' || band === 'HL' || band === 'HH';
 }
 
 const SETTINGS_OPTIONS: OptionConfig = {
   settings: { type: 'string' },
   resample: { type: 'string' },
+  'log-sigma': { type: 'string' },
+  wavelet: { type: 'string' },
   preset: { type: 'string' },
   features: { type: 'string' },
   'gray-levels': { type: 'string' },
@@ -241,6 +261,8 @@ const COMMANDS: Record<string, Command> = {
       'Settings come from the defaults, then --settings <file>, then --preset, then the single options.',
       'Several images are measured in turn and their rows merged into one file when their settings match.',
       '--resample 0.5,0.5 resamples the image and the ROIs to that pixel spacing (mm) first; the image needs a pixel spacing (or --spacing).',
+      '--log-sigma 2 measures the Laplacian of Gaussian (sigma in mm with a pixel spacing), with --quantization fixedBinWidth,25 or roiMinMax.',
+      '--wavelet LH measures that sub-band of the Coiflet 1 stationary wavelet transform (L low-pass, H high-pass; x first), with the same quantizations.',
     ],
     options: {
       ...SETTINGS_OPTIONS,

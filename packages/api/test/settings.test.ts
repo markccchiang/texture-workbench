@@ -59,6 +59,25 @@ describe('defaults and presets', () => {
 describe('checkSettings', () => {
   const valid = defaultSettings(catalog, 8);
 
+  it('allows only binning of real values, and no local binary patterns or score, on a filtered image', () => {
+    const filtered = { ...valid, filter: { type: 'laplacianOfGaussian' as const, sigma: 2 } };
+    expect(checkSettings(filtered, 8, catalog).errors).toEqual(['A filtered image has real values: choose the quantization Fixed bin width or ROI min–max.']);
+    const binned = { ...filtered, quantization: { ...valid.quantization, method: 'fixedBinWidth' as const, binWidth: 25 } };
+    expect(checkSettings(binned, 8, catalog).errors).toEqual([]);
+    expect(checkSettings({ ...binned, features: [...binned.features, 'LbpEntropy'], score: { ...binned.score, enabled: true } }, 8, catalog).errors).toEqual([
+      'Local binary patterns cannot be computed on a filtered image; remove them or turn the filter off.',
+      'The age-based score cannot be computed on a filtered image.',
+    ]);
+    expect(checkSettings({ ...binned, filter: { type: 'laplacianOfGaussian' as const, sigma: 0 } }, 8, catalog).errors).toEqual([
+      'The sigma of the Laplacian of Gaussian must be greater than 0.',
+    ]);
+    const wavelet = { ...binned, filter: { type: 'wavelet' as const, band: 'HH' as const } };
+    expect(checkSettings(wavelet, 16, catalog).errors).toEqual([]);
+    expect(checkSettings({ ...wavelet, quantization: valid.quantization }, 16, catalog).errors).toEqual([
+      'A filtered image has real values: choose the quantization Fixed bin width or ROI min–max.',
+    ]);
+  });
+
   it('asks for a pixel spacing when resampling', () => {
     const resampled = { ...valid, resampling: { x: 0.5, y: 0.5 } };
     expect(checkSettings(resampled, 8, catalog, { x: 0.5, y: 0.8 }).errors).toEqual([]);

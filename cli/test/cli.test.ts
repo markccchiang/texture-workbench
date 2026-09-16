@@ -107,6 +107,28 @@ describe('glcm', () => {
     }
   });
 
+  it('measures the Laplacian of Gaussian with --log-sigma', async () => {
+    const measure = async (...options: string[]) => glcm('measure', SAMPLE, '--features', 'Mean,Median', '--aggregation', 'meanOnly', '--json', ...options);
+    const filtered = await measure('--log-sigma', '2', '--quantization', 'fixedBinWidth,25');
+    expect(filtered.code).toBe(0);
+    const document = JSON.parse(filtered.out) as ResultsDocument;
+    expect(document.settings.filter).toEqual({ type: 'laplacianOfGaussian', sigma: 2 });
+    expect(document.results[0].status).toBe('ok');
+
+    const refused = await measure('--log-sigma', '2');
+    expect(refused.code).toBe(2);
+    expect(refused.err).toContain('choose the quantization Fixed bin width or ROI min–max');
+    expect((await measure('--log-sigma', '0')).err).toContain('--log-sigma takes the sigma');
+
+    const wavelet = await measure('--wavelet', 'hl', '--quantization', 'roiMinMax');
+    expect(wavelet.code).toBe(0);
+    const waveletDocument = JSON.parse(wavelet.out) as ResultsDocument;
+    expect(waveletDocument.settings.filter).toEqual({ type: 'wavelet', band: 'HL' });
+    expect(waveletDocument.results[0].status).toBe('ok');
+    expect((await measure('--wavelet', 'LX')).err).toContain('--wavelet takes the sub-band');
+    expect((await measure('--wavelet', 'LL', '--log-sigma', '1')).err).toContain('Choose one filter');
+  });
+
   it('resamples before measuring when asked, with a pixel spacing', async () => {
     const measure = async (...options: string[]) => glcm('measure', SAMPLE, '--features', 'Mean', '--aggregation', 'meanOnly', '--json', ...options);
     const plain = JSON.parse((await measure('--spacing', '1,1')).out) as ResultsDocument;

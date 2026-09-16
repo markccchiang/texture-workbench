@@ -2,8 +2,10 @@
 // measurement into the exported CSV, and is remembered for the image
 
 import fs from 'node:fs/promises';
+import path from 'node:path';
+import * as native from '@glcm/native';
 import { expect, test, type Page } from '@playwright/test';
-import { chooseMenuItem, drag, openSample, parseCsv, storedRois } from './helpers.js';
+import { chooseMenuItem, drag, openSample, parseCsv, ROOT, storedRois } from './helpers.js';
 
 /** Waits for the closing transition too: until then the overlay would catch the next pointer events on the canvas */
 async function closeDialog(page: Page): Promise<void> {
@@ -94,4 +96,64 @@ test('resamples to square pixels before measuring when the settings ask for it',
   const pixelCount = Number(rows[0][header.indexOf('pixelCount')]);
   expect(pixelCount).toBe(Math.abs(Math.round(shape.width * 2)) * Math.abs(Math.round(shape.height)));
   expect(Number(rows[0][header.indexOf('areaMm2')])).toBe(pixelCount * 0.25 * 0.25);
+});
+
+test('measures the Laplacian of Gaussian when a filter is chosen, as the core computes it', async ({ page }) => {
+  await openSample(page);
+  await setSpacing(page, '0.5', '0.5');
+  await page.keyboard.press('r');
+  await drag(page, [120, 90], [190, 150]);
+  await page.keyboard.press('t');
+
+  await page.getByRole('button', { name: /^Advanced/ }).click();
+  await page.getByRole('combobox', { name: 'Filter', exact: true }).click();
+  await page.getByRole('option', { name: 'Laplacian of Gaussian' }).click();
+  // A filtered image has real values: the quantization becomes PyRadiomics' default bin width
+  await expect(page.getByRole('combobox', { name: 'Quantization', exact: true })).toHaveValue('Fixed bin width');
+  await expect(page.getByLabel('Bin width')).toHaveValue('25');
+  await page.getByLabel('Sigma (mm)').fill('1.5');
+  await expect(page.getByTestId('settings-issues')).toHaveCount(0);
+
+  await chooseMenuItem(page, 'Analyze', 'Measure Selected');
+  const table = page.getByTestId('results-table');
+  await expect(table.locator('tbody tr').first()).toBeVisible();
+  const [download] = await Promise.all([page.waitForEvent('download'), chooseMenuItem(page, 'File', 'Export Results as JSON')]);
+  const document = JSON.parse(await fs.readFile((await download.path())!, 'utf8'));
+  expect(document.settings.filter).toEqual({ type: 'laplacianOfGaussian', sigma: 1.5 });
+
+  // The same analysis in the addon gives the same values
+  const image = await native.decodeImageFile(path.join(ROOT, 'samples', 'textures', 'camera.png'));
+  const [roi] = await storedRois(page);
+  const expected = JSON.parse(
+    await native.runAnalysis(image.pixels, image.width, image.height, image.bitDepth, JSON.stringify([{ id: roi.id, name: roi.name, shape: roi.shape }]), JSON.stringify(document.settings), { x: 0.5, y: 0.5 }),
+  );
+  expect(document.results[0].values).toEqual(expected.results[0].values);
+  expect(document.results[0].values.Contrast.mean).toEqual(expect.any(Number));
+});
+
+test('measures a wavelet sub-band when that filter is chosen, as the core computes it', async ({ page }) => {
+  await openSample(page);
+  await page.keyboard.press('r');
+  await drag(page, [120, 90], [190, 150]);
+  await page.keyboard.press('t');
+
+  await page.getByRole('button', { name: /^Advanced/ }).click();
+  await page.getByRole('combobox', { name: 'Filter', exact: true }).click();
+  await page.getByRole('option', { name: 'Wavelet (Coiflet 1)' }).click();
+  await page.getByRole('combobox', { name: 'Sub-band', exact: true }).click();
+  await page.getByRole('option', { name: /^HH/ }).click();
+  await expect(page.getByTestId('settings-issues')).toHaveCount(0);
+
+  await chooseMenuItem(page, 'Analyze', 'Measure Selected');
+  await expect(page.getByTestId('results-table').locator('tbody tr').first()).toBeVisible();
+  const [download] = await Promise.all([page.waitForEvent('download'), chooseMenuItem(page, 'File', 'Export Results as JSON')]);
+  const document = JSON.parse(await fs.readFile((await download.path())!, 'utf8'));
+  expect(document.settings.filter).toEqual({ type: 'wavelet', band: 'HH' });
+
+  const image = await native.decodeImageFile(path.join(ROOT, 'samples', 'textures', 'camera.png'));
+  const [roi] = await storedRois(page);
+  const expected = JSON.parse(
+    await native.runAnalysis(image.pixels, image.width, image.height, image.bitDepth, JSON.stringify([{ id: roi.id, name: roi.name, shape: roi.shape }]), JSON.stringify(document.settings)),
+  );
+  expect(document.results[0].values).toEqual(expected.results[0].values);
 });

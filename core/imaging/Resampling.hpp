@@ -18,8 +18,9 @@ struct ResamplingGrid {
     double ratio_y = 1.0;
 };
 
-// Largest number of pixels a resampled image may have
+// Largest number of pixels a resampled image may have, and a resampled image that is also filtered (whole, in float32)
 constexpr double MAX_RESAMPLED_PIXELS = 400.0e6;
+constexpr double MAX_FILTERED_PIXELS = 64.0e6;
 
 // Throws std::invalid_argument for spacings that are not positive and finite, and for grids larger than MAX_RESAMPLED_PIXELS
 ResamplingGrid ResampledGrid(cv::Size image_size, PixelSpacing from, PixelSpacing to);

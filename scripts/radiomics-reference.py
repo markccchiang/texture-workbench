@@ -28,6 +28,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pywt
 import radiomics
 import SimpleITK as sitk
 import skimage
@@ -42,6 +43,10 @@ NGTDM_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pyradiomics-ngtdm.json'
 LBP_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'scikit-image-lbp.json'
 SHAPE_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pyradiomics-shape2d.json'
 RESAMPLING_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'simpleitk-resampling.json'
+LOG_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'simpleitk-log.json'
+LOG_FEATURES_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pyradiomics-log-features.json'
+WAVELET_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pywavelets-wavelet.json'
+WAVELET_FEATURES_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pyradiomics-wavelet-features.json'
 LBP_SAMPLES = 8
 
 # PyRadiomics feature name -> core feature id
@@ -220,6 +225,116 @@ def resampling_reference(image_path: str, crop: tuple[int, int, int, int], old: 
     }
 
 
+def log_reference(image_path: str, crop: tuple[int, int, int, int], spacing: tuple[float, float], sigma: float) -> dict:
+    """SimpleITK's Laplacian of Gaussian as PyRadiomics applies it (recursive Gaussian, normalized across scale), float32"""
+    x, y, width, height = crop
+    pixels = sitk.GetArrayFromImage(sitk.ReadImage(str(ROOT / 'samples' / image_path)))[y : y + height, x : x + width]
+    image = sitk.GetImageFromArray(np.ascontiguousarray(pixels))
+    image.SetSpacing(spacing)
+    log = sitk.LaplacianRecursiveGaussianImageFilter()
+    log.SetNormalizeAcrossScale(True)
+    log.SetSigma(sigma)
+    values = sitk.GetArrayFromImage(log.Execute(image))
+    return {
+        'image': image_path,
+        'crop': list(crop),
+        'spacing': list(spacing),
+        'sigma': sigma,
+        'values': [float(value) for value in values.ravel()],
+    }
+
+
+def log_features_reference(
+    image_path: str, rectangle: tuple[int, int, int, int], spacing: tuple[float, float], sigma: float, binning: dict
+) -> dict:
+    """PyRadiomics features of a LoG image (getLoGImage on the whole image) in a rectangle, with binWidth or binCount"""
+    pixels = sitk.GetArrayFromImage(sitk.ReadImage(str(ROOT / 'samples' / image_path)))
+    image = sitk.GetImageFromArray(pixels)
+    image.SetSpacing(spacing)
+    x, y, width, height = rectangle
+    mask = np.zeros(pixels.shape, dtype=np.uint8)
+    mask[y : y + height, x : x + width] = 1
+    label = sitk.GetImageFromArray(mask)
+    label.CopyInformation(image)
+    [(log, name, _)] = list(radiomics.imageoperations.getLoGImage(image, label, sigma=[sigma]))
+    # The feature classes as the extractor calls them on a derived 2D image
+    log3d = sitk.JoinSeries(log)
+    label3d = sitk.JoinSeries(label)
+    settings = {'force2D': True, 'force2Ddimension': 0, 'distances': [1], **binning}
+    features = {}
+    for prefix, feature_class in (('', firstorder.RadiomicsFirstOrder), ('Glrlm', glrlm.RadiomicsGLRLM), ('Glszm', glszm.RadiomicsGLSZM), ('Ngtdm', ngtdm.RadiomicsNGTDM)):
+        extractor = feature_class(log3d, label3d, **settings)
+        extractor.enableAllFeatures()
+        for feature, value in extractor.execute().items():
+            if prefix == '':
+                if feature in FEATURES:
+                    features[FEATURES[feature]] = float(value)
+            else:
+                features[prefix + feature] = float(value)
+    return {
+        'image': image_path,
+        'rectangle': list(rectangle),
+        'spacing': list(spacing),
+        'sigma': sigma,
+        'imageType': name,
+        'binning': binning,
+        'features': features,
+    }
+
+
+def wavelet_images(pixels: np.ndarray, label: sitk.Image | None = None) -> dict[str, sitk.Image]:
+    """PyRadiomics' getWaveletImage (coif1, level 1) of a 2D image: the band name without 'wavelet-' -> image"""
+    image = sitk.GetImageFromArray(np.ascontiguousarray(pixels))
+    if label is None:
+        label = sitk.GetImageFromArray(np.ones(pixels.shape, dtype=np.uint8))
+        label.CopyInformation(image)
+    return {name.removeprefix('wavelet-'): result for result, name, _ in radiomics.imageoperations.getWaveletImage(image, label)}
+
+
+def wavelet_reference(image_path: str, crop: tuple[int, int, int, int]) -> dict:
+    """The four sub-bands PyRadiomics computes with PyWavelets' swtn, float64"""
+    x, y, width, height = crop
+    pixels = sitk.GetArrayFromImage(sitk.ReadImage(str(ROOT / 'samples' / image_path)))[y : y + height, x : x + width]
+    bands = wavelet_images(pixels)
+    return {
+        'image': image_path,
+        'crop': list(crop),
+        'bands': {name: [float(value) for value in sitk.GetArrayFromImage(band).ravel()] for name, band in sorted(bands.items())},
+    }
+
+
+def wavelet_features_reference(image_path: str, rectangle: tuple[int, int, int, int], band: str, binning: dict) -> dict:
+    """PyRadiomics features of one wavelet sub-band of the whole image in a rectangle, with binWidth or binCount"""
+    pixels = sitk.GetArrayFromImage(sitk.ReadImage(str(ROOT / 'samples' / image_path)))
+    x, y, width, height = rectangle
+    mask = np.zeros(pixels.shape, dtype=np.uint8)
+    mask[y : y + height, x : x + width] = 1
+    image = sitk.GetImageFromArray(pixels)
+    label = sitk.GetImageFromArray(mask)
+    label.CopyInformation(image)
+    filtered = wavelet_images(pixels, label)[band]
+    filtered3d = sitk.JoinSeries(filtered)
+    label3d = sitk.JoinSeries(label)
+    settings = {'force2D': True, 'force2Ddimension': 0, 'distances': [1], **binning}
+    features = {}
+    for prefix, feature_class in (('', firstorder.RadiomicsFirstOrder), ('Glrlm', glrlm.RadiomicsGLRLM), ('Glszm', glszm.RadiomicsGLSZM), ('Ngtdm', ngtdm.RadiomicsNGTDM)):
+        extractor = feature_class(filtered3d, label3d, **settings)
+        extractor.enableAllFeatures()
+        for feature, value in extractor.execute().items():
+            if prefix == '':
+                if feature in FEATURES:
+                    features[FEATURES[feature]] = float(value)
+            else:
+                features[prefix + feature] = float(value)
+    return {
+        'image': image_path,
+        'rectangle': list(rectangle),
+        'band': band,
+        'binning': binning,
+        'features': features,
+    }
+
+
 def main() -> None:
     document = {
         'source': (
@@ -293,6 +408,58 @@ def main() -> None:
     }
     RESAMPLING_OUTPUT.write_text(json.dumps(resampling) + '\n')
     print(f'{RESAMPLING_OUTPUT.relative_to(ROOT)}: {len(resampling["cases"])} cases')
+
+    laplacians = {
+        'source': f'SimpleITK {sitk.Version_VersionString()} ({sitk.Version_ITKVersionString()}), LaplacianRecursiveGaussianImageFilter',
+        'cases': [
+            log_reference('textures/camera.png', (180, 120, 40, 30), (1.0, 1.0), 1.0),
+            log_reference('textures/camera.png', (180, 120, 40, 30), (0.7, 1.3), 2.5),
+            log_reference('textures/brick.png', (60, 90, 37, 29), (0.5, 0.5), 0.8),
+            log_reference('medical/ct-chest.png', (200, 220, 33, 41), (0.703125, 0.703125), 3.0),
+            log_reference('medical/mri-brain-t1.png', (90, 100, 4, 25), (1.0, 1.33), 1.2),
+        ],
+    }
+    LOG_OUTPUT.write_text(json.dumps(laplacians) + '\n')
+    print(f'{LOG_OUTPUT.relative_to(ROOT)}: {len(laplacians["cases"])} cases')
+
+    log_features = {
+        'source': document['source'],
+        'settings': {'force2D': True, 'force2Ddimension': 0, 'distances': [1], 'voxelArrayShift': 0, 'logBase': 'log2'},
+        'cases': [
+            log_features_reference('textures/camera.png', (100, 100, 64, 48), (1.0, 1.0), 1.0, {'binWidth': 5}),
+            log_features_reference('textures/brick.png', (200, 150, 90, 70), (0.5, 0.8), 2.0, {'binCount': 32}),
+            log_features_reference('medical/ct-chest.png', (180, 200, 120, 80), (0.703125, 0.703125), 3.0, {'binWidth': 25}),
+            log_features_reference('medical/ct-chest.png', (180, 200, 120, 80), (0.703125, 0.703125), 1.5, {'binCount': 64}),
+        ],
+    }
+    LOG_FEATURES_OUTPUT.write_text(json.dumps(log_features, indent=2) + '\n')
+    print(f'{LOG_FEATURES_OUTPUT.relative_to(ROOT)}: {len(log_features["cases"])} cases')
+
+    wavelets = {
+        'source': f'PyRadiomics {radiomics.__version__} getWaveletImage (PyWavelets {pywt.__version__} swtn, coif1, level 1)',
+        'cases': [
+            wavelet_reference('textures/camera.png', (180, 120, 40, 30)),
+            wavelet_reference('textures/brick.png', (60, 90, 37, 29)),
+            wavelet_reference('medical/ct-chest.png', (200, 220, 33, 41)),
+            wavelet_reference('medical/mri-brain-t1.png', (90, 100, 3, 5)),
+            wavelet_reference('textures/camera.png', (10, 10, 1, 2)),
+        ],
+    }
+    WAVELET_OUTPUT.write_text(json.dumps(wavelets) + '\n')
+    print(f'{WAVELET_OUTPUT.relative_to(ROOT)}: {len(wavelets["cases"])} cases')
+
+    wavelet_features = {
+        'source': document['source'],
+        'settings': {'force2D': True, 'force2Ddimension': 0, 'distances': [1], 'voxelArrayShift': 0, 'logBase': 'log2'},
+        'cases': [
+            wavelet_features_reference('textures/camera.png', (100, 100, 64, 48), 'LL', {'binWidth': 5}),
+            wavelet_features_reference('textures/brick.png', (200, 150, 90, 70), 'LH', {'binCount': 32}),
+            wavelet_features_reference('medical/ct-chest.png', (180, 200, 120, 80), 'HL', {'binWidth': 25}),
+            wavelet_features_reference('medical/ct-chest.png', (180, 200, 120, 80), 'HH', {'binCount': 64}),
+        ],
+    }
+    WAVELET_FEATURES_OUTPUT.write_text(json.dumps(wavelet_features, indent=2) + '\n')
+    print(f'{WAVELET_FEATURES_OUTPUT.relative_to(ROOT)}: {len(wavelet_features["cases"])} cases')
 
 
 if __name__ == '__main__':

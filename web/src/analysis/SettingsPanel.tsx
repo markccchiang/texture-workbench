@@ -310,10 +310,76 @@ function SettingsForm({ settings, catalog, bitDepth }: { settings: AnalysisSetti
         leftSection={advancedOpen ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
         onClick={() => setAdvancedOpen((open) => !open)}
       >
-        Advanced (log base, score, resampling)
+        Advanced (filter, resampling, log base, score)
       </Button>
       <Collapse expanded={advancedOpen}>
         <Stack gap="xs" pl="xs">
+          <Select
+            size="xs"
+            label="Filter"
+            allowDeselect={false}
+            value={settings.filter?.type ?? 'none'}
+            data={[
+              { value: 'none', label: 'None (the intensities)' },
+              { value: 'laplacianOfGaussian', label: 'Laplacian of Gaussian' },
+              { value: 'wavelet', label: 'Wavelet (Coiflet 1)' },
+            ]}
+            onChange={(value) => {
+              if (value === 'laplacianOfGaussian' || value === 'wavelet') {
+                // A filtered image has real values: PyRadiomics' default bin width unless a binning that fits is chosen
+                update((current) => ({
+                  ...current,
+                  filter: value === 'laplacianOfGaussian' ? { type: value, sigma: 1 } : { type: value, band: 'LL' },
+                  ...(current.quantization.method === 'fixedBinWidth' || current.quantization.method === 'roiMinMax'
+                    ? {}
+                    : { quantization: { ...current.quantization, method: 'fixedBinWidth', binWidth: 25 } }),
+                }));
+              } else if (value === 'none') {
+                update(({ filter: _removed, ...current }) => current);
+              }
+            }}
+          />
+          {settings.filter?.type === 'laplacianOfGaussian' && (
+            <>
+              <NumberInput
+                size="xs"
+                label={`Sigma (${pixelSpacing ? 'mm' : 'pixels'})`}
+                min={0}
+                decimalScale={4}
+                value={settings.filter.sigma}
+                onChange={(value) => typeof value === 'number' && set({ filter: { type: 'laplacianOfGaussian', sigma: value } })}
+              />
+              <Text size="xs" c="dimmed">
+                Measures the Laplacian of Gaussian of the image, as PyRadiomics computes it: edges and blobs of about the size of sigma
+                stand out. Its values are real numbers, binned as PyRadiomics bins them; local binary patterns and the score are not
+                available.
+              </Text>
+            </>
+          )}
+          {settings.filter?.type === 'wavelet' && (
+            <>
+              <Select
+                size="xs"
+                label="Sub-band"
+                allowDeselect={false}
+                value={settings.filter.band}
+                data={[
+                  { value: 'LL', label: 'LL (low-pass, the approximation)' },
+                  { value: 'LH', label: 'LH (low along x, high along y)' },
+                  { value: 'HL', label: 'HL (high along x, low along y)' },
+                  { value: 'HH', label: 'HH (high-pass, diagonal detail)' },
+                ]}
+                onChange={(value) =>
+                  (value === 'LL' || value === 'LH' || value === 'HL' || value === 'HH') && set({ filter: { type: 'wavelet', band: value } })
+                }
+              />
+              <Text size="xs" c="dimmed">
+                Measures one sub-band of the stationary wavelet transform (Coiflet 1, one level), as PyRadiomics computes it: LL keeps
+                the smooth part, LH brings out horizontal edges, HL vertical ones and HH fine diagonal detail. Its values are real
+                numbers, binned as PyRadiomics bins them; local binary patterns and the score are not available.
+              </Text>
+            </>
+          )}
           <Switch
             size="xs"
             label="Resample before measuring"

@@ -11,6 +11,7 @@
 #include "analysis/Score.hpp"
 #include "analysis/Shape.hpp"
 #include "analysis/SizeZone.hpp"
+#include "imaging/ImageFilters.hpp"
 #include "imaging/Quantizer.hpp"
 #include "imaging/Resampling.hpp"
 
@@ -120,16 +121,65 @@ RoiShape TranslateShape(const RoiShape& shape, double dx, double dy) {
 // Everything about an ROI that does not depend on the distance, computed once per ROI
 struct PreparedRegion {
     RegionStatistics statistics;
-    QuantizationResult quantized;
+    QuantizationResult quantized;        // the levels; lower and upper are those below for a filtered image
+    double lower = 0.0;                  // intensity mapped to level 0
+    double upper = 0.0;                  // top of the range used
     std::map<Type, double> first_order;  // the requested first-order statistics
     std::map<Type, Features> run_length; // the requested run length features: they do not depend on the distance
     std::map<Type, double> size_zone;    // the requested size zone features: no direction, no distance
     std::map<Type, double> shape;        // the requested shape features: no gray levels, direction or distance
 };
 
+// Mean and sample standard deviation of the real values of a filtered image inside the mask
+template <typename Real>
+RegionStatistics RealRegionStatistics(const cv::Mat& image, const cv::Mat& mask) {
+    RegionStatistics statistics;
+    double sum = 0.0;
+    for (int row = 0; row < image.rows; ++row) {
+        const uchar* inside = mask.ptr<uchar>(row);
+        const Real* values = image.ptr<Real>(row);
+        for (int col = 0; col < image.cols; ++col) {
+            if (inside[col] == INSIDE) {
+                sum += values[col];
+                ++statistics.pixel_count;
+            }
+        }
+    }
+    if (statistics.pixel_count == 0) {
+        return statistics;
+    }
+    statistics.mean = sum / statistics.pixel_count;
+    double squared_deviations = 0.0;
+    for (int row = 0; row < image.rows; ++row) {
+        const uchar* inside = mask.ptr<uchar>(row);
+        const Real* values = image.ptr<Real>(row);
+        for (int col = 0; col < image.cols; ++col) {
+            if (inside[col] == INSIDE) {
+                const double deviation = values[col] - statistics.mean;
+                squared_deviations += deviation * deviation;
+            }
+        }
+    }
+    statistics.std = statistics.pixel_count < 2 ? 0.0 : std::sqrt(squared_deviations / (statistics.pixel_count - 1.0));
+    return statistics;
+}
+
 PreparedRegion Prepare(const cv::Mat& gray, const cv::Mat& mask, const AnalysisSettings& settings, cv::Point2d spacing) {
-    PreparedRegion prepared{
-        ComputeRegionStatistics(gray, mask), Quantize(gray, mask, settings.gray_levels, settings.quantization), {}, {}, {}, {}};
+    PreparedRegion prepared;
+    if (gray.depth() == CV_32F || gray.depth() == CV_64F) {
+        // A filtered image: real values, PyRadiomics' binning
+        prepared.statistics = gray.depth() == CV_32F ? RealRegionStatistics<float>(gray, mask) : RealRegionStatistics<double>(gray, mask);
+        RealQuantizationResult real = QuantizeReal(gray, mask, settings.gray_levels, settings.quantization);
+        prepared.quantized.image = real.image;
+        prepared.quantized.pixels = real.pixels;
+        prepared.lower = real.lower;
+        prepared.upper = real.upper;
+    } else {
+        prepared.statistics = ComputeRegionStatistics(gray, mask);
+        prepared.quantized = Quantize(gray, mask, settings.gray_levels, settings.quantization);
+        prepared.lower = prepared.quantized.lower;
+        prepared.upper = prepared.quantized.upper;
+    }
     std::set<Type> first_order;
     for (Type type : settings.features) {
         if (IsFirstOrderStatistic(type)) {
@@ -175,8 +225,8 @@ void Measure(const cv::Mat& gray, const cv::Mat& mask, const PreparedRegion& pre
     MeasurementResult& result) {
     const RegionStatistics& statistics = prepared.statistics;
     const QuantizationResult& quantized = prepared.quantized;
-    result.quantization_lower = quantized.lower;
-    result.quantization_upper = quantized.upper;
+    result.quantization_lower = prepared.lower;
+    result.quantization_upper = prepared.upper;
 
     TextureOptions options;
     options.directions = settings.directions;
@@ -328,6 +378,13 @@ RegionStatistics ComputeRegionStatistics(const cv::Mat& gray, const cv::Mat& mas
     return statistics;
 }
 
+namespace {
+
+AnalysisOutput MeasureImage(const cv::Mat& gray, const std::vector<Roi>& rois, const AnalysisSettings& settings,
+    const ProgressCallback& progress, cv::Point2d spacing);
+
+} // namespace
+
 AnalysisOutput RunAnalysis(const cv::Mat& gray, const std::vector<Roi>& rois, const AnalysisSettings& settings,
     const ProgressCallback& progress, const std::optional<PixelSpacing>& pixel_spacing) {
     RequireAnalysableImage(gray);
@@ -358,8 +415,15 @@ AnalysisOutput RunAnalysis(const cv::Mat& gray, const std::vector<Roi>& rois, co
             } catch (const std::exception&) {
             }
         }
-        // Measure the needed part of the grid only, with the ROIs moved onto it: it holds every pixel of every ROI on the grid
+        // Measure the needed part of the grid only, with the ROIs moved onto it: it holds every pixel of every ROI on the grid.
+        // A filter runs over the whole resampled image instead, since its values near the ROI depend on all of it.
         needed &= cv::Rect(cv::Point(0, 0), grid.size);
+        if (settings.filter) {
+            if (static_cast<double>(grid.size.area()) > MAX_FILTERED_PIXELS) {
+                throw std::invalid_argument("The resampled image is too large to filter; choose a larger pixel spacing");
+            }
+            needed = cv::Rect(cv::Point(0, 0), grid.size);
+        }
         if (needed.area() == 0) {
             needed = cv::Rect(0, 0, 1, 1);
         }
@@ -371,7 +435,20 @@ AnalysisOutput RunAnalysis(const cv::Mat& gray, const std::vector<Roi>& rois, co
         return RunAnalysis(
             ResampleImage(gray, *pixel_spacing, *settings.resampling, needed), resampled_rois, measured, progress, settings.resampling);
     }
+    if (settings.filter) {
+        // Sigma in millimetres with a pixel spacing, in pixels without one
+        const cv::Mat filtered = settings.filter->type == ImageFilterType::Wavelet
+                                     ? WaveletImage(gray, settings.filter->band)
+                                     : LaplacianOfGaussian(gray, spacing, settings.filter->sigma);
+        return MeasureImage(filtered, rois, settings, progress, spacing);
+    }
+    return MeasureImage(gray, rois, settings, progress, spacing);
+}
 
+namespace {
+
+AnalysisOutput MeasureImage(const cv::Mat& gray, const std::vector<Roi>& rois, const AnalysisSettings& settings,
+    const ProgressCallback& progress, cv::Point2d spacing) {
     AnalysisOutput output;
     const int total = static_cast<int>(rois.size() * settings.distances.size());
     int completed = 0;
@@ -439,5 +516,7 @@ AnalysisOutput RunAnalysis(const cv::Mat& gray, const std::vector<Roi>& rois, co
     }
     return output;
 }
+
+} // namespace
 
 } // namespace glcm

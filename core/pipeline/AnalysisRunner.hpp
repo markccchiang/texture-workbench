@@ -47,8 +47,8 @@ struct MeasurementResult {
     std::map<Type, Features> values;   // the requested features; unselected directions hold NaN
     std::optional<Features> score;     // when the score is enabled
     std::array<int, 4> pair_counts{};  // pixel pairs per direction (H, V, LD, RD)
-    int quantization_lower = 0;        // intensity mapped to gray level 0
-    int quantization_upper = 0;        // top of the intensity range used for quantization
+    double quantization_lower = 0;     // intensity mapped to gray level 0 (real on a filtered image)
+    double quantization_upper = 0;     // top of the intensity range used for quantization
     std::vector<std::string> warnings; // e.g. "No pixel pairs at distance 2 in the 90° direction ..."
 };
 

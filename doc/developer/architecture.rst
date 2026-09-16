@@ -146,6 +146,14 @@ Namespace ``glcm``; include paths are relative to ``core/``.
        4-connected hole along the pixel edges, joined into one polygon by cuts that are walked in both directions, so
        they add no crossings under the even-odd rule of ``RasterizeMask``. The web app draws polygons with the even-odd
        fill rule for the same reason.
+   * - ``imaging/ImageFilters``
+     - ``LaplacianOfGaussian``: a port of ITK's ``LaplacianRecursiveGaussianImageFilter`` as PyRadiomics sets it up (normalized
+       across scale), float32 between the passes like ITK; ``WaveletImage``: one sub-band of PyWavelets' ``swtn`` (Coiflet 1,
+       level 1, periodic convolution added up in PyWavelets' order) with PyRadiomics' odd-size padding, float64.
+       ``RunAnalysis`` measures a CV_32F or CV_64F result on the real-valued path: ``QuantizeReal`` (PyRadiomics' ``binImage``
+       in NumPy's arithmetic of that type), real first-order and region statistics; the integer path is unchanged.
+       ``ImageFiltersTest`` compares the images with ``simpleitk-log.json`` and ``pywavelets-wavelet.json`` and the features
+       with ``pyradiomics-log-features.json`` and ``pyradiomics-wavelet-features.json``.
    * - ``imaging/Resampling``
      - ``ResampleImage``: the image resampled to another pixel spacing on PyRadiomics' grid, with ITK's cubic B-spline
        (``CubicBSplineCoefficients`` as ``BSplineDecompositionImageFilter``, evaluation as ``BSplineInterpolateImageFunction``),

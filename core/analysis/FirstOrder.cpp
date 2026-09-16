@@ -49,10 +49,11 @@ bool IsFirstOrderStatistic(Type type) {
     }
 }
 
-std::map<Type, double> ComputeFirstOrderStatistics(const cv::Mat& gray, const cv::Mat& mask, const cv::Mat& levels, int gray_levels,
-    LogBase log_base, const std::set<Type>& types) {
-    if (gray.empty() || gray.channels() != 1 || (gray.depth() != CV_8U && gray.depth() != CV_16U)) {
-        throw std::invalid_argument("The image must be a non-empty 8- or 16-bit single-channel image");
+std::map<Type, double> ComputeFirstOrderStatistics(
+    const cv::Mat& gray, const cv::Mat& mask, const cv::Mat& levels, int gray_levels, LogBase log_base, const std::set<Type>& types) {
+    if (gray.empty() || gray.channels() != 1 ||
+        (gray.depth() != CV_8U && gray.depth() != CV_16U && gray.depth() != CV_32F && gray.depth() != CV_64F)) {
+        throw std::invalid_argument("The image must be a non-empty 8-, 16-bit or floating point single-channel image");
     }
     if (mask.type() != CV_8UC1 || mask.size() != gray.size() || levels.type() != CV_8UC1 || levels.size() != gray.size()) {
         throw std::invalid_argument("The mask and the gray levels must be 8-bit single-channel images of the same size as the image");
@@ -76,7 +77,14 @@ std::map<Type, double> ComputeFirstOrderStatistics(const cv::Mat& gray, const cv
             if (mask_line[col] != INSIDE) {
                 continue;
             }
-            values.push_back(sixteen_bit ? gray.at<uint16_t>(row, col) : gray.at<uchar>(row, col));
+            if (gray.depth() == CV_32F) {
+                // A filtered image: its real values (float32 or float64, as PyRadiomics has them)
+                values.push_back(gray.at<float>(row, col));
+            } else if (gray.depth() == CV_64F) {
+                values.push_back(gray.at<double>(row, col));
+            } else {
+                values.push_back(sixteen_bit ? gray.at<uint16_t>(row, col) : gray.at<uchar>(row, col));
+            }
             if (level_line[col] >= gray_levels) {
                 throw std::invalid_argument("A gray level inside the mask is not below the number of gray levels");
             }
