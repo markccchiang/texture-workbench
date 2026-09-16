@@ -3,7 +3,7 @@
 import type { ExportFormat, ImageInfo, ProjectDocument, ResultsDocument } from '@glcm/api';
 import { notifications } from '@mantine/notifications';
 import { downloadOriginal, exportResults, exportRoiImages, findImagesBySha256, getCoreVersion } from '../api/client';
-import { adaptToImage } from '../analysis/settings';
+import { adaptToImage } from '@glcm/api';
 import { useAnalysisSettings } from '../analysis/settingsStore';
 import { useResults } from '../results/resultsStore';
 import { useRois } from '../rois/roiStore';

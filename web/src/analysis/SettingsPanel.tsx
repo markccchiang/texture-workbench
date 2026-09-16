@@ -36,7 +36,7 @@ import {
   matchingPreset,
   maxIntensity,
   parseDistances,
-} from './settings';
+} from '@glcm/api';
 import { useAnalysisSettings } from './settingsStore';
 import { formatLength, formatSpacing, isAnisotropic, offsetLengthsMm } from '../image/spacing';
 

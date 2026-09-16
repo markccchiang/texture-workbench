@@ -342,6 +342,71 @@ Example session
 
 ``scripts/smoke-test.mjs`` performs the same steps in JavaScript and checks the responses.
 
+.. _api-cli:
+
+Command line and MCP
+--------------------
+
+``cli/`` (``@glcm/cli``) reaches the API either in its own process — it builds the same server object and calls its
+routes, so no port is opened and no daemon runs — or over HTTP against a running server with ``--server`` and
+``--token``. Both use the data folder of the application, so an image opened in the browser can be measured from a
+script.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 42 58
+
+   * - Command
+     - Description
+   * - ``glcm features [--presets]``
+     - The feature catalog, or the presets that group the features
+   * - ``glcm samples``
+     - The sample images the server offers, as ``sample:<path>`` arguments
+   * - ``glcm info <image>``
+     - Size, bit depth, display window, pixel spacing, value conversion and checksum
+   * - ``glcm measure <image...> [--rois <file>]``
+     - Measures the ROIs (the whole image without ``--rois``) and writes CSV or JSON; several images with equal
+       settings are merged into one table
+   * - ``glcm regions <image> [--min --max | --at x,y]``
+     - Regions by intensity or around a pixel, written as an ROI set the application also reads
+   * - ``glcm feature-map <image> --feature <id>``
+     - One feature over the whole image, written as a 32-bit floating point TIFF
+   * - ``glcm mcp``
+     - Serves the operations to an AI agent over MCP
+
+An image argument is a file, ``sample:<path>`` or an image id. Files are looked up by their SHA-256 before they are
+uploaded, so measuring the same file again costs nothing. Settings come from the defaults, then ``--settings <file>``,
+then ``--preset``, then single options such as ``--features``, ``--gray-levels``, ``--distances`` and
+``--quantization``; they are checked with the same rules as the Analysis Settings panel, and a command that would be
+refused exits with code 2 and the reason.
+
+**MCP.** ``glcm mcp`` speaks the Model Context Protocol on standard input and output. An agent cannot draw an ROI, so
+regions come from numbers (``rectangles``), from ``select_regions`` (which keeps them under an id such as
+``regions_1``) or from an ROI set file. ``view_image`` answers with the rendered image or its edge map as a picture, so
+a model can look before it chooses. Results tables are shortened to a readable number of rows and written in full only
+when a tool is given ``saveTo``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Tool
+     - Arguments
+   * - ``list_features``
+     - ``presets``
+   * - ``list_samples``
+     - —
+   * - ``open_image``
+     - ``image``
+   * - ``view_image``
+     - ``image``, ``kind`` (``display`` or ``edges``), ``min``, ``max``
+   * - ``select_regions``
+     - ``image``, ``min``, ``max``, ``minPixels``, ``maxRegions``, ``at``, ``tolerance``, ``saveTo``
+   * - ``measure``
+     - ``image``, ``rois``, ``rectangles``, ``preset``, ``features``, ``grayLevels``, ``distances``, ``maxRows``, ``saveTo``
+   * - ``feature_map``
+     - ``image``, ``feature``, ``window``, ``saveTo``
+
 .. _api-addon:
 
 Node.js addon

@@ -2,7 +2,7 @@
 // existing API (POST /images, POST /analyses). The API calls are passed in, so the flow can be tested without a server.
 
 import type { AnalysisInfo, AnalysisRequest, AnalysisResults, AnalysisSettings, CatalogResponse, ImageInfo, PixelSpacing, RoiSetDocument } from '@glcm/api';
-import { adaptToImage, checkSettings, requestSettings } from '../analysis/settings';
+import { adaptToImage, checkSettings, requestSettings } from '@glcm/api';
 import { prepareRoiImport } from '../files/roiSet';
 
 export type BatchItemStatus = 'waiting' | 'uploading' | 'measuring' | 'done' | 'skipped' | 'failed' | 'cancelled';

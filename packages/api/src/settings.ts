@@ -1,6 +1,8 @@
-// Analysis settings in the web app (doc/ui-design-plan.md, section 6.3.1).
+// Analysis settings: the defaults, the presets and the checks the app, the command line and the agent server share
+// (doc/ui-design-plan.md, section 6.3.1).
 
-import type { AnalysisSettings, CatalogResponse, Direction, FeaturePreset } from '@glcm/api';
+import type { AnalysisSettings, Direction } from './analysis.js';
+import type { CatalogResponse, FeaturePreset } from './schemas.js';
 
 export const GRAY_LEVEL_CHOICES = [8, 16, 32, 64, 128, 256];
 export const ALL_DIRECTIONS: Direction[] = [0, 45, 90, 135];

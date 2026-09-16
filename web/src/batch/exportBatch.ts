@@ -3,7 +3,7 @@
 import { strToU8, zipSync } from 'fflate';
 import { getAnalysisCsv } from '../api/client';
 import { downloadBlob, downloadText } from '../files/download';
-import { combineResultsCsv } from './mergeCsv';
+import { combineResultsCsv } from '@glcm/api';
 
 export async function downloadBatchResults(analysisIds: readonly string[]): Promise<void> {
   const texts = await Promise.all(analysisIds.map((analysisId) => getAnalysisCsv(analysisId)));

@@ -17,6 +17,7 @@ Texture Workbench measures the **texture** of regions in grayscale images: how s
 - **Mark regions of interest (ROIs):** draw rectangles, ellipses, polygons or freehand outlines. Outline objects along their edges with the livewire, select regions by intensity with the magic wand or a threshold, and paint, erase, merge or cut ROIs. An edge map can be shown over the image as a guide.
 - **Measure texture:** features from six established families (below), with presets for common choices.
 - **Look at the results:** a sortable results table, bar, box and polar plots, and feature maps that colour the whole image by a texture feature.
+- **Use it without the browser:** measure from the command line for scripts and batch runs, or let an AI assistant open images, pick regions and measure them through the built-in MCP server.
 - **Work in batches and keep your work:** measure the same ROIs on many images, export the results as CSV or JSON, and save projects that bring everything back later.
 
 ## Texture features

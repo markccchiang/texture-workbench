@@ -168,6 +168,42 @@ Endpoints (full details in `packages/api/openapi.json` and the Developer guide):
 | `GET /api/v1/images/{id}/original` | The uploaded file (used to embed images in projects) |
 | `GET /api/v1/samples`, `GET /api/v1/samples/file?path` | Sample images |
 
+## Command line and MCP
+
+`cli/` (`@glcm/cli`) drives the same API without a browser, either in its own process (no server, no port) or against a
+running server with `--server` and `--token`.
+
+```bash
+npm run cli -- --help                                    # or: node cli/bin/glcm.mjs --help
+npm run cli -- features --presets                        # what can be measured
+npm run cli -- info sample:textures/brick.png            # size, bit depth, window, spacing, checksum
+npm run cli -- measure image.png --preset haralick --out results.csv
+npm run cli -- measure *.png --rois rois.roi.json --out batch.csv   # merged when the settings match
+npm run cli -- regions ct.png --min 1200 --max 1600 --out lungs.roi.json
+npm run cli -- feature-map brick.png --feature Contrast --out contrast.tif
+npm run cli -- measure image.png --server http://127.0.0.1:8080 --token "$GLCM_API_TOKEN"
+```
+
+Images are looked up by their SHA-256 first, so measuring the same file twice uploads it once. In its own process the
+tool uses the same data folder as the application (`GLCM_DATA_DIR`, by default `~/.glcm-texture-analysis`), so images
+opened in the browser can be measured from a script and the other way round.
+
+`glcm mcp` serves the same operations to an AI agent over [MCP](https://modelcontextprotocol.io) on standard input and
+output: `list_features`, `list_samples`, `open_image`, `view_image` (the rendering or the edge map, as a picture the
+model can look at), `select_regions` (by intensity or around a pixel), `measure` (ROIs as rectangles, as a region set
+from `select_regions`, or from an ROI set file) and `feature_map`. Tables are shortened for reading and written in full
+with `saveTo`. To use it from an MCP client:
+
+```json
+{
+  "mcpServers": {
+    "texture-workbench": { "command": "node", "args": ["/path/to/texture-workbench/cli/bin/glcm.mjs", "mcp"] }
+  }
+}
+```
+
+Both need the built native addon (`npm run build:native`), so they run from a clone of this repository.
+
 ## Documentation
 
 The `doc/` folder contains a [Sphinx](https://www.sphinx-doc.org/) site (theme: [sphinx_rtd_theme](https://sphinx-rtd-theme.readthedocs.io/)) with three parts:

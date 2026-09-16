@@ -1,6 +1,6 @@
-import type { CatalogResponse } from '@glcm/api';
+import type { CatalogResponse } from '../src/index.js';
 import { describe, expect, it } from 'vitest';
-import { adaptToImage, applyPreset, checkSettings, defaultSettings, matchingPreset, parseDistances, requestSettings } from './settings';
+import { adaptToImage, applyPreset, checkSettings, defaultSettings, matchingPreset, parseDistances, requestSettings } from '../src/settings.js';
 
 const catalog: Pick<CatalogResponse, 'presets' | 'limits'> = {
   presets: [

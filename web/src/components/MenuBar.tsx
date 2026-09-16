@@ -6,7 +6,7 @@ import { LogoMark } from './Logo';
 import { useAuth } from '../api/auth';
 import { CATALOG_QUERY } from '../api/queryClient';
 import { measure } from '../analysis/measure';
-import { applyPreset, matchingPreset } from '../analysis/settings';
+import { applyPreset, matchingPreset } from '@glcm/api';
 import { useAnalysisSettings } from '../analysis/settingsStore';
 import { renameSelectedRoi } from '../app/actions';
 import { combineSelectedRois } from '../rois/editActions';

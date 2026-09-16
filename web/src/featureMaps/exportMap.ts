@@ -4,7 +4,7 @@ import { downloadBlob, fileStem } from '../files/download';
 import { colorTableById } from '../image/colorTables';
 import type { FeatureMapView } from './featureMapStore';
 import { renderMapRgba } from './mapImage';
-import { encodeFloat32Tiff } from './tiff';
+import { encodeFloat32Tiff } from '@glcm/api';
 
 function baseName(map: FeatureMapView): string {
   return `${fileStem(map.info.imageName)}-${map.info.settings.feature}-map`;

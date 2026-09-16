@@ -7,7 +7,7 @@ import { loadCatalog } from '../api/queryClient';
 import { useResults } from '../results/resultsStore';
 import { useRois, type ManagedRoi } from '../rois/roiStore';
 import { useViewer } from '../stores/viewerStore';
-import { adaptToImage, checkSettings, requestSettings } from './settings';
+import { adaptToImage, checkSettings, requestSettings } from '@glcm/api';
 import { useAnalysisSettings } from './settingsStore';
 import { readEventStream } from './sse';
 import { waitForFinalResults } from './waitForResults';

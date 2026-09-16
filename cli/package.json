@@ -1,0 +1,21 @@
+{
+  "name": "@glcm/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Texture Workbench on the command line, and as an MCP server for AI agents",
+  "bin": {
+    "glcm": "./bin/glcm.mjs"
+  },
+  "scripts": {
+    "glcm": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@glcm/api": "0.1.0",
+    "@glcm/server": "0.1.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "tsx": "4.23.13",
+    "zod": "^4.6.5"
+  },
+  "license": "MIT"
+}

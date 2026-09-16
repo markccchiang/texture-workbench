@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { encodeFloat32Tiff } from './tiff';
+import { encodeFloat32Tiff } from '../src/tiff.js';
 
 /** Tags of the first IFD: SHORT and LONG values, or the text of ASCII entries */
 function readTags(bytes: Uint8Array): Map<number, number | string> {

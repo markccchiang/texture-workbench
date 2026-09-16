@@ -12,7 +12,7 @@ import {
   type FeatureInfo,
   type FeatureMapSettings,
 } from '@glcm/api';
-import { ALL_DIRECTIONS } from '../analysis/settings';
+import { ALL_DIRECTIONS } from '@glcm/api';
 
 export const DEFAULT_MAP_FEATURE = 'Contrast';
 export const DEFAULT_MAP_WINDOW = 15;

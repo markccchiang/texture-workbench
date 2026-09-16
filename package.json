@@ -8,7 +8,8 @@
     "packages/api",
     "bindings/node",
     "server",
-    "web"
+    "web",
+    "cli"
   ],
   "engines": {
     "node": ">=24"
@@ -24,7 +25,8 @@
     "openapi": "npm run openapi -w @glcm/server",
     "samples": "tsx scripts/generate-samples.ts",
     "test:e2e": "npm run build:web && playwright test",
-    "docs:screenshots": "tsx scripts/docs-screenshots.ts"
+    "docs:screenshots": "tsx scripts/docs-screenshots.ts",
+    "cli": "node cli/bin/glcm.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

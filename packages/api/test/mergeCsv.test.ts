@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { combineResultsCsv, parseResultsCsv } from './mergeCsv';
+import { combineResultsCsv, parseResultsCsv } from '../src/mergeCsv.js';
 
 const csv = (image: string, sha: string, options: { quantization?: string; rows?: string[] } = {}) =>
   [
