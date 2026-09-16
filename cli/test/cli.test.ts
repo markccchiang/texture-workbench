@@ -133,6 +133,17 @@ describe('glcm', () => {
     expect(one.results[0].values.Mean.mean).toBe(every.results[1].values.Mean.mean);
     expect((await glcm('measure', file, '--slice', '4')).err).toContain('slice 4 does not exist');
 
+    // More slices than one analysis takes ROIs: measured in parts, joined into one table
+    const many = path.join(dataDir, 'many.tif');
+    const tiny = { width: 2, height: 2, bitsPerSample: 8 as const, samplesPerPixel: 1 as const };
+    await fs.writeFile(many, encodeTiffPages(Array.from({ length: 1003 }, (_, page) => ({ ...tiny, data: [page % 200, 1, 2, 3] }))));
+    const out = path.join(dataDir, 'many.csv');
+    const measuredMany = await glcm('measure', many, '--features', 'Mean', '--aggregation', 'meanOnly', '--out', out);
+    expect(measuredMany.code, measuredMany.err).toBe(0);
+    const csvLines = (await fs.readFile(out, 'utf8')).split('\n').filter((line) => line && !line.startsWith('#'));
+    expect(csvLines).toHaveLength(1 + 1003);
+    expect(csvLines.at(-1)).toContain('Whole slice 1003');
+
     const roiFile = path.join(dataDir, 'stack-regions.roi.json');
     const regions = await glcm('regions', file, '--slice', '3', '--min', '150', '--max', '255', '--min-pixels', '10', '--out', roiFile);
     expect(regions.code).toBe(0);

@@ -1,6 +1,6 @@
 // Measure Selected / Measure All (doc/ui-design-plan.md, section 6.3.3).
 
-import type { AnalysisEvent, AnalysisFinishedEvent, AnalysisResultEvent } from '@glcm/api';
+import { MAX_ROIS_PER_REQUEST, type AnalysisEvent, type AnalysisFinishedEvent, type AnalysisRequest, type AnalysisResultEvent, type AnalysisStatus } from '@glcm/api';
 import { notifications } from '@mantine/notifications';
 import { analysisEventsUrl, cancelAnalysis, getAnalysisResults, startAnalysis } from '../api/client';
 import { loadCatalog } from '../api/queryClient';
@@ -64,24 +64,37 @@ export async function measure(scope: 'selected' | 'all'): Promise<void> {
     return;
   }
 
-  let info;
-  try {
-    info = await startAnalysis({
-      imageId,
-      rois: rois.map(({ id, name, color, shape, className, slice }) => ({
+  // The API takes at most MAX_ROIS_PER_REQUEST ROIs per analysis (e.g. an ROI copied onto every slice of a large stack):
+  // more are measured as several analyses, one after another, each a run of the results table
+  const requestRois = rois.map(({ id, name, color, shape, className, slice }) => ({
         id,
         name,
         color,
         shape,
         ...(className ? { class: className } : {}),
         ...(slice !== undefined ? { slice } : {}),
-      })),
+      }));
+  for (let start = 0; start < requestRois.length; start += MAX_ROIS_PER_REQUEST) {
+    const status = await runAnalysis({
+      imageId,
+      rois: requestRois.slice(start, start + MAX_ROIS_PER_REQUEST),
       settings: requestSettings(settings, bitDepth, window),
       pixelSpacing: useViewer.getState().pixelSpacing,
     });
+    if (status !== 'completed') {
+      break;
+    }
+  }
+}
+
+/** Starts one analysis and follows it into the results table; resolves to its final status */
+async function runAnalysis(request: AnalysisRequest): Promise<AnalysisStatus> {
+  let info;
+  try {
+    info = await startAnalysis(request);
   } catch (error) {
     fail('Could not start the measurement', (error as Error).message);
-    return;
+    return 'failed';
   }
 
   const results = useResults.getState();
@@ -129,9 +142,11 @@ export async function measure(scope: 'selected' | 'all'): Promise<void> {
         message: `${failedCount} of ${final.results.length} results were skipped or failed; see the Status column.`,
       });
     }
+    return final.status;
   } catch (error) {
     useResults.getState().finishRun(analysisId, stream.finished?.status ?? 'failed');
     fail('Could not load the results', (error as Error).message);
+    return 'failed';
   }
 }
 

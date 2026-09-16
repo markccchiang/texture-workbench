@@ -128,7 +128,8 @@ example *3/8 jobs*; the **×** next to it cancels the measurement (jobs already 
 are kept). You can keep working — drawing ROIs or changing the settings does not affect a running measurement.
 
 In a stack, each ROI is measured on the slice it lies on, whichever slice is shown; *Measure All* measures the ROIs of
-every slice (see :ref:`stacks`).
+every slice (see :ref:`stacks`). One measurement takes at most 1000 ROIs; more, for example an ROI copied onto every
+slice of a large stack, are measured as several measurements one after another, each with its own rows.
 
 Measuring many images
 ---------------------

@@ -399,11 +399,17 @@ export const useRois = create<RoiState>()((set, get) => {
         return;
       }
       const [low, high] = from <= to ? [from, to] : [to, from];
-      const range = rois.slice(low, high + 1).map((roi) => roi.id);
+      // Only the ROIs of the slice shown, which the canvas works on
+      const { currentSlice } = get();
+      const range = rois
+        .slice(low, high + 1)
+        .filter((roi) => isOnSlice(roi, currentSlice))
+        .map((roi) => roi.id);
       set({ selectedIds: [...new Set([...selectedIds, ...range])] });
     },
 
-    selectAll: () => set({ selectedIds: get().rois.map((roi) => roi.id) }),
+    // On a stack, the ROIs of the slice shown: moving, deleting or uniting ROIs must not reach slices out of sight
+    selectAll: () => set({ selectedIds: get().rois.filter((roi) => isOnSlice(roi, get().currentSlice)).map((roi) => roi.id) }),
 
     setHovered: (hoveredId) => {
       if (get().hoveredId !== hoveredId) {

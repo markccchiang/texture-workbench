@@ -83,7 +83,8 @@ A multi-page TIFF, a DICOM file with several frames, a DICOM series and the slic
 slice shown, and the canvas shows only the ROIs of the slice shown. The ROI Manager lists the ROIs of every slice with
 their slice number; clicking an ROI of another slice shows that slice. *Copy to All Slices* (in the ROI menu and the ROI
 Manager's menus) copies the selected ROIs onto every other slice, for example to measure the same region through the
-stack. Each ROI is measured on its own slice (see :ref:`measure-rois`).
+stack. *Select All* and :kbd:`Shift`-clicking a range select only the ROIs of the slice shown, so moving, deleting or
+uniting them never reaches ROIs out of sight. Each ROI is measured on its own slice (see :ref:`measure-rois`).
 
 .. _pixel-spacing:
 

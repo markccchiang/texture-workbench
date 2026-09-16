@@ -319,6 +319,20 @@ TEST(DicomReaderTest, ReadsEveryFrameAsAStackWithOneStorage) {
     EXPECT_THROW(glcm::LoadDicomStackFile(file.path.string(), 0, 3), glcm::StackTooLargeError);
 }
 
+TEST(DicomReaderTest, OpensTheFramesATruncatedFileHas) {
+    // Declares 3 frames of 2 pixels, holds 2
+    std::vector<Element> elements = Inserted(Monochrome(1, 2, 8, 8, 0, "MONOCHROME2", {1, 2, 3, 4}), {{0x0028, 0x0008, "IS", Text("3")}});
+    std::sort(elements.begin(), elements.end(),
+        [](const Element& a, const Element& b) { return std::make_pair(a.group, a.element) < std::make_pair(b.group, b.element); });
+    TemporaryFile file("truncated.dcm");
+    WriteFile(file.path, Dicom(EXPLICIT_LE, elements));
+    const glcm::LoadedStack stack = glcm::LoadDicomStackFile(file.path.string());
+    ASSERT_EQ(stack.slices, 2);
+    EXPECT_EQ(stack.Slice(1).at<uchar>(0, 1), 4);
+    EXPECT_EQ(stack.warnings,
+        std::vector<std::string>{"The DICOM file declares 3 frames, but its pixel data holds only 2; the others are left out"});
+}
+
 std::vector<uint8_t> SeriesFile(const std::string& series, double z, int instance, double slope, const std::vector<int>& values) {
     std::ostringstream position;
     position << "0\\0\\" << z;

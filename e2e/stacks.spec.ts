@@ -95,6 +95,16 @@ test('browses the slices of a TIFF stack and measures ROIs on their own slices',
   await expect(page.getByTestId('roi-row')).toHaveCount(3);
   const slices = (await hooks(page, () => (window as unknown as { __glcm: Hooks }).__glcm.rois.getState().rois)).map((stored) => stored.slice);
   expect(slices).toEqual([2, 1, 3]);
+
+  // Quick key presses add up from the slice on its way, not the one still on screen (the closed menu keeps the focus
+  // in WebKit, so move it away first)
+  await readout.click();
+  await page.keyboard.press(',');
+  await expect(readout).toHaveText('1 / 3');
+  await page.keyboard.press('.');
+  await page.keyboard.press('.');
+  await expect(readout).toHaveText('3 / 3');
+  await expect.poll(() => shownSlice(page)).toBe(3);
 });
 
 test('opens every slice of a NIfTI volume as a stack', async ({ page }) => {

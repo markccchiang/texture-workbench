@@ -73,7 +73,8 @@ DICOM and NIfTI files
 **DICOM** files (``.dcm``, or any name) open like other images when they are uncompressed (implicit or explicit VR
 little endian). Compressed DICOM files (JPEG, JPEG-LS, JPEG 2000 or RLE) are refused with a message; convert them first,
 for example with ``dcmdjpeg`` or ``gdcmconv --raw``. A file with several frames opens as a stack, one slice per frame,
-with the values of all frames stored alike. (Enhanced DICOM files keep their pixel spacing and rescale per frame in
+with the values of all frames stored alike; when the file holds fewer frames than it declares, the frames it has open
+and a notification says so. (Enhanced DICOM files keep their pixel spacing and rescale per frame in
 sequences, which are not read; a notification says so.)
 
 A **DICOM series** — a folder of single-frame files, one per slice, as a CT or MR scanner writes them — opens as one

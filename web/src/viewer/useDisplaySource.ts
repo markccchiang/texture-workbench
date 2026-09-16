@@ -2,10 +2,11 @@
 // raw images are rendered in the browser, other images are fetched as display.png.
 
 import { notifications } from '@mantine/notifications';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchDisplayBlob } from '../api/client';
 import { BlobUrlCache } from '../image/blobUrlCache';
 import { colorizeRgba, colorTableById } from '../image/colorTables';
+import type { RawImage } from '../image/raw';
 import { createRenderer, type ImageRenderer } from '../image/renderer';
 import { usePreferences } from '../stores/preferences';
 import { useViewer } from '../stores/viewerStore';
@@ -21,6 +22,8 @@ export function useDisplaySource(): void {
   // The renderer with the image it was made for: until the effect below replaces it, the renderer of the previous image
   // must not receive the samples of the next one, which may have another size
   const [current, setRenderer] = useState<{ renderer: ImageRenderer; imageId: string } | null>(null);
+  // The samples each renderer holds, so they are uploaded again only when the slice changes, not with every window change
+  const shownSamples = useRef(new WeakMap<ImageRenderer, RawImage>());
   const [rendererFailed, setRendererFailed] = useState(false);
   // The image whose WebGL context was lost (GPU reset, driver update, too many contexts). It is rendered with the
   // lookup table from then on; the next image tries WebGL again.
@@ -53,6 +56,7 @@ export function useDisplaySource(): void {
       setRendererFailed(true);
       return;
     }
+    shownSamples.current.set(created, raw);
     setRenderer({ renderer: created, imageId: imageId! });
     return () => {
       if (useViewer.getState().displaySource === created.canvas) {
@@ -69,7 +73,10 @@ export function useDisplaySource(): void {
     if (!renderer || !raw) {
       return;
     }
-    renderer.setSamples(raw);
+    if (shownSamples.current.get(renderer) !== raw) {
+      renderer.setSamples(raw);
+      shownSamples.current.set(renderer, raw);
+    }
     const frame = requestAnimationFrame(() => {
       renderer.render(windowRange.min, windowRange.max, colorTableById(colorTable).rgb);
       useViewer.getState().setDisplaySource(renderer.canvas, renderer.kind);

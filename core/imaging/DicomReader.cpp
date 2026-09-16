@@ -352,7 +352,7 @@ struct DicomImage {
     int64_t columns = 0;
     int64_t frames = 1;         // NumberOfFrames, at most MAX_SLICES + 1
     double declared_frames = 1; // NumberOfFrames as the file gives it
-    bool all_frames_present = true;
+    int64_t present_frames = 1; // the frames whose pixel data is in the file (at least the first)
     int bits_allocated = 0;
     int samples_per_pixel = 1;
     int bits_stored = 0;
@@ -454,9 +454,22 @@ DicomImage ParseDicomImage(ByteSource& source, int64_t max_pixels) {
     if (attributes.pixel_length < frame_bytes || source.Read(attributes.pixel_offset + frame_bytes - 1, &last, 1) != 1) {
         throw std::runtime_error("Truncated DICOM pixel data");
     }
-    const uint64_t all_frames = frame_bytes * static_cast<uint64_t>(image.frames);
-    image.all_frames_present =
-        attributes.pixel_length >= all_frames && source.Read(attributes.pixel_offset + all_frames - 1, &last, 1) == 1;
+    // The frames present: those within the declared length whose last byte the file has (a binary search over the count)
+    const auto present = [&](int64_t count) {
+        const uint64_t bytes = frame_bytes * static_cast<uint64_t>(count);
+        return attributes.pixel_length >= bytes && source.Read(attributes.pixel_offset + bytes - 1, &last, 1) == 1;
+    };
+    int64_t low = 1;
+    int64_t high = image.frames;
+    while (low < high) {
+        const int64_t middle = low + (high - low + 1) / 2;
+        if (present(middle)) {
+            low = middle;
+        } else {
+            high = middle - 1;
+        }
+    }
+    image.present_frames = low;
 
     image.spacing = Spacing(parser.Text(TAG_PIXEL_SPACING));
     if (!image.spacing) {
@@ -721,15 +734,18 @@ LoadedImage LoadDicom(ByteSource& source, int64_t max_pixels) {
 
 LoadedStack LoadDicomFrames(ByteSource& source, int64_t max_pixels, int64_t max_stack_pixels) {
     const DicomImage image = ParseDicomImage(source, max_pixels);
-    CheckStackPixels(image.columns, image.rows, image.frames, max_stack_pixels);
-    if (!image.all_frames_present) {
-        throw std::runtime_error("Truncated DICOM pixel data: the file has fewer frames than it declares");
-    }
+    CheckStackPixels(image.columns, image.rows, image.present_frames, max_stack_pixels);
     std::vector<FrameRef> frames;
-    for (int64_t frame = 0; frame < image.frames; ++frame) {
+    for (int64_t frame = 0; frame < image.present_frames; ++frame) {
         frames.push_back({0, frame});
     }
     LoadedStack stack = BuildDicomStack({image}, frames, [&source](size_t) -> ByteSource& { return source; });
+    if (image.present_frames < image.frames) {
+        // A truncated file still opens with the frames it has, as the first frame alone did before stacks
+        stack.warnings.insert(stack.warnings.begin(), "The DICOM file declares " + FormatValue(image.declared_frames) +
+                                                          " frames, but its pixel data holds only " + std::to_string(image.present_frames) +
+                                                          "; the others are left out");
+    }
     if (image.frames > 1 && image.functional_groups) {
         stack.warnings.push_back(
             "Per-frame attributes of this enhanced DICOM file (functional groups) are not read; the pixel spacing, "

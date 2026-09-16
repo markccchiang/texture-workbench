@@ -6,6 +6,7 @@ import {
   adaptToImage,
   checkSettings,
   defaultSettings,
+  MAX_ROIS_PER_REQUEST,
   type AnalysisInfo,
   type AnalysisSettings,
   type CatalogResponse,
@@ -193,6 +194,29 @@ export interface Measurement {
 
 /** Starts an analysis, waits for it (the event stream ends when it finishes) and reads the results back */
 export async function measure(
+  client: ApiClient,
+  request: { imageId: string; rois: Roi[]; settings: AnalysisSettings; pixelSpacing?: PixelSpacing | null },
+): Promise<Measurement> {
+  if (request.rois.length <= MAX_ROIS_PER_REQUEST) {
+    return measureOnce(client, request);
+  }
+  // The API takes at most MAX_ROIS_PER_REQUEST ROIs per analysis (e.g. the whole of every slice of a large stack): measure
+  // them in parts and join the results, with the CSV written by the core for the joined document
+  const parts: Measurement[] = [];
+  for (let start = 0; start < request.rois.length; start += MAX_ROIS_PER_REQUEST) {
+    parts.push(await measureOnce(client, { ...request, rois: request.rois.slice(start, start + MAX_ROIS_PER_REQUEST) }));
+  }
+  const document = { ...parts[0].document, results: parts.flatMap((part) => part.document.results) };
+  const csv = requireOk(
+    await client.request('POST', '/exports/results', { json: { format: 'csv', documents: [document] }, accept: 'text/csv' }),
+    'The CSV could not be written',
+  ).text();
+  const total = parts.reduce((sum, part) => sum + part.analysis.total, 0);
+  const completed = parts.reduce((sum, part) => sum + part.analysis.completed, 0);
+  return { analysis: { ...parts[0].analysis, total, completed }, document, csv };
+}
+
+async function measureOnce(
   client: ApiClient,
   request: { imageId: string; rois: Roi[]; settings: AnalysisSettings; pixelSpacing?: PixelSpacing | null },
 ): Promise<Measurement> {

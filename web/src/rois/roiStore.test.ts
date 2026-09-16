@@ -169,6 +169,14 @@ describe('ROI store', () => {
     store().setCurrentSlice(3);
     expect(store().selectedIds).toEqual([store().rois[2].id]);
 
+    // Select All and range selection stay on the slice shown
+    store().selectAll();
+    expect(store().selectedIds).toEqual([store().rois[2].id]);
+    store().setCurrentSlice(2);
+    store().select([id]);
+    store().selectRange(store().rois[2].id);
+    expect(store().selectedIds).toEqual([id, imported]);
+
     const copies = store().copyToAllSlices([id], 4);
     expect(copies).toHaveLength(3);
     expect(store().rois.filter((roi) => roi.name === 'ROI 1').map((roi) => roi.slice)).toEqual([2, 1, 3, 4]);

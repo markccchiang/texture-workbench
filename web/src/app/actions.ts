@@ -2,7 +2,7 @@
 
 import { measure } from '../analysis/measure';
 import { useRois } from '../rois/roiStore';
-import { showSlice } from '../stores/imageLoader';
+import { showSlice, targetSlice } from '../stores/imageLoader';
 import { useUi } from '../stores/uiStore';
 import { useViewer } from '../stores/viewerStore';
 import type { ViewerAction } from '../viewer/keyboard';
@@ -35,8 +35,10 @@ export function runAppAction(action: ViewerAction): void {
     }
     case 'slice': {
       const image = useViewer.getState().image;
-      if (image) {
-        void showSlice((image.slice ?? 1) + action.step);
+      // From the slice on its way, so quick presses add up
+      const target = targetSlice() + action.step;
+      if (image && target >= 1 && target <= image.info.slices) {
+        void showSlice(target);
       }
       break;
     }

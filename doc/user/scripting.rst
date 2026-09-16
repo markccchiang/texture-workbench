@@ -87,7 +87,8 @@ Without ROIs the whole image is measured:
    glcm measure ct-chest.png --preset haralick --out chest.csv
 
 For a stack (see :ref:`stacks`), that is the whole of every slice, one row per slice with a ``slice`` column;
-``--slice 12`` measures only slice 12. ROIs from ``--rois`` are measured on their own slices, and ``glcm regions`` finds
+``--slice 12`` measures only slice 12. More than 1000 ROIs (or slices) are measured in parts of 1000 and written as
+one table. ROIs from ``--rois`` are measured on their own slices, and ``glcm regions`` finds
 regions on the slice given with ``--slice`` (slice 1 by default) and saves them on it.
 
 The usual way to measure the *same* regions is to draw them once in the application, save them with *ROI ▸ Export ROI

@@ -201,7 +201,17 @@ export function openStoredImage(info: ImageInfo): Promise<ImageInfo | null> {
 const SLICE_CACHE_BYTES = 256 * 1024 * 1024;
 const sliceCache = new Map<string, RawImage>();
 let sliceCacheBytes = 0;
-let sliceLoad: AbortController | null = null;
+/** The slice being downloaded: key presses and further requests count from it, not from the slice still on screen */
+let sliceLoad: { imageId: string; slice: number; controller: AbortController } | null = null;
+
+/** The slice being shown or, while its samples download, about to be shown (from 1) */
+export function targetSlice(): number {
+  const { image } = useViewer.getState();
+  if (!image) {
+    return 1;
+  }
+  return sliceLoad?.imageId === image.info.imageId ? sliceLoad.slice : (image.slice ?? 1);
+}
 
 function rememberSlice(key: string, raw: RawImage): void {
   if (sliceCache.has(key)) {
@@ -224,12 +234,22 @@ function rememberSlice(key: string, raw: RawImage): void {
  */
 export async function showSlice(slice: number): Promise<boolean> {
   const { image } = useViewer.getState();
-  if (!image || slice < 1 || slice > image.info.slices || slice === (image.slice ?? 1)) {
+  if (!image || slice < 1 || slice > image.info.slices) {
     return false;
   }
-  sliceLoad?.abort();
+  const pending = sliceLoad?.imageId === image.info.imageId ? sliceLoad : null;
+  if (pending?.slice === slice) {
+    // Already on its way
+    return false;
+  }
+  // Another slice is no longer wanted, also when the one on screen is asked for again
+  sliceLoad?.controller.abort();
+  sliceLoad = null;
+  if (slice === (image.slice ?? 1)) {
+    return false;
+  }
   const controller = new AbortController();
-  sliceLoad = controller;
+  sliceLoad = { imageId: image.info.imageId, slice, controller };
   const { info } = image;
   let raw: RawImage | null = null;
   // The slice shown has raw samples when the image offers them and the first download worked
@@ -240,6 +260,9 @@ export async function showSlice(slice: number): Promise<boolean> {
       try {
         raw = await fetchRawImage(info, undefined, controller.signal, slice);
       } catch (error) {
+        if (sliceLoad?.controller === controller) {
+          sliceLoad = null;
+        }
         if (!isAbort(error)) {
           notifications.show({
             color: 'red',
@@ -258,7 +281,9 @@ export async function showSlice(slice: number): Promise<boolean> {
   if (controller.signal.aborted) {
     return false;
   }
-  sliceLoad = null;
+  if (sliceLoad?.controller === controller) {
+    sliceLoad = null;
+  }
   // Keep the first slice's samples for coming back to it
   if (image.raw && (image.slice ?? 1) !== slice) {
     rememberSlice(`${info.imageId}#${image.slice ?? 1}`, image.raw);
