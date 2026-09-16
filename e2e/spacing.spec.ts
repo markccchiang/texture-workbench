@@ -66,3 +66,32 @@ test('uses an entered pixel spacing for the scale bar, ROI areas and exported re
   await expect(page.getByTestId('scale-bar')).toHaveCount(0);
   await expect(page.getByTestId('anisotropy-note')).toHaveCount(0);
 });
+
+test('resamples to square pixels before measuring when the settings ask for it', async ({ page }) => {
+  await openSample(page);
+  await setSpacing(page, '0.5', '0.25');
+  await page.keyboard.press('r');
+  await drag(page, [120, 90], [190, 150]);
+  await page.keyboard.press('t');
+
+  await page.getByRole('button', { name: /^Advanced/ }).click();
+  await page.getByLabel('Resample before measuring').check();
+  // Square pixels of the finer spacing
+  await expect(page.getByLabel('Pixel width (mm)')).toHaveValue('0.25');
+  await expect(page.getByLabel('Pixel height (mm)')).toHaveValue('0.25');
+
+  // The settings panel has the focus, so measure from the menu rather than with M
+  await chooseMenuItem(page, 'Analyze', 'Measure Selected');
+  const table = page.getByTestId('results-table');
+  await expect(table.locator('tbody tr').first()).toBeVisible();
+  const [download] = await Promise.all([page.waitForEvent('download'), chooseMenuItem(page, 'File', 'Export Results as CSV')]);
+  const { comments, header, rows } = parseCsv(await fs.readFile((await download.path())!, 'utf8'));
+  expect(comments).toContain('# resampledPixelSpacingMm=0.25;0.25');
+
+  // Columns became twice as many pixels, rows stayed; the area in mm² is about the same
+  const [roi] = await storedRois(page);
+  const shape = roi.shape as { width: number; height: number };
+  const pixelCount = Number(rows[0][header.indexOf('pixelCount')]);
+  expect(pixelCount).toBe(Math.abs(Math.round(shape.width * 2)) * Math.abs(Math.round(shape.height)));
+  expect(Number(rows[0][header.indexOf('areaMm2')])).toBe(pixelCount * 0.25 * 0.25);
+});

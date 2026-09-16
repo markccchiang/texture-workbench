@@ -117,6 +117,8 @@ export interface SettingsOverrides {
   logBase?: AnalysisSettings['logBase'];
   quantization?: Partial<AnalysisSettings['quantization']>;
   score?: boolean;
+  /** Resample to this pixel spacing (mm) before measuring */
+  resampling?: { x: number; y: number };
 }
 
 /** The defaults, then stored settings, then a preset, then single options — the order the app applies them in */
@@ -149,12 +151,18 @@ export function buildSettings(catalog: CatalogResponse, bitDepth: 8 | 16, overri
     ...(overrides.logBase ? { logBase: overrides.logBase } : {}),
     ...(overrides.quantization ? { quantization: { ...settings.quantization, ...overrides.quantization } } : {}),
     ...(overrides.score !== undefined ? { score: { ...settings.score, enabled: overrides.score } } : {}),
+    ...(overrides.resampling ? { resampling: overrides.resampling } : {}),
   };
 }
 
 /** The checks of the Analysis Settings panel, so a caller fails with the same words the app would show */
-export function validateSettings(settings: AnalysisSettings, bitDepth: 8 | 16, catalog: CatalogResponse): { errors: string[]; warnings: string[] } {
-  return checkSettings(settings, bitDepth, catalog);
+export function validateSettings(
+  settings: AnalysisSettings,
+  bitDepth: 8 | 16,
+  catalog: CatalogResponse,
+  pixelSpacing?: { x: number; y: number } | null,
+): { errors: string[]; warnings: string[] } {
+  return checkSettings(settings, bitDepth, catalog, pixelSpacing);
 }
 
 export interface Measurement {

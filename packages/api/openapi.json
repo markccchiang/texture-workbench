@@ -4196,6 +4196,29 @@
                             "description": "Calibration profile on 16-bit images: mapped to 255"
                           }
                         }
+                      },
+                      "resampling": {
+                        "type": "object",
+                        "required": [
+                          "x",
+                          "y"
+                        ],
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 1000000,
+                            "description": "Millimetres per pixel, horizontally"
+                          },
+                          "y": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 1000000,
+                            "description": "Millimetres per pixel, vertically"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Resample the image (cubic B-spline) and the ROIs to this pixel spacing before measuring; needs the image's pixel spacing. Pixel counts, areas and shape features then refer to the resampled pixels."
                       }
                     }
                   },
@@ -4572,6 +4595,29 @@
                               "description": "Calibration profile on 16-bit images: mapped to 255"
                             }
                           }
+                        },
+                        "resampling": {
+                          "type": "object",
+                          "required": [
+                            "x",
+                            "y"
+                          ],
+                          "properties": {
+                            "x": {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "maximum": 1000000,
+                              "description": "Millimetres per pixel, horizontally"
+                            },
+                            "y": {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "maximum": 1000000,
+                              "description": "Millimetres per pixel, vertically"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Resample the image (cubic B-spline) and the ROIs to this pixel spacing before measuring; needs the image's pixel spacing. Pixel counts, areas and shape features then refer to the resampled pixels."
                         }
                       }
                     },
@@ -5072,6 +5118,29 @@
                               "description": "Calibration profile on 16-bit images: mapped to 255"
                             }
                           }
+                        },
+                        "resampling": {
+                          "type": "object",
+                          "required": [
+                            "x",
+                            "y"
+                          ],
+                          "properties": {
+                            "x": {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "maximum": 1000000,
+                              "description": "Millimetres per pixel, horizontally"
+                            },
+                            "y": {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "maximum": 1000000,
+                              "description": "Millimetres per pixel, vertically"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Resample the image (cubic B-spline) and the ROIs to this pixel spacing before measuring; needs the image's pixel spacing. Pixel counts, areas and shape features then refer to the resampled pixels."
                         }
                       }
                     },
@@ -5609,6 +5678,29 @@
                               "description": "Calibration profile on 16-bit images: mapped to 255"
                             }
                           }
+                        },
+                        "resampling": {
+                          "type": "object",
+                          "required": [
+                            "x",
+                            "y"
+                          ],
+                          "properties": {
+                            "x": {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "maximum": 1000000,
+                              "description": "Millimetres per pixel, horizontally"
+                            },
+                            "y": {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "maximum": 1000000,
+                              "description": "Millimetres per pixel, vertically"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Resample the image (cubic B-spline) and the ROIs to this pixel spacing before measuring; needs the image's pixel spacing. Pixel counts, areas and shape features then refer to the resampled pixels."
                         }
                       }
                     },
@@ -7584,6 +7676,29 @@
                                   "description": "Calibration profile on 16-bit images: mapped to 255"
                                 }
                               }
+                            },
+                            "resampling": {
+                              "type": "object",
+                              "required": [
+                                "x",
+                                "y"
+                              ],
+                              "properties": {
+                                "x": {
+                                  "type": "number",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 1000000,
+                                  "description": "Millimetres per pixel, horizontally"
+                                },
+                                "y": {
+                                  "type": "number",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 1000000,
+                                  "description": "Millimetres per pixel, vertically"
+                                }
+                              },
+                              "additionalProperties": false,
+                              "description": "Resample the image (cubic B-spline) and the ROIs to this pixel spacing before measuring; needs the image's pixel spacing. Pixel counts, areas and shape features then refer to the resampled pixels."
                             }
                           }
                         },
@@ -8314,6 +8429,29 @@
                             "description": "Calibration profile on 16-bit images: mapped to 255"
                           }
                         }
+                      },
+                      "resampling": {
+                        "type": "object",
+                        "required": [
+                          "x",
+                          "y"
+                        ],
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 1000000,
+                            "description": "Millimetres per pixel, horizontally"
+                          },
+                          "y": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 1000000,
+                            "description": "Millimetres per pixel, vertically"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Resample the image (cubic B-spline) and the ROIs to this pixel spacing before measuring; needs the image's pixel spacing. Pixel counts, areas and shape features then refer to the resampled pixels."
                       }
                     }
                   },

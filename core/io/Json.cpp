@@ -217,6 +217,10 @@ Json SettingsToJsonValue(const AnalysisSettings& settings) {
     result["score"] = {{"enabled", score.enabled}, {"age", score.age},
         {"coefficients", Json::array({c.age, c.mean, c.entropy, c.contrast})}, {"profile", ScoreProfileId(score.profile)},
         {"intensityMin", score.intensity_min}, {"intensityMax", score.intensity_max}};
+    // Written only when set, so documents without resampling stay as they were
+    if (settings.resampling) {
+        result["resampling"] = {{"x", settings.resampling->x_mm}, {"y", settings.resampling->y_mm}};
+    }
     return result;
 }
 
@@ -302,6 +306,16 @@ AnalysisSettings SettingsFromJsonValue(const Json& value, const std::string& pat
             Fail(log_base_path, "must be \"natural\" or \"log2\"");
         }
         settings.log_base = *log_base;
+    }
+
+    if (value.contains("resampling") && !value.at("resampling").is_null()) {
+        const std::string resampling_path = Child(path, "resampling");
+        const Json& resampling = value.at("resampling");
+        if (!resampling.is_object()) {
+            Fail(resampling_path, "must be an object {x, y}");
+        }
+        settings.resampling = PixelSpacing{Number(Field(resampling, "x", resampling_path), Child(resampling_path, "x")),
+            Number(Field(resampling, "y", resampling_path), Child(resampling_path, "y"))};
     }
 
     if (value.contains("score")) {

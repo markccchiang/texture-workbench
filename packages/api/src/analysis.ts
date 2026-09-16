@@ -243,6 +243,19 @@ export const AnalysisSettings = Type.Object({
     intensityMin: Type.Integer({ minimum: 0, maximum: 65535, description: 'Calibration profile on 16-bit images: mapped to 0' }),
     intensityMax: Type.Integer({ minimum: 0, maximum: 65535, description: 'Calibration profile on 16-bit images: mapped to 255' }),
   }),
+  resampling: Type.Optional(
+    Type.Object(
+      {
+        x: Type.Number({ exclusiveMinimum: 0, maximum: 1e6, description: 'Millimetres per pixel, horizontally' }),
+        y: Type.Number({ exclusiveMinimum: 0, maximum: 1e6, description: 'Millimetres per pixel, vertically' }),
+      },
+      {
+        additionalProperties: false,
+        description:
+          "Resample the image (cubic B-spline) and the ROIs to this pixel spacing before measuring; needs the image's pixel spacing. Pixel counts, areas and shape features then refer to the resampled pixels.",
+      },
+    ),
+  ),
 });
 export type AnalysisSettings = Static<typeof AnalysisSettings>;
 

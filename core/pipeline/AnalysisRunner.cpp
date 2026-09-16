@@ -12,6 +12,7 @@
 #include "analysis/Shape.hpp"
 #include "analysis/SizeZone.hpp"
 #include "imaging/Quantizer.hpp"
+#include "imaging/Resampling.hpp"
 
 namespace glcm {
 
@@ -99,6 +100,21 @@ bool MatchesScoreCalibration(const AnalysisSettings& settings, int distance, int
     return bit_depth == 8 && settings.gray_levels == 256 && distance == 1 &&
            settings.quantization.method == QuantizationMethod::FixedRange && settings.quantization.range_min == 0 &&
            settings.quantization.range_max == 255 && settings.log_base == LogBase::Natural && settings.directions == ALL_DIRECTIONS;
+}
+
+// A shape moved by (dx, dy) pixels
+RoiShape TranslateShape(const RoiShape& shape, double dx, double dy) {
+    if (const auto* rectangle = std::get_if<RectangleRoi>(&shape)) {
+        return RectangleRoi{rectangle->x + dx, rectangle->y + dy, rectangle->width, rectangle->height};
+    }
+    if (const auto* ellipse = std::get_if<EllipseRoi>(&shape)) {
+        return EllipseRoi{ellipse->cx + dx, ellipse->cy + dy, ellipse->rx, ellipse->ry, ellipse->angle_deg};
+    }
+    PolygonRoi polygon = std::get<PolygonRoi>(shape);
+    for (auto& point : polygon.points) {
+        point = {point[0] + dx, point[1] + dy};
+    }
+    return polygon;
 }
 
 // Everything about an ROI that does not depend on the distance, computed once per ROI
@@ -316,9 +332,44 @@ AnalysisOutput RunAnalysis(const cv::Mat& gray, const std::vector<Roi>& rois, co
     const ProgressCallback& progress, const std::optional<PixelSpacing>& pixel_spacing) {
     RequireAnalysableImage(gray);
     ValidateSettings(settings);
-    const cv::Point2d spacing = pixel_spacing ? cv::Point2d(pixel_spacing->x_mm, pixel_spacing->y_mm) : cv::Point2d(1.0, 1.0);
+    cv::Point2d spacing = pixel_spacing ? cv::Point2d(pixel_spacing->x_mm, pixel_spacing->y_mm) : cv::Point2d(1.0, 1.0);
     if (!std::isfinite(spacing.x) || !std::isfinite(spacing.y) || spacing.x <= 0.0 || spacing.y <= 0.0) {
         throw std::invalid_argument("The pixel spacing must be positive");
+    }
+    if (settings.resampling) {
+        if (!pixel_spacing) {
+            throw std::invalid_argument("Resampling needs the image's pixel spacing");
+        }
+        // Measure the resampled image and the ROIs on its grid, with the new spacing
+        const ResamplingGrid grid = ResampledGrid(gray.size(), *pixel_spacing, *settings.resampling);
+        std::vector<Roi> resampled_rois = rois;
+        // Only the pixels a measurement reads: the ROIs' boxes, and around them the local binary patterns' samples (the
+        // distance, plus a pixel for interpolation). Invalid shapes are left to fail in the measurement below.
+        cv::Rect needed;
+        const int margin = *std::max_element(settings.distances.begin(), settings.distances.end()) + 2;
+        for (Roi& roi : resampled_rois) {
+            roi.shape = ResampleShape(roi.shape, grid);
+            try {
+                const cv::Rect box = RasterizeCroppedMask(roi.shape, grid.size).box;
+                if (box.area() > 0) {
+                    const cv::Rect widened(box.x - margin, box.y - margin, box.width + 2 * margin, box.height + 2 * margin);
+                    needed = needed.area() > 0 ? (needed | widened) : widened;
+                }
+            } catch (const std::exception&) {
+            }
+        }
+        // Measure the needed part of the grid only, with the ROIs moved onto it: it holds every pixel of every ROI on the grid
+        needed &= cv::Rect(cv::Point(0, 0), grid.size);
+        if (needed.area() == 0) {
+            needed = cv::Rect(0, 0, 1, 1);
+        }
+        for (Roi& roi : resampled_rois) {
+            roi.shape = TranslateShape(roi.shape, -needed.x, -needed.y);
+        }
+        AnalysisSettings measured = settings;
+        measured.resampling.reset();
+        return RunAnalysis(
+            ResampleImage(gray, *pixel_spacing, *settings.resampling, needed), resampled_rois, measured, progress, settings.resampling);
     }
 
     AnalysisOutput output;

@@ -59,6 +59,14 @@ describe('defaults and presets', () => {
 describe('checkSettings', () => {
   const valid = defaultSettings(catalog, 8);
 
+  it('asks for a pixel spacing when resampling', () => {
+    const resampled = { ...valid, resampling: { x: 0.5, y: 0.5 } };
+    expect(checkSettings(resampled, 8, catalog, { x: 0.5, y: 0.8 }).errors).toEqual([]);
+    expect(checkSettings(resampled, 8, catalog).errors).toEqual([]);
+    expect(checkSettings(resampled, 8, catalog, null).errors).toEqual(['Resampling needs a pixel spacing: set it in Image Info, or turn resampling off.']);
+    expect(checkSettings({ ...valid, resampling: { x: 0, y: 0.5 } }, 8, catalog, { x: 1, y: 1 }).errors).toEqual(['The resampled pixel spacing must be greater than 0.']);
+  });
+
   it('accepts the defaults', () => {
     expect(checkSettings(valid, 8, catalog)).toEqual({ errors: [], warnings: [] });
   });

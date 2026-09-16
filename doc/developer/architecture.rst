@@ -146,6 +146,12 @@ Namespace ``glcm``; include paths are relative to ``core/``.
        4-connected hole along the pixel edges, joined into one polygon by cuts that are walked in both directions, so
        they add no crossings under the even-odd rule of ``RasterizeMask``. The web app draws polygons with the even-odd
        fill rule for the same reason.
+   * - ``imaging/Resampling``
+     - ``ResampleImage``: the image resampled to another pixel spacing on PyRadiomics' grid, with ITK's cubic B-spline
+       (``CubicBSplineCoefficients`` as ``BSplineDecompositionImageFilter``, evaluation as ``BSplineInterpolateImageFunction``),
+       rounded; only the part of the grid a measurement needs is computed. ``ResampleShape`` moves an ROI onto the grid.
+       ``ResamplingTest`` compares the values with ``core/tests/data/simpleitk-resampling.json``. ``RunAnalysis`` uses them
+       when ``AnalysisSettings::resampling`` is set.
    * - ``imaging/ImageLoader``
      - Decodes PNG, JPEG, BMP and 8/16-bit TIFF with OpenCV and converts color to grayscale (with a warning); DICOM and
        2D NIfTI files, recognized by their content, go to the readers below.

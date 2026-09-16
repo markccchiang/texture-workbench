@@ -146,6 +146,10 @@ std::string ResultsToCsv(const std::vector<MeasurementResult>& results, const An
     if (!context.value_conversion.empty()) {
         out << "# valueConversion=" << OneLine(context.value_conversion) << "\n";
     }
+    if (settings.resampling) {
+        out << "# resampledPixelSpacingMm=" << FormatNumber(settings.resampling->x_mm) << ";" << FormatNumber(settings.resampling->y_mm)
+            << "\n";
+    }
     out << "# grayLevels=" << settings.gray_levels << "\n";
     out << "# quantization=" << QuantizationDescription(settings.quantization) << "\n";
     out << "# distances=" << Join(distances, ";") << "\n";
@@ -202,7 +206,9 @@ std::string ResultsToCsv(const std::vector<MeasurementResult>& results, const An
             common.insert(common.begin() + class_position, TextField(result.roi_class));
         }
         if (context.pixel_spacing) {
-            common.push_back(FormatNumber(result.pixel_count * context.pixel_spacing->x_mm * context.pixel_spacing->y_mm));
+            // Resampled measurements count the pixels of the resampled image
+            const PixelSpacing& area = settings.resampling ? *settings.resampling : *context.pixel_spacing;
+            common.push_back(FormatNumber(result.pixel_count * area.x_mm * area.y_mm));
         }
         common.insert(common.end(), {std::to_string(settings.gray_levels), quantization, std::to_string(result.distance)});
 

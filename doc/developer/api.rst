@@ -627,6 +627,8 @@ Every JSON file has ``format`` and an integer ``version``; readers reject other 
      - ``*-results.csv``
      - ``# key=value`` lines with the format, versions, image and settings, then a header row and one row per ROI ×
        distance × direction (or per aggregation); a ``roiClass`` column follows ``roiId`` when an ROI has a class.
+       With resampling, ``# resampledPixelSpacingMm=x;y`` follows ``# pixelSpacingMm`` and ``areaMm2`` counts the
+       resampled pixels.
        Non-standard feature columns end with ``[non-standard]``; numbers
        use the shortest text that reads back to the same double; fields are quoted per RFC 4180; text fields starting
        with ``=``, ``+``, ``-``, ``@``, tab or carriage return get a leading ``'`` (CSV injection)

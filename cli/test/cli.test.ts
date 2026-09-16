@@ -107,6 +107,20 @@ describe('glcm', () => {
     }
   });
 
+  it('resamples before measuring when asked, with a pixel spacing', async () => {
+    const measure = async (...options: string[]) => glcm('measure', SAMPLE, '--features', 'Mean', '--aggregation', 'meanOnly', '--json', ...options);
+    const plain = JSON.parse((await measure('--spacing', '1,1')).out) as ResultsDocument;
+    const resampled = JSON.parse((await measure('--spacing', '1,1', '--resample', '0.5,0.5')).out) as ResultsDocument;
+    expect(resampled.settings.resampling).toEqual({ x: 0.5, y: 0.5 });
+    expect(resampled.results[0].pixelCount).toBe(plain.results[0].pixelCount * 4);
+
+    // The sample has no pixel spacing of its own
+    const refused = await measure('--resample', '0.5,0.5');
+    expect(refused.code).toBe(2);
+    expect(refused.err).toContain('Resampling needs a pixel spacing');
+    expect((await measure('--spacing', '1,1', '--resample', '0.5')).err).toContain('--resample takes the new pixel width and height');
+  });
+
   it('writes regions for ImageJ and measures ImageJ ROI files the same way', async () => {
     const json = path.join(dataDir, 'imagej-regions.roi.json');
     const zip = path.join(dataDir, 'RoiSet.zip');

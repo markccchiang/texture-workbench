@@ -25,6 +25,7 @@ add_library(glcm_core STATIC
         imaging/ImageHeader.cpp
         imaging/ImageLoader.cpp
         imaging/NiftiReader.cpp
+        imaging/Resampling.cpp
         imaging/PngEncoder.cpp
         imaging/Quantizer.cpp
         imaging/ValueConversion.cpp
@@ -66,6 +67,7 @@ if (GLCM_BUILD_TESTS)
                 tests/GrayToneDifferenceTest.cpp
                 tests/LocalBinaryPatternTest.cpp
                 tests/ShapeTest.cpp
+                tests/ResamplingTest.cpp
                 tests/RunLengthTest.cpp
                 tests/SizeZoneTest.cpp
                 tests/TextureAnalysisTest.cpp

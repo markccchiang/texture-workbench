@@ -1,11 +1,13 @@
 #ifndef GLCM_ANALYSIS_SETTINGS_HPP_
 #define GLCM_ANALYSIS_SETTINGS_HPP_
 
+#include <optional>
 #include <set>
 #include <vector>
 
 #include "analysis/Score.hpp"
 #include "analysis/TextureAnalysis.hpp"
+#include "imaging/ImageHeader.hpp"
 #include "imaging/Quantizer.hpp"
 
 namespace glcm {
@@ -41,6 +43,9 @@ struct AnalysisSettings {
     Aggregation aggregation = Aggregation::PerDirectionAndMean;
     LogBase log_base = LogBase::Natural;
     ScoreSettings score;
+    // Resample the image and the ROIs to this pixel spacing (mm) before measuring (imaging/Resampling); needs the image's
+    // pixel spacing. Absent: measure the pixels as they are.
+    std::optional<PixelSpacing> resampling;
 };
 
 // Defaults for an image of the given bit depth (8 or 16): Haralick preset, Ng = 32, fixed range over the full

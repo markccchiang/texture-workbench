@@ -2,7 +2,7 @@
 // (doc/ui-design-plan.md, section 6.3.1).
 
 import type { AnalysisSettings, Direction } from './analysis.js';
-import type { CatalogResponse, FeaturePreset } from './schemas.js';
+import type { CatalogResponse, FeaturePreset, PixelSpacing } from './schemas.js';
 
 export const GRAY_LEVEL_CHOICES = [8, 16, 32, 64, 128, 256];
 export const ALL_DIRECTIONS: Direction[] = [0, 45, 90, 135];
@@ -70,9 +70,21 @@ export interface SettingsIssues {
   warnings: string[];
 }
 
-export function checkSettings(settings: AnalysisSettings, bitDepth: 8 | 16, catalog: Catalog): SettingsIssues {
+/**
+ * Problems with settings for an image of the bit depth. `pixelSpacing` is the spacing the measurement will use: null for an
+ * image without one, undefined when it is not known here.
+ */
+export function checkSettings(settings: AnalysisSettings, bitDepth: 8 | 16, catalog: Catalog, pixelSpacing?: PixelSpacing | null): SettingsIssues {
   const errors: string[] = [];
   const warnings: string[] = [];
+  if (settings.resampling) {
+    const { x, y } = settings.resampling;
+    if (!(x > 0 && y > 0)) {
+      errors.push('The resampled pixel spacing must be greater than 0.');
+    } else if (pixelSpacing === null) {
+      errors.push('Resampling needs a pixel spacing: set it in Image Info, or turn resampling off.');
+    }
+  }
   const { limits } = catalog;
   const limit = maxIntensity(bitDepth);
 

@@ -734,6 +734,33 @@ The analysis pipeline therefore computes the score's inputs with those settings 
 whatever the analysis settings are; 16-bit intensities are first mapped to 0–255 with a fixed range. The *current
 settings* profile uses the analysis settings instead and adds a warning that the coefficients may not apply.
 
+Resampling
+----------
+
+With the *resampling* setting (``AnalysisSettings::resampling``), ``RunAnalysis`` measures a resampled image instead of the
+original (``core/imaging/Resampling``), as PyRadiomics does with ``resampledPixelSpacing`` and its default B-spline
+interpolator.
+
+**The grid.** With the image's spacing :math:`s` and the new spacing :math:`s'` along an axis, the ratio is
+:math:`r = s' / s`, and an axis of :math:`N` pixels gets :math:`\lceil N / r \rceil` new pixels. New pixel :math:`k`
+covers :math:`[k r, (k + 1) r)` in original pixel units, so the grid starts at the image's top left corner (PyRadiomics'
+alignment) and the centre of new pixel :math:`k` lies at the continuous index :math:`x_k = (k + \tfrac12) r - \tfrac12`
+of the original pixel centres.
+
+**The values.** The image is represented by a cubic B-spline :math:`f(x, y) = \sum_{i,j} c_{ij}\, \beta^3(x - i)\,
+\beta^3(y - j)` that passes through every pixel value. The coefficients :math:`c` come from the recursive filter of Unser
+[Unser1999]_ with the pole :math:`z = \sqrt 3 - 2` and mirror boundaries, applied along the rows and then along the
+columns, exactly as ITK's ``BSplineDecompositionImageFilter`` computes them; :math:`f` is evaluated as ITK's
+``BSplineInterpolateImageFunction`` evaluates it. A new pixel whose centre lies more than half a pixel beyond the last
+pixel centre gets 0, as in ITK; ROIs never contain such pixels. The core tests compare the values with SimpleITK's
+``sitkBSpline`` resampling. The values are then **rounded** to the nearest integer and clamped to the bit depth. (ITK and
+PyRadiomics truncate towards zero instead, so a resampled intensity there can be 1 lower.)
+
+**The ROIs.** Each ROI is scaled by :math:`1 / r` along each axis — a rotated ellipse becomes the ellipse the scaling maps
+it to — so that a new pixel belongs to the ROI when its centre lies inside the original shape. (PyRadiomics resamples its
+label mask with nearest-neighbour interpolation instead, which can differ at the edge.) Pixel counts, the area in mm²
+and the shape features then use the new pixels and the new spacing.
+
 Choosing features and gray levels
 ---------------------------------
 

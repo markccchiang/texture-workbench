@@ -259,6 +259,10 @@ export const analysisRoutes: FastifyPluginAsyncTypebox<AnalysisRoutesOptions> = 
       } catch (error) {
         nativeError(error);
       }
+      const spacing = request.body.pixelSpacing === undefined ? (image.pixelSpacing ?? null) : request.body.pixelSpacing;
+      if (settings.resampling && !spacing) {
+        throw new ApiError(400, 'BadRequest', "Resampling needs the image's pixel spacing; give one in pixelSpacing");
+      }
       const pixels = await store.pixels(imageId);
       try {
         return reply.code(202).send(jobs.start(request.body, image, pixels).info);

@@ -52,7 +52,7 @@ export async function measure(scope: 'selected' | 'all'): Promise<void> {
     fail('Cannot measure', (error as Error).message);
     return;
   }
-  const { errors } = checkSettings(settings, bitDepth, catalog);
+  const { errors } = checkSettings(settings, bitDepth, catalog, useViewer.getState().pixelSpacing);
   if (errors.length > 0) {
     fail('Check the analysis settings', errors.join(' '));
     return;

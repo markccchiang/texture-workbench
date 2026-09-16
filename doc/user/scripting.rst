@@ -96,7 +96,8 @@ Set…*, and use that file:
 Images measured with the same settings are written into one table, as a batch measurement in the application would be;
 when the settings differ, each group gets its own file. The settings themselves come from the defaults, then a settings
 file, then a preset, then single options such as ``--features Contrast,Entropy``, ``--gray-levels 32``,
-``--distances 1,2`` and ``--quantization fixedRange,0,255``. They are checked exactly as the Analysis Settings panel
+``--distances 1,2``, ``--quantization fixedRange,0,255`` and ``--resample 0.5,0.5`` (see :ref:`resampling <resampling>`; the image needs
+a pixel spacing, or ``--spacing``). They are checked exactly as the Analysis Settings panel
 checks them: a combination the application would refuse is refused here too, with the same words.
 
 Regions can also be found by intensity, without drawing anything:

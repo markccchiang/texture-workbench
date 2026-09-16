@@ -82,7 +82,7 @@ export async function runBatch(input: BatchInput, deps: BatchDependencies, onCha
 
       const bitDepth = info.bitDepth as 8 | 16;
       const settings = adaptToImage(input.settings, bitDepth);
-      const { errors } = checkSettings(settings, bitDepth, input.catalog);
+      const { errors } = checkSettings(settings, bitDepth, input.catalog, deps.pixelSpacing?.(info) ?? info.pixelSpacing ?? null);
       if (errors.length > 0) {
         update(index, { status: 'failed', message: errors.join(' ') });
         continue;

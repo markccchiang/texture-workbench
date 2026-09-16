@@ -31,6 +31,12 @@ void ValidateSettings(const AnalysisSettings& settings) {
     if (settings.features.empty() && !settings.score.enabled) {
         throw std::invalid_argument("Select at least one feature or enable the score");
     }
+    if (settings.resampling) {
+        const PixelSpacing& spacing = *settings.resampling;
+        if (!(spacing.x_mm > 0.0 && spacing.x_mm <= 1e6 && spacing.y_mm > 0.0 && spacing.y_mm <= 1e6)) {
+            throw std::invalid_argument("The resampled pixel spacing must be positive");
+        }
+    }
     for (Type type : settings.features) {
         FindFeature(type); // throws for Score and Age
     }

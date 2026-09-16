@@ -166,6 +166,32 @@ describe('analyses', () => {
     expect((await start({ pixelSpacing: { x: 0, y: 1 } })).statusCode).toBe(400);
   });
 
+  it('resamples the image to another pixel spacing before measuring, and records it in the results', async () => {
+    // The 4 × 4 image at 0.5 × 0.25 mm, resampled to 0.25 mm square pixels: 8 × 4 pixels
+    const settings = { ...SETTINGS, features: ['ShapePixelSurface', 'Mean'], aggregation: 'meanOnly' as const, resampling: { x: 0.25, y: 0.25 } };
+    const response = await start({ settings, pixelSpacing: { x: 0.5, y: 0.25 } });
+    expect(response.statusCode).toBe(202);
+    const info = response.json<AnalysisInfo>();
+    await t.app.inject({ method: 'GET', url: `/api/v1/analyses/${info.analysisId}/events` });
+    const results = (await t.app.inject({ method: 'GET', url: `/api/v1/analyses/${info.analysisId}/results` })).json<AnalysisResults>();
+    expect(results.settings.resampling).toEqual({ x: 0.25, y: 0.25 });
+    const [whole] = results.results;
+    expect(whole.pixelCount).toBe(32);
+    expect(whole.values.ShapePixelSurface.mean).toBe(32 * 0.0625);
+    const csv = (await t.app.inject({ method: 'GET', url: `/api/v1/analyses/${info.analysisId}/results.csv` })).body;
+    expect(csv).toContain('# pixelSpacingMm=0.5;0.25');
+    expect(csv).toContain('# resampledPixelSpacingMm=0.25;0.25');
+    const [header, first] = csv.split('\n').filter((line) => line !== '' && !line.startsWith('#'));
+    // The area comes from the resampled pixels: 32 × 0.25 × 0.25 mm², the same 2 mm² as the image's 16 pixels
+    expect(Number(first.split(',')[header.split(',').indexOf('areaMm2')])).toBe(2);
+
+    // This TIFF has no pixel spacing, so resampling needs one in the request
+    const refused = await start({ settings });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().message).toContain("Resampling needs the image's pixel spacing");
+    expect((await start({ settings: { ...settings, resampling: { x: 0, y: 1 } }, pixelSpacing: { x: 1, y: 1 } })).statusCode).toBe(400);
+  });
+
   it('measures shape features in millimetres with the pixel spacing of the request', async () => {
     const settings = { ...SETTINGS, features: ['ShapePixelSurface'], aggregation: 'meanOnly' as const };
     const surface = async (request: Partial<AnalysisRequest>) => {

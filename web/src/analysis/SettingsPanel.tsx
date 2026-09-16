@@ -163,7 +163,8 @@ function SettingsForm({ settings, catalog, bitDepth }: { settings: AnalysisSetti
   const [pickerOpen, setPickerOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [distanceError, setDistanceError] = useState<string | null>(null);
-  const issues = checkSettings(settings, bitDepth, catalog);
+  const pixelSpacing = useViewer((state) => state.pixelSpacing);
+  const issues = checkSettings(settings, bitDepth, catalog, pixelSpacing);
   const presetId = matchingPreset(settings.features, catalog.presets);
   const limit = maxIntensity(bitDepth);
   const selectedFeatures = catalog.features.filter((feature) => settings.features.includes(feature.id));
@@ -309,10 +310,58 @@ function SettingsForm({ settings, catalog, bitDepth }: { settings: AnalysisSetti
         leftSection={advancedOpen ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
         onClick={() => setAdvancedOpen((open) => !open)}
       >
-        Advanced (log base, score)
+        Advanced (log base, score, resampling)
       </Button>
       <Collapse expanded={advancedOpen}>
         <Stack gap="xs" pl="xs">
+          <Switch
+            size="xs"
+            label="Resample before measuring"
+            checked={settings.resampling !== undefined}
+            onChange={(event) => {
+              if (event.currentTarget.checked) {
+                // Square pixels of the finer spacing, or 1 mm without a spacing
+                const side = pixelSpacing ? Math.min(pixelSpacing.x, pixelSpacing.y) : 1;
+                set({ resampling: { x: side, y: side } });
+              } else {
+                update(({ resampling: _removed, ...current }) => current);
+              }
+            }}
+          />
+          {settings.resampling && (
+            <>
+              <SimpleGrid cols={2} spacing="xs" verticalSpacing="xs">
+                {(['x', 'y'] as const).map((axis) => (
+                  <NumberInput
+                    key={axis}
+                    size="xs"
+                    label={axis === 'x' ? 'Pixel width (mm)' : 'Pixel height (mm)'}
+                    min={0}
+                    decimalScale={6}
+                    value={settings.resampling![axis]}
+                    onChange={(value) => typeof value === 'number' && set({ resampling: { ...settings.resampling!, [axis]: value } })}
+                  />
+                ))}
+              </SimpleGrid>
+              {pixelSpacing && (
+                <Button
+                  size="compact-xs"
+                  variant="light"
+                  onClick={() => {
+                    const side = Math.min(pixelSpacing.x, pixelSpacing.y);
+                    set({ resampling: { x: side, y: side } });
+                  }}
+                >
+                  Square pixels of {formatLength(Math.min(pixelSpacing.x, pixelSpacing.y))}
+                </Button>
+              )}
+              <Text size="xs" c="dimmed">
+                The image is resampled with a cubic B-spline and the ROIs are laid on the new pixels, as PyRadiomics does;
+                pixel counts, areas and shape features then count the new pixels.
+                {pixelSpacing ? ` The image has ${formatSpacing(pixelSpacing)} pixels.` : ''}
+              </Text>
+            </>
+          )}
           <Select
             size="xs"
             label="Log base"

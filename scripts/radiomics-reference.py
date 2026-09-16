@@ -3,7 +3,8 @@
 
 Writes core/tests/data/pyradiomics-firstorder.json (FirstOrderTest), pyradiomics-glrlm.json (RunLengthTest),
 pyradiomics-glszm.json (SizeZoneTest), pyradiomics-ngtdm.json (GrayToneDifferenceTest) and scikit-image-lbp.json
-(LocalBinaryPatternTest) and pyradiomics-shape2d.json (ShapeTest): for rectangle ROIs on sample images, the values of PyRadiomics' first-order, GLRLM, GLSZM and
+(LocalBinaryPatternTest), pyradiomics-shape2d.json (ShapeTest) and simpleitk-resampling.json (ResamplingTest): for
+rectangle ROIs on sample images, the values of PyRadiomics' first-order, GLRLM, GLSZM and
 NGTDM feature classes, and the histogram of scikit-image's local_binary_pattern (which PyRadiomics' LBP filter uses).
 Rectangles avoid differences in mask rasterization (the core covers the pixels whose centres lie inside). Entropy and
 uniformity are computed with a bin width of 1 on 8-bit images, which matches the core with quantization "none" and 256
@@ -12,6 +13,8 @@ images with a bin width of 1 in 2D (four in-plane directions, 8-connected zones,
 matching the core's fixed bin width of 1. LBP uses the original 8- and 16-bit intensities of the whole image at radii 1
 and 2. Shape features use masks of their own (ellipses, a ring, separate parts, pixels touching only at corners, a
 thresholded part of an image) at three pixel spacings, stored as runs so the test uses exactly the same pixels.
+Resampling uses SimpleITK's B-spline resampler with the grid PyRadiomics' resampleImage uses (aligned to the image's
+corner), on crops of sample images, with real-valued output so the test sees the interpolation before any rounding.
 
 Only developers run this script, to regenerate the reference data; the application and the tests never call Python.
 
@@ -38,6 +41,7 @@ GLSZM_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pyradiomics-glszm.json'
 NGTDM_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pyradiomics-ngtdm.json'
 LBP_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'scikit-image-lbp.json'
 SHAPE_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pyradiomics-shape2d.json'
+RESAMPLING_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'simpleitk-resampling.json'
 LBP_SAMPLES = 8
 
 # PyRadiomics feature name -> core feature id
@@ -190,6 +194,32 @@ def shape_reference(name: str, mask: np.ndarray, spacing: tuple[float, float]) -
     }
 
 
+def resampling_reference(image_path: str, crop: tuple[int, int, int, int], old: tuple[float, float], new: tuple[float, float]) -> dict:
+    """SimpleITK B-spline resampling of an image crop from one pixel spacing (x, y) to another, as real values"""
+    x, y, width, height = crop
+    pixels = sitk.GetArrayFromImage(sitk.ReadImage(str(ROOT / 'samples' / image_path)))[y : y + height, x : x + width]
+    image = sitk.GetImageFromArray(np.ascontiguousarray(pixels))
+    image.SetSpacing(old)
+    size = [int(np.ceil(n * o / s)) for n, o, s in zip((width, height), old, new)]
+    resampler = sitk.ResampleImageFilter()
+    resampler.SetOutputSpacing(new)
+    # PyRadiomics' newOriginIndex: the new grid starts at the image's corner
+    resampler.SetOutputOrigin([0.5 * (s - o) for o, s in zip(old, new)])
+    resampler.SetSize(size)
+    resampler.SetOutputPixelType(sitk.sitkFloat64)
+    resampler.SetInterpolator(sitk.sitkBSpline)
+    resampler.SetDefaultPixelValue(0)
+    values = sitk.GetArrayFromImage(resampler.Execute(image))
+    return {
+        'image': image_path,
+        'crop': list(crop),
+        'from': list(old),
+        'to': list(new),
+        'size': size,
+        'values': [float(value) for value in values.ravel()],
+    }
+
+
 def main() -> None:
     document = {
         'source': (
@@ -250,6 +280,19 @@ def main() -> None:
     }
     SHAPE_OUTPUT.write_text(json.dumps(shapes, indent=2) + '\n')
     print(f'{SHAPE_OUTPUT.relative_to(ROOT)}: {len(shapes["cases"])} cases')
+
+    resampling = {
+        'source': f'SimpleITK {sitk.Version_VersionString()} ({sitk.Version_ITKVersionString()}), sitkBSpline',
+        'cases': [
+            resampling_reference('textures/camera.png', (180, 120, 40, 30), (1.0, 1.0), (0.7, 1.3)),
+            resampling_reference('textures/camera.png', (180, 120, 40, 30), (0.5, 0.8), (0.5, 0.5)),
+            resampling_reference('textures/brick.png', (60, 90, 37, 29), (1.0, 1.0), (2.3, 1.7)),
+            resampling_reference('medical/ct-chest.png', (200, 220, 33, 41), (0.703125, 0.703125), (1.0, 1.0)),
+            resampling_reference('medical/mri-brain-t1.png', (90, 100, 3, 25), (1.0, 1.33), (1.0, 1.0)),
+        ],
+    }
+    RESAMPLING_OUTPUT.write_text(json.dumps(resampling) + '\n')
+    print(f'{RESAMPLING_OUTPUT.relative_to(ROOT)}: {len(resampling["cases"])} cases')
 
 
 if __name__ == '__main__':

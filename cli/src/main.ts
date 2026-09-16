@@ -89,6 +89,11 @@ function numbers(value: string | undefined): number[] | undefined {
 }
 
 async function settingsOverrides(context: Context): Promise<operations.SettingsOverrides> {
+  const resample = numbers(text(context, 'resample'));
+  if (resample && (resample.length !== 2 || !resample.every((value) => value > 0))) {
+    throw new ApiError(0, 'BadOption', '--resample takes the new pixel width and height in millimetres, e.g. --resample 0.5,0.5');
+  }
+  const resampling = resample ? { x: resample[0], y: resample[1] } : undefined;
   const quantization = text(context, 'quantization');
   const parsedQuantization = quantization
     ? (() => {
@@ -119,11 +124,13 @@ async function settingsOverrides(context: Context): Promise<operations.SettingsO
     logBase: text(context, 'log-base') as AnalysisSettings['logBase'] | undefined,
     quantization: parsedQuantization,
     ...(flag(context, 'score') ? { score: true } : {}),
+    ...(resampling ? { resampling } : {}),
   };
 }
 
 const SETTINGS_OPTIONS: OptionConfig = {
   settings: { type: 'string' },
+  resample: { type: 'string' },
   preset: { type: 'string' },
   features: { type: 'string' },
   'gray-levels': { type: 'string' },
@@ -233,6 +240,7 @@ const COMMANDS: Record<string, Command> = {
       '--rois takes an ROI set (.roi.json), a project (.glcmproj), an array of ROIs, or ImageJ ROIs (.roi or RoiSet.zip).',
       'Settings come from the defaults, then --settings <file>, then --preset, then the single options.',
       'Several images are measured in turn and their rows merged into one file when their settings match.',
+      '--resample 0.5,0.5 resamples the image and the ROIs to that pixel spacing (mm) first; the image needs a pixel spacing (or --spacing).',
     ],
     options: {
       ...SETTINGS_OPTIONS,
@@ -263,7 +271,12 @@ const COMMANDS: Record<string, Command> = {
       for (const target of context.positionals) {
         const { info } = await openImageTarget(client, target);
         const settings = operations.buildSettings(catalog, info.bitDepth, overrides);
-        const issues = operations.validateSettings(settings, info.bitDepth, catalog);
+        const issues = operations.validateSettings(
+          settings,
+          info.bitDepth,
+          catalog,
+          spacing ? { x: spacing[0], y: spacing[1] } : (info.pixelSpacing ?? null),
+        );
         for (const warning of issues.warnings) {
           context.io.err(`warning: ${warning}`);
         }
