@@ -20,7 +20,8 @@ sharp squares, so individual pixels can be inspected.
    * - Zoom in or out around the center
      - :kbd:`+` / :kbd:`−`, the zoom buttons in the toolbar, or *Image ▸ Zoom In / Zoom Out*
    * - Show 100 % or fit the image
-     - :kbd:`1` / :kbd:`0`, the zoom menu in the toolbar, or *Image ▸ Zoom 100 % / Fit to Window*
+     - :kbd:`1` / :kbd:`0`, the zoom menu (100 %) or the **Fit to window** button in the toolbar, or *Image ▸ Zoom 100 % /
+       Fit to Window*
    * - Pan
      - Scroll with two fingers on a trackpad; drag while holding :kbd:`Space`; drag with the middle mouse button; or
        choose the **Pan** tool (hand) and drag
@@ -106,7 +107,9 @@ To enter or change it, open *Image ▸ Image Info* and type the **Pixel width** 
 click **Apply**. **Use the file's spacing** returns to the spacing stored in the file, and **Clear** removes the
 spacing. The choice is remembered for the image (identified by its checksum) in this browser, and saved in projects.
 
-The spacing does not change how features are computed: distances and ROIs are always measured in pixels. When the
+The spacing does not change how texture features are computed: pixel pair distances and ROIs are measured in pixels.
+Shape features are in millimetres with a spacing, and resampling and the sigma of the Laplacian of Gaussian use it (see
+:doc:`measuring`). When the
 pixels are not square, the Analysis Settings panel shows how far the neighbours at the first distance are in each
 direction, for example 1 mm at 0° and 1.33 mm at 90°: directional values, and their mean, then mix different physical
 lengths. The scale bar gives the horizontal scale.
@@ -196,7 +199,7 @@ the eye: it does not change the image, the ROIs or the measurements.
 
 .. note::
 
-   Images up to 4096 × 4096 pixels are rendered by your browser, so the window follows the slider immediately. Larger
+   Images of up to 16.7 million pixels (4096 × 4096) are rendered by your browser, so the window follows the slider immediately. Larger
    images are rendered by the server, and the view updates a moment after you stop moving the slider. The status bar
    shows which is used (*WebGL2*, *Lookup table* or *Server rendering*). If the browser loses its WebGL context, for
    example after the graphics driver restarts, the image switches to *Lookup table* on its own.

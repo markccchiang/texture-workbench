@@ -26,7 +26,9 @@ The application is a client–server web application with the numerical work in 
 - The **server** stores images and results, runs analyses as jobs, streams progress, produces exports, enforces
   authentication and limits, and serves the built web app.
 - The **web app** shows the image, lets users draw and manage ROIs, edit settings, measure and export. It never
-  computes masks or features itself; pixel counts shown in the ROI Manager come from the server.
+  computes features itself, and pixel counts shown in the ROI Manager come from the server. The one mask computed in
+  TypeScript is ``shapeRuns`` in ``@glcm/api`` (``roiPixels.ts``), a port of ``RasterizeMask`` for the ImageJ ROI
+  writer, which the tests compare with the addon.
 - ``@glcm/api`` holds the request and response schemas. The server validates and serializes with them, the OpenAPI
   document is generated from them, and the web app uses their TypeScript types.
 
@@ -60,8 +62,9 @@ Repository layout
      - ``@glcm/server``: ``src/app.ts``, ``config.ts``, ``security.ts``, ``routes/``, ``analysis/JobManager.ts``,
        ``storage/``, ``web.ts``; tests use ``fastify.inject``
    * - ``web/``
-     - ``@glcm/web``: ``src/`` grouped by concern (``api/``, ``viewer/``, ``image/``, ``rois/``, ``analysis/``,
-       ``results/``, ``files/``, ``batch/``, ``stores/``, ``components/``)
+     - ``@glcm/web``: ``src/`` grouped by concern (``app/``, ``api/``, ``viewer/``, ``image/``, ``rois/``, ``analysis/``,
+       ``results/``, ``files/``, ``batch/``, ``featureMaps/``, ``volumes/``, ``report/``, ``layout/``, ``stores/``,
+       ``components/``)
    * - ``e2e/``
      - Playwright tests against the built app and real servers
    * - ``samples/``, ``scripts/``
@@ -157,7 +160,8 @@ Namespace ``glcm``; include paths are relative to ``core/``.
    * - ``imaging/Resampling``
      - ``ResampleImage``: the image resampled to another pixel spacing on PyRadiomics' grid, with ITK's cubic B-spline
        (``CubicBSplineCoefficients`` as ``BSplineDecompositionImageFilter``, evaluation as ``BSplineInterpolateImageFunction``),
-       rounded; only the part of the grid a measurement needs is computed. ``ResampleShape`` moves an ROI onto the grid.
+       rounded; only the part of the grid a measurement needs is computed (all of it when a filter follows). Grid pixels
+       beyond the image (``ResampledValidSize``) belong to no ROI. ``ResampleShape`` moves an ROI onto the grid.
        ``ResamplingTest`` compares the values with ``core/tests/data/simpleitk-resampling.json``. ``RunAnalysis`` uses them
        when ``AnalysisSettings::resampling`` is set.
    * - ``imaging/ImageLoader``
@@ -171,8 +175,8 @@ Namespace ``glcm``; include paths are relative to ``core/``.
    * - ``imaging/DicomReader``
      - ``LoadDicomFile``: the first frame of an uncompressed DICOM file (implicit or explicit VR little endian; sequences
        are skipped), with the rescale, MONOCHROME1 inversion, PixelSpacing/ImagerPixelSpacing and the first window.
-       ``LoadDicomStackFile`` reads every frame and ``LoadDicomSeries`` the files of a series (largest SeriesInstanceUID,
-       ordered along the image normal, else by InstanceNumber); both decode through ``BuildDicomStack``, which chooses one
+       ``LoadDicomStackFile`` reads every frame and ``LoadDicomSeries`` the files of a series (the SeriesInstanceUID with the most
+       files, ordered along the image normal, else by InstanceNumber); both decode through ``BuildDicomStack``, which chooses one
        storage from the range of every frame and reads each file again only when its frames are stored.
        Compressed, deflated and big-endian transfer syntaxes throw ``std::invalid_argument``.
    * - ``imaging/NiftiReader``
@@ -233,10 +237,10 @@ configuration, starts retention and listens. Plugins and hooks are registered in
 #. ``@fastify/swagger`` (OpenAPI generation) and ``@fastify/multipart`` (uploads).
 #. The error handler, which turns ``ApiError``, validation errors and plugin errors into ``{error, message}``.
 #. In server mode or when configured: CORS allow-list, rate limit, bearer-token authentication (``security.ts``).
-#. ``@fastify/static`` for ``web/dist`` and a not-found handler that returns ``index.html`` for page requests and a
-   JSON 404 for everything else.
-#. The route plugins under ``/api/v1``: ``health``, ``catalog``, ``images``, ``analyses``, ``featureMaps``, ``exports``,
-   ``samples``.
+#. ``@fastify/static`` for ``web/dist``, a second one for the built documentation at ``/docs/`` when it exists, and a
+   not-found handler that returns ``index.html`` for page requests and a JSON 404 for everything else.
+#. The route plugins under ``/api/v1``: ``health``, ``catalog``, ``images``, ``volumes``, ``analyses``, ``featureMaps``,
+   ``exports``, ``samples``.
 
 .. rubric:: Configuration and modes
 
@@ -282,9 +286,11 @@ All files live under ``GLCM_DATA_DIR`` with random names:
    images/img_<32 hex>/info.json      ImageInfo
    results/ana_<32 hex>.json          finished analysis: AnalysisInfo and results
    cache/display/<sha256>.png         size-capped LRU of display.png renderings
+   volumes/vol_<32 hex>/              NIfTI volumes being opened: volume.nii (uncompressed) and volume.json (emptied at startup)
    uploads/                           uploads in progress (emptied at startup)
+   server.lock                        process id, host and port of a running server (see the command line)
 
-``storage/retention.ts`` deletes images uploaded and analyses finished longer ago than ``GLCM_RETENTION_HOURS``.
+``storage/retention.ts`` deletes images, volumes and analyses older than ``GLCM_RETENTION_HOURS``.
 
 .. rubric:: Security
 
@@ -328,7 +334,8 @@ stores are plain functions (``app/actions.ts``, ``analysis/measure.ts``, ``files
    * - ``api/auth``
      - Access token (``sessionStorage``) and whether the token prompt is open
    * - ``stores/uiStore``, ``stores/preferences``
-     - Open dialog, file dialog requests, ROI labels; scroll behaviour and renderer preference
+     - Open dialog, file dialog requests, ROI labels; scroll behaviour, renderer preference, saved display windows, pixel
+       spacings chosen per image and report sections
 
 .. rubric:: Results table and plots
 
@@ -376,7 +383,7 @@ Data flows
 .. figure:: images/flow-open-image.svg
    :alt: Sequence diagram of opening an image. 1: the browser sends POST /images (multipart); the server streams the file
          to uploads/ and computes its SHA-256. 2: the server calls decodeImageFile, which checks the size from the header,
-         runs LoadImageFile and computes display statistics and the pixel spacing. 3: the addon returns the pixels, window
+         runs LoadImageStackFile and computes display statistics and the pixel spacing. 3: the addon returns the pixels, window
          and histogram, and the server writes images/<id>/. 4: the server answers 201 with ImageInfo (transfer raw or
          server). 5: the browser requests GET /images/{id}/raw. 6: the server sends pixels.bin, compressed with gzip or
          zstd, with an ETag; the browser uploads a WebGL2 texture and fits the image to the window.
@@ -481,7 +488,8 @@ measured from a script, and an image measured from a script appears in the brows
          × x × y.
    :width: 100%
 
-The spacing only annotates results; the GLCM computation stays in pixels. Each run keeps the spacing it was measured
+The spacing does not change the texture features, which stay in pixels; shape features are in millimetres with it, and
+resampling and the sigma of the Laplacian of Gaussian use it. Each run keeps the spacing it was measured
 with, so a later change does not alter existing rows or exports.
 
 Design decisions
@@ -535,6 +543,10 @@ Testing
      - Vitest with ``fastify.inject`` (``server/test``)
      - Every route, validation and limits, SSE, exports, static serving, authentication, CORS, rate limits, retention,
        persisted results
+   * - Packages and command line
+     - Vitest (``packages/api/test``, ``packages/client/test``, ``cli/test``)
+     - Settings rules, merged CSV, TIFF and ImageJ ROI files against ImageJ's own data, the client over HTTP, every
+       command in process and against a server with a token, the MCP tools, the ``glcm`` binary
    * - Web
      - Vitest with jsdom (``web/src/**/*.test.ts``)
      - Viewport maths, wheel and keyboard rules, raw decoding, lookup table, ROI geometry and undo/redo, settings,

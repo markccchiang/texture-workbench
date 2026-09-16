@@ -16,7 +16,7 @@ This documentation has three parts:
 - **Texture features** describes exactly how the core (``core/analysis/``) computes each feature: the co-occurrence
   matrices of ``glcm::TextureAnalysis``, the first-order statistics, and the run length, size zone, gray tone difference,
   local binary pattern and shape features. It also lists the literature the features come from and the reference
-  implementations (PyRadiomics, scikit-image) they are checked against.
+  implementations (PyRadiomics, scikit-image, SimpleITK, PyWavelets) they are checked against.
 - **Developer guide** describes the architecture of the application, its APIs (HTTP, Node.js addon and C++) and file
   formats, and the technologies and packages it is built with.
 

@@ -193,6 +193,18 @@ void EvaluateResampled(const cv::Mat& gray, const ResamplingGrid& grid, const cv
 
 } // namespace
 
+cv::Size ResampledValidSize(const ResamplingGrid& grid, cv::Size image_size) {
+    // The same test as EvaluateResampled, whose continuous index grows with k
+    const auto count = [](int size, double ratio, int length) {
+        int valid = 0;
+        while (valid < size && (valid + 0.5) * ratio - 0.5 < length - 0.5) {
+            ++valid;
+        }
+        return valid;
+    };
+    return {count(grid.size.width, grid.ratio_x, image_size.width), count(grid.size.height, grid.ratio_y, image_size.height)};
+}
+
 cv::Mat ResampleValues(const cv::Mat& gray, PixelSpacing from, PixelSpacing to, const cv::Rect& region) {
     RequireImage(gray);
     const ResamplingGrid grid = ResampledGrid(gray.size(), from, to);

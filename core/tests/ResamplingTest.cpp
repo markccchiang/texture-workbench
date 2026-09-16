@@ -140,6 +140,32 @@ TEST(ResamplingTest, ShapesKeepTheirRegionOnTheNewGrid) {
     EXPECT_EQ(differences(PolygonRoi{{{5, 5}, {60, 12}, {20, 50}}}, reference(inside_triangle)), 0);
 }
 
+TEST(ResamplingTest, RoisReachingPastTheImageMeasureOnlyPixelsOnIt) {
+    // 10 mm of image on a 3 mm grid: 4 new pixels per side, of which the last lies beyond the image (centre at 10.5 mm)
+    cv::Mat gray(10, 10, CV_8UC1, cv::Scalar(100));
+    const ResamplingGrid grid = ResampledGrid(gray.size(), {1, 1}, {3, 3});
+    EXPECT_EQ(grid.size, cv::Size(4, 4));
+    EXPECT_EQ(ResampledValidSize(grid, gray.size()), cv::Size(3, 3));
+    EXPECT_EQ(ResampledValidSize(ResampledGrid(gray.size(), {1, 1}, {0.5, 0.5}), gray.size()), cv::Size(20, 20));
+
+    AnalysisSettings settings = DefaultSettings(8);
+    settings.features = {Type::Mean, Type::Contrast};
+    settings.resampling = PixelSpacing{3, 3};
+    const std::vector<Roi> rois = {Roi{"r", "Past the edge", "", RectangleRoi{0, 0, 12, 12}, ""}};
+    AnalysisOutput output = RunAnalysis(gray, rois, settings, nullptr, PixelSpacing{1, 1});
+    ASSERT_EQ(output.results[0].status, MeasurementStatus::Ok) << output.results[0].error;
+    EXPECT_EQ(output.results[0].pixel_count, 9);
+    EXPECT_EQ(output.results[0].values.at(Type::Mean).Avg(), 100);
+
+    // Also when a filter sees the whole grid
+    settings.filter = ImageFilterSettings{ImageFilterType::Wavelet};
+    settings.filter->band = WaveletBand::LL;
+    settings.quantization.method = QuantizationMethod::RoiMinMax;
+    output = RunAnalysis(gray, rois, settings, nullptr, PixelSpacing{1, 1});
+    ASSERT_EQ(output.results[0].status, MeasurementStatus::Ok) << output.results[0].error;
+    EXPECT_EQ(output.results[0].pixel_count, 9);
+}
+
 TEST(ResamplingTest, RunAnalysisMeasuresTheResampledImageAndRecordsTheSetting) {
     cv::Mat gray(60, 80, CV_8UC1);
     cv::randu(gray, 0, 256);

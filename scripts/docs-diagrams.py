@@ -240,7 +240,7 @@ def open_image() -> str:
     s.message('web', 'server', 'POST /images (multipart)')
     s.note('server', ['stream to uploads/ · SHA-256'])
     s.message('server', 'core', 'decodeImageFile(path, maxPixels)')
-    s.note('core', ['size from the header, then LoadImageFile', 'display statistics · pixel spacing'])
+    s.note('core', ['size from the header, then LoadImageStackFile', 'display statistics · pixel spacing'])
     s.message('core', 'server', 'pixels · window · histogram', response=True)
     s.note('server', ['write images/<id>/'], color='data', mono=True)
     s.message('server', 'web', '201 ImageInfo (transfer raw or server)', response=True)

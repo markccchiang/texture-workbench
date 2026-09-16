@@ -383,6 +383,12 @@ namespace {
 AnalysisOutput MeasureImage(const cv::Mat& gray, const std::vector<Roi>& rois, const AnalysisSettings& settings,
     const ProgressCallback& progress, cv::Point2d spacing);
 
+// The image filtered by the settings' filter; the LoG sigma is in millimetres with a pixel spacing, in pixels without one
+cv::Mat FilterImage(const cv::Mat& image, const AnalysisSettings& settings, cv::Point2d spacing) {
+    return settings.filter->type == ImageFilterType::Wavelet ? WaveletImage(image, settings.filter->band)
+                                                             : LaplacianOfGaussian(image, spacing, settings.filter->sigma);
+}
+
 } // namespace
 
 AnalysisOutput RunAnalysis(const cv::Mat& gray, const std::vector<Roi>& rois, const AnalysisSettings& settings,
@@ -415,9 +421,12 @@ AnalysisOutput RunAnalysis(const cv::Mat& gray, const std::vector<Roi>& rois, co
             } catch (const std::exception&) {
             }
         }
+        // Pixels of the grid beyond the image (ITK gives them 0) belong to no ROI: an ROI reaching past the image edge would
+        // otherwise measure them
+        const cv::Rect valid(cv::Point(0, 0), ResampledValidSize(grid, gray.size()));
         // Measure the needed part of the grid only, with the ROIs moved onto it: it holds every pixel of every ROI on the grid.
         // A filter runs over the whole resampled image instead, since its values near the ROI depend on all of it.
-        needed &= cv::Rect(cv::Point(0, 0), grid.size);
+        needed &= valid;
         if (settings.filter) {
             if (static_cast<double>(grid.size.area()) > MAX_FILTERED_PIXELS) {
                 throw std::invalid_argument("The resampled image is too large to filter; choose a larger pixel spacing");
@@ -432,15 +441,17 @@ AnalysisOutput RunAnalysis(const cv::Mat& gray, const std::vector<Roi>& rois, co
         }
         AnalysisSettings measured = settings;
         measured.resampling.reset();
-        return RunAnalysis(
-            ResampleImage(gray, *pixel_spacing, *settings.resampling, needed), resampled_rois, measured, progress, settings.resampling);
+        const cv::Mat resampled = ResampleImage(gray, *pixel_spacing, *settings.resampling, needed);
+        const cv::Point2d new_spacing(settings.resampling->x_mm, settings.resampling->y_mm);
+        if (!settings.filter) {
+            return MeasureImage(resampled, resampled_rois, measured, progress, new_spacing);
+        }
+        // The filter sees the whole grid; the ROIs reach only the pixels on the image
+        const cv::Mat filtered = FilterImage(resampled, settings, new_spacing);
+        return MeasureImage(filtered(valid.area() > 0 ? valid : cv::Rect(0, 0, 1, 1)), resampled_rois, measured, progress, new_spacing);
     }
     if (settings.filter) {
-        // Sigma in millimetres with a pixel spacing, in pixels without one
-        const cv::Mat filtered = settings.filter->type == ImageFilterType::Wavelet
-                                     ? WaveletImage(gray, settings.filter->band)
-                                     : LaplacianOfGaussian(gray, spacing, settings.filter->sigma);
-        return MeasureImage(filtered, rois, settings, progress, spacing);
+        return MeasureImage(FilterImage(gray, settings, spacing), rois, settings, progress, spacing);
     }
     return MeasureImage(gray, rois, settings, progress, spacing);
 }

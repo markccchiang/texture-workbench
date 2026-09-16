@@ -43,6 +43,18 @@ Sources of additional features
 Standardized definitions
 ------------------------
 
+.. [Zwanenburg2020] A. Zwanenburg et al., "The Image Biomarker Standardization Initiative: Standardized Quantitative
+   Radiomics for High-Throughput Image-based Phenotyping," *Radiology*, vol. 295, no. 2, pp. 328–338, 2020.
+   `doi:10.1148/radiol.2020191145 <https://doi.org/10.1148/radiol.2020191145>`__
+
+.. [vanGriethuysen2017] J. J. M. van Griethuysen et al., "Computational Radiomics System to Decode the Radiographic
+   Phenotype," *Cancer Research*, vol. 77, no. 21, pp. e104–e107, 2017.
+   `Cancer Research <https://aacrjournals.org/cancerres/article/77/21/e104/662617/Computational-Radiomics-System-to-Decode-the>`__,
+   `PyRadiomics documentation <https://pyradiomics.readthedocs.io/>`__
+
+Image processing methods
+------------------------
+
 .. [Deriche1993] R. Deriche, "Recursively Implementing the Gaussian and Its Derivatives," INRIA Research Report 1893,
    1993.
 
@@ -59,15 +71,6 @@ Standardized definitions
 .. [Lorensen1987] W. E. Lorensen and H. E. Cline, "Marching Cubes: A High Resolution 3D Surface Construction
    Algorithm," *ACM SIGGRAPH Computer Graphics*, vol. 21, no. 4, pp. 163–169, 1987.
    `doi:10.1145/37402.37422 <https://doi.org/10.1145/37402.37422>`__
-
-.. [Zwanenburg2020] A. Zwanenburg et al., "The Image Biomarker Standardization Initiative: Standardized Quantitative
-   Radiomics for High-Throughput Image-based Phenotyping," *Radiology*, vol. 295, no. 2, pp. 328–338, 2020.
-   `doi:10.1148/radiol.2020191145 <https://doi.org/10.1148/radiol.2020191145>`__
-
-.. [vanGriethuysen2017] J. J. M. van Griethuysen et al., "Computational Radiomics System to Decode the Radiographic
-   Phenotype," *Cancer Research*, vol. 77, no. 21, pp. e104–e107, 2017.
-   `Cancer Research <https://aacrjournals.org/cancerres/article/77/21/e104/662617/Computational-Radiomics-System-to-Decode-the>`__,
-   `PyRadiomics documentation <https://pyradiomics.readthedocs.io/>`__
 
 Effect of gray-level quantization
 ---------------------------------
@@ -88,5 +91,5 @@ Tutorials
    `PRISM <https://ucalgary.scholaris.ca/items/8833a1fc-5efb-4b9b-93a6-ac4ff268091c>`__
 
 .. [HallBeyer2017b] M. Hall-Beyer, "Practical Guidelines for Choosing GLCM Textures to Use in Landscape Classification
-   Tasks over a Range of Moderate Spatial Scales," *International Journal of Remote Sensing*, vol. 38, no. 5, 2017.
+   Tasks over a Range of Moderate Spatial Scales," *International Journal of Remote Sensing*, vol. 38, no. 5, pp. 1312–1338, 2017.
    `Taylor & Francis <https://www.tandfonline.com/doi/abs/10.1080/01431161.2016.1278314>`__

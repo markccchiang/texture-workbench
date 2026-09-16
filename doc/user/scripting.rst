@@ -38,8 +38,8 @@ Where the measurements are kept
 -------------------------------
 
 Given no other instruction, the command works on your own computer and uses the same folder as the application, so an
-image you opened in the browser can be measured from a script, and an image measured from a script appears in the
-browser's *File ▸ Open Image…* history. It needs no running server: it starts everything it needs, measures, and stops.
+image you opened in the browser can be measured from a script, and an image measured from a script is already stored:
+opening the same file in the browser finds it by its checksum instead of uploading it again. It needs no running server: it starts everything it needs, measures, and stops.
 
 To use a server instead — a shared one, or the one already running on your own computer — name it:
 
@@ -62,7 +62,7 @@ The commands
    * - ``glcm features``
      - Lists the texture features, or with ``--presets`` the groups of features you can choose by name
    * - ``glcm samples``
-     - Lists the sample images, which can be measured as ``sample:<name>``
+     - Lists the sample images, which can be measured as ``sample:<path>``
    * - ``glcm info <image>``
      - Size, bit depth, display window, pixel spacing, value conversion and checksum of an image
    * - ``glcm measure <image…>``
@@ -102,7 +102,7 @@ Images measured with the same settings are written into one table, as a batch me
 when the settings differ, each group gets its own file. The settings themselves come from the defaults, then a settings
 file, then a preset, then single options such as ``--features Contrast,Entropy``, ``--gray-levels 32``,
 ``--distances 1,2``, ``--quantization fixedRange,0,255``, ``--resample 0.5,0.5`` (see :ref:`resampling <resampling>`; the
-image needs a pixel spacing, or ``--spacing``) ``--log-sigma 2`` for the Laplacian of Gaussian or ``--wavelet HH`` for a wavelet sub-band (either with
+image needs a pixel spacing, or ``--spacing``), ``--log-sigma 2`` for the Laplacian of Gaussian or ``--wavelet HH`` for a wavelet sub-band (either with
 ``--quantization fixedBinWidth,25`` or ``roiMinMax``). They are checked exactly as the Analysis Settings panel
 checks them: a combination the application would refuse is refused here too, with the same words.
 
@@ -110,11 +110,11 @@ Regions can also be found by intensity, without drawing anything:
 
 .. code-block:: bash
 
-   glcm regions ct-chest.png --min 0 --max 700 --min-pixels 4000 --out lungs.roi.json
+   glcm regions ct-chest.png --min 0 --max 700 --min-pixels 4000 --max-pixels 100000 --out lungs.roi.json
    glcm measure ct-chest.png --rois lungs.roi.json --preset haralick --out lungs.csv
 
 ``--max-pixels`` and ``--min-sphericity`` leave out regions that are too large or not round enough, as the Threshold ROI
-dialog does.
+dialog does; here ``--max-pixels`` leaves out the air around the patient, which also lies in the intensity range.
 
 The ROI set is an ordinary file of the application: *ROI ▸ Import ROI Set…* opens it in the browser to look at what was
 measured.
@@ -126,7 +126,7 @@ writes the regions as a ``RoiSet.zip`` for ImageJ:
 .. code-block:: bash
 
    glcm measure ct-chest.png --rois RoiSet.zip --preset haralick --out lungs.csv
-   glcm regions ct-chest.png --min 0 --max 700 --min-pixels 4000 --out lungs-RoiSet.zip
+   glcm regions ct-chest.png --min 0 --max 700 --min-pixels 4000 --max-pixels 100000 --out lungs-RoiSet.zip
 
 Every command also has a ``--json`` form, which is what a script should read; ``--help`` after any command explains its
 options.
@@ -174,7 +174,8 @@ with a token.
 
 The assistant can then open an image, **look** at it (it receives the rendering, or the edge map, as a picture), choose
 regions — as rectangles it names by number, or by intensity as above — measure them, and compute a feature map. On a
-stack every tool takes a ``slice`` (from 1), and ``measure`` without regions measures every slice. It
+stack the tools that work on an image (``view_image``, ``select_regions``, ``measure`` and ``feature_map``) take a
+``slice`` (from 1), and ``measure`` without regions measures every slice. It
 cannot draw an outline by hand, which is what the browser is for; a practical way to work is to draw the difficult ROIs
 yourself, export them, and let the assistant measure and compare them.
 

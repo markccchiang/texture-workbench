@@ -25,6 +25,10 @@ constexpr double MAX_FILTERED_PIXELS = 64.0e6;
 // Throws std::invalid_argument for spacings that are not positive and finite, and for grids larger than MAX_RESAMPLED_PIXELS
 ResamplingGrid ResampledGrid(cv::Size image_size, PixelSpacing from, PixelSpacing to);
 
+// The part of the grid on the image, from its top-left corner: the new pixels whose centres lie within the image, which
+// ResampleValues interpolates (beyond it they get 0)
+cv::Size ResampledValidSize(const ResamplingGrid& grid, cv::Size image_size);
+
 // Coefficients of the cubic B-spline through the image (CV_64FC1), as ITK's BSplineDecompositionImageFilter computes them:
 // mirror boundaries, pole sqrt(3) - 2, rows first and then columns. A 1-pixel axis is left as it is.
 cv::Mat CubicBSplineCoefficients(const cv::Mat& gray);

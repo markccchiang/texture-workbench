@@ -39,9 +39,9 @@
   <circle cx="502" cy="187.0" r="9" fill="#2e9d62"/>
   <text x="502.0" y="190.5" font-size="10.5" fill="#ffffff" font-weight="700" text-anchor="middle">2</text>
   <text x="518.0" y="191.0" font-size="11.5" fill="#1e293b" font-family="'SFMono-Regular', Menlo, Consolas, monospace">decodeImageFile(path, maxPixels)</text>
-  <rect x="664.0" y="215.0" width="272.0" height="42" rx="8" fill="#fff5e8" stroke="#f5cf9c" stroke-width="1.2"/>
-  <text x="800.0" y="234.0" font-size="11" fill="#334155" text-anchor="middle">size from the header, then LoadImageFile</text>
-  <text x="800.0" y="249.0" font-size="11" fill="#334155" text-anchor="middle">display statistics · pixel spacing</text>
+  <rect x="641.8" y="215.0" width="302.2" height="42" rx="8" fill="#fff5e8" stroke="#f5cf9c" stroke-width="1.2"/>
+  <text x="792.9" y="234.0" font-size="11" fill="#334155" text-anchor="middle">size from the header, then LoadImageStackFile</text>
+  <text x="792.9" y="249.0" font-size="11" fill="#334155" text-anchor="middle">display statistics · pixel spacing</text>
   <line x1="795" y1="289.0" x2="487" y2="289.0" stroke="#64748b" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrow-muted)"/>
   <circle cx="778" cy="275.0" r="9" fill="#e07b00"/>
   <text x="778.0" y="278.5" font-size="10.5" fill="#ffffff" font-weight="700" text-anchor="middle">3</text>

@@ -3,8 +3,8 @@
 Keyboard, mouse and menus
 =========================
 
-On Windows and Linux, use :kbd:`Ctrl` where :kbd:`⌘` is shown. Keys without modifiers work when the pointer is not in
-a text field. *Help ▸ Keyboard Shortcuts* shows a short list in the application.
+On Windows and Linux, use :kbd:`Ctrl` where :kbd:`⌘` is shown. Keys without modifiers work when no text field or slider
+has the keyboard focus. *Help ▸ Keyboard Shortcuts* shows a short list in the application.
 
 Keyboard
 --------
@@ -35,10 +35,8 @@ Keyboard
      - Add the active ROI to the ROI Manager
    * - :kbd:`Enter`
      - Close the polygon being drawn
-   * - :kbd:`Backspace`
-     - Remove the last vertex of the polygon being drawn; otherwise delete the selected ROIs
-   * - :kbd:`Delete`
-     - Delete the selected ROIs
+   * - :kbd:`Backspace` / :kbd:`Delete`
+     - Remove the last vertex of the polygon or livewire being drawn; otherwise delete the selected ROIs
    * - :kbd:`Esc`
      - Cancel the polygon being drawn; otherwise clear the active ROI and the selection
    * - :kbd:`⌘A`
@@ -134,7 +132,7 @@ Common questions
    or that the score coefficients may not apply to the settings.
 
 **The window slider reacts with a delay.**
-   The image is larger than 4096 × 4096 pixels and is rendered by the server. Measurements are not affected.
+   The image has more than 16.7 million pixels (4096 × 4096) and is rendered by the server. Measurements are not affected.
 
 **The application asks for an access token again.**
    The token is kept only for the browser tab, and a server administrator may have changed it. Ask for the current

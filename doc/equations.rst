@@ -3,7 +3,8 @@ Texture Feature Equations
 
 This page lists the equations exactly as they are implemented in the C++ core: ``core/analysis/TextureAnalysis.cpp``
 (the co-occurrence features), ``FirstOrder.cpp``, ``RunLength.cpp``, ``SizeZone.cpp``, ``GrayToneDifference.cpp``,
-``LocalBinaryPattern.cpp`` and ``Shape.cpp``. Where the implementation differs from the usual literature definition, the difference is
+``LocalBinaryPattern.cpp``, ``Shape.cpp`` and ``Score.cpp``, with the quantization of ``core/imaging/Quantizer.cpp`` and the
+preprocessing of ``core/imaging/Resampling.cpp`` and ``ImageFilters.cpp``. Where the implementation differs from the usual literature definition, the difference is
 noted.
 
 Every feature is returned as a ``glcm::Features`` value with one field per direction: ``H``, ``V``, ``LD`` and ``RD``.
@@ -24,8 +25,8 @@ Region and directions
 ~~~~~~~~~~~~~~~~~~~~~
 
 Let :math:`I` be an 8-bit grayscale image, :math:`\Omega` the selected region, and :math:`d \ge 1` the neighborhood
-distance. In rectangle mode :math:`\Omega` is the whole cropped image; in polygon mode it is the set of pixels whose
-mask value is 255.
+distance. :math:`\Omega` is the set of pixels of the ROI's mask: every shape (rectangle, ellipse or polygon) is rasterized
+into a mask of the pixels whose centres lie inside it.
 
 Each direction :math:`\theta` has two neighbor offsets (row, column):
 
@@ -50,9 +51,10 @@ Each direction :math:`\theta` has two neighbor offsets (row, column):
      - :math:`(d, -d)` and :math:`(-d, d)`
 
 Gray levels are **zero-based**: :math:`i, j \in \{0, 1, \dots, N_g - 1\}`, where :math:`N_g` is the number of gray
-levels (256 in the application). Haralick's paper [Haralick1973]_ numbers gray levels from 1, so features that
-depend on the gray level values themselves (means, correlations, sum average, cluster shade and prominence,
-auto correlation) are shifted compared with a one-based implementation.
+levels (2 to 256; 32 by default). Haralick's paper [Haralick1973]_ numbers gray levels from 1, so features that depend
+on the gray level values themselves — the means :math:`\mu`, Sum Average and Auto Correlation — differ from a one-based
+implementation. Features that use only differences from the means (the correlations, cluster shade and prominence) do
+not.
 
 ROI masks
 ~~~~~~~~~
@@ -79,7 +81,8 @@ Gray-level quantization
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 In the analysis pipeline (``glcm::RunAnalysis``), the intensities :math:`v` inside the ROI are first mapped to gray
-levels :math:`i \in \{0, \dots, N_g - 1\}` (``glcm::Quantize``):
+levels :math:`i \in \{0, \dots, N_g - 1\}` (``glcm::Quantize``). (Feature maps quantize the whole image instead; see
+:ref:`feature-maps`.)
 
 - **Fixed range** :math:`[a, b]`: :math:`i = \min\left(N_g - 1, \left\lfloor \dfrac{(v - a)\, N_g}{b - a + 1} \right\rfloor\right)`
   for :math:`v > a`, and :math:`i = 0` otherwise.
@@ -145,7 +148,7 @@ the 0° matrix at distance 1 is
       0 & 0 & 1 & 2
    \end{pmatrix}, \qquad R_{0^\circ} = 24
 
-This example is checked by the unit test ``TextureAnalysisTest.HaralickExampleHorizontal``.
+The unit test ``TextureAnalysisTest.HaralickExampleHorizontal`` checks the Contrast and Energy of this matrix.
 
 Marginal probabilities and statistics
 -------------------------------------
@@ -225,7 +228,7 @@ only ``Mean`` and ``Std``, from the gray levels it is given; the others are comp
    The percentiles :math:`P_{50}`, :math:`P_{10}` and :math:`P_{90}`, interpolated linearly between the sorted values
    (NumPy's default):
 
-   .. math:: P_q = v_{(k)} + (h - k + 1) \, \bigl(v_{(k+1)} - v_{(k)}\bigr), \qquad h = 1 + (N - 1) \frac{q}{100}, \quad k = \lfloor h \rfloor
+   .. math:: P_q = v_{(k)} + (h - k) \, \bigl(v_{(k+1)} - v_{(k)}\bigr), \qquad h = 1 + (N - 1) \frac{q}{100}, \quad k = \lfloor h \rfloor
 
    with :math:`v_{(N+1)} = v_{(N)}`.
 
@@ -303,7 +306,8 @@ Features F1–F14 of [Haralick1973]_ (see also [Haralick1979]_).
 ``SumOfSquares`` — variance in :math:`i` and :math:`j`
    .. math:: f = \sum_{i,j} \left[ (i - \mu_i)^2 + (j - \mu_j)^2 \right] p(i, j)
 
-   Haralick's F4 "Sum of Squares: Variance" uses only one of the two terms; see ``SumOfSquaresI``.
+   Haralick's F4 "Sum of Squares: Variance" uses only one of the two terms; see ``SumOfSquaresI``. This two-term form
+   follows [Yang2012]_, and the application marks it non-standard.
 
 ``SumOfSquaresI`` — variance in :math:`i`
    .. math:: f = \sum_{i,j} (i - \mu_i)^2 \, p(i, j)
@@ -357,7 +361,8 @@ Features F1–F14 of [Haralick1973]_ (see also [Haralick1979]_).
       f_{IMC2} = \sqrt{1 - \exp\big(-2 \, (HXY2 - HXY)\big)}
 
    If :math:`\max(HX, HY) = 0` (a single gray level), :math:`f_{IMC1} = 0`. If rounding makes
-   :math:`1 - \exp(-2 \, (HXY2 - HXY))` negative, :math:`f_{IMC2} = 0`. These are the values PyRadiomics uses.
+   :math:`1 - \exp(-2 \, (HXY2 - HXY))` negative, :math:`f_{IMC2} = 0`. PyRadiomics also gives 0 for a single gray level;
+   for the rounding case it sets 0 only when :math:`HXY2 = HXY` exactly, and otherwise gives NaN.
 
    Requesting either type calculates both.
 
@@ -371,7 +376,8 @@ Features F1–F14 of [Haralick1973]_ (see also [Haralick1979]_).
 
    .. math:: f = \sqrt{\max(\lambda_2, 0)}
 
-   A negative :math:`\lambda_2` can only come from rounding and is treated as 0.
+   A negative :math:`\lambda_2` can only come from rounding and is treated as 0. With fewer than 2 gray levels the feature
+   is NaN.
 
 Other co-occurrence features
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -390,7 +396,7 @@ Other co-occurrence features
 ``CorrelationIII``
    .. math:: f = \frac{\sum_{i,j} i \, j \, p(i, j) - \mu_x \mu_y}{\sigma_x^2 \, \sigma_y^2}
 
-   The source code attributes this form to a paper by Xiaofeng Yang, probably [Yang2012]_.
+   This form follows [Yang2012]_; the application marks the feature non-standard.
 
 ``ClusterShade``
    .. math:: f = \sum_{i,j} (i + j - \mu_x - \mu_y)^3 \, p(i, j)
@@ -689,8 +695,9 @@ With :math:`N_p` the number of pixels, the mesh surface :math:`A` and the perime
    The largest distance between two vertices of the mesh. (The core looks only at the vertices of their convex hull,
    where the largest distance always lies, and gets the same value faster.)
 
-For the remaining features, :math:`\lambda_{major} \ge \lambda_{minor}` are the eigenvalues of the covariance matrix
-of the pixel centres' positions (in mm), divided by :math:`N_p`: the variances along the ROI's principal axes. They do
+For the remaining features, :math:`\lambda_{major} \ge \lambda_{minor}` are the eigenvalues of the population covariance
+matrix of the pixel centres' positions (in mm; the sums of products of deviations divided by :math:`N_p`): the
+variances along the ROI's principal axes. They do
 not use the mesh.
 
 ``ShapeMajorAxisLength`` — Major Axis Length
@@ -731,7 +738,8 @@ application, fitted with :math:`N_g = 256`, :math:`d = 1`, the mean of the four 
 8-bit images and the age in years.
 
 The analysis pipeline therefore computes the score's inputs with those settings by default (*calibration* profile),
-whatever the analysis settings are; 16-bit intensities are first mapped to 0–255 with a fixed range. The *current
+whatever the analysis settings are; 16-bit intensities are first mapped to 0–255 with a fixed range, the score's intensity
+range (``ScoreSettings::intensity_min`` and ``intensity_max``), for which the web application sends the display window. The *current
 settings* profile uses the analysis settings instead and adds a warning that the coefficients may not apply.
 
 Preprocessing
@@ -757,8 +765,9 @@ of the original pixel centres.
 \beta^3(y - j)` that passes through every pixel value. The coefficients :math:`c` come from the recursive filter of Unser
 [Unser1999]_ with the pole :math:`z = \sqrt 3 - 2` and mirror boundaries, applied along the rows and then along the
 columns, exactly as ITK's ``BSplineDecompositionImageFilter`` computes them; :math:`f` is evaluated as ITK's
-``BSplineInterpolateImageFunction`` evaluates it. A new pixel whose centre lies more than half a pixel beyond the last
-pixel centre gets 0, as in ITK; ROIs never contain such pixels. The core tests compare the values with SimpleITK's
+``BSplineInterpolateImageFunction`` evaluates it. A new pixel whose centre lies at least half a pixel beyond the last
+pixel centre — outside the image — gets 0, as in ITK; such pixels are left out of every ROI, also of an ROI that
+reaches past the image edge. The core tests compare the values with SimpleITK's
 ``sitkBSpline`` resampling. The values are then **rounded** to the nearest integer and clamped to the bit depth. (ITK and
 PyRadiomics truncate towards zero instead, so a resampled intensity there can be 1 lower.)
 
@@ -776,7 +785,8 @@ resampling is on — is replaced by its Laplacian of Gaussian before measuring, 
 
 .. math:: \text{LoG}(x, y) = \sigma^2 \left( \frac{\partial^2}{\partial x^2} + \frac{\partial^2}{\partial y^2} \right) (G_\sigma * I)(x, y)
 
-It is large where the intensity has a dark or bright spot or edge about :math:`\sigma` wide, and close to 0 in flat areas:
+It is large in magnitude where the intensity has a dark or bright spot or edge about :math:`\sigma` wide (negative at a
+bright spot, positive at a dark one), and close to 0 in flat areas:
 fine textures stand out for a small :math:`\sigma`, coarse ones for a large one. The factor :math:`\sigma^2` (ITK's
 *normalize across scale*) keeps values comparable between :math:`\sigma` values. :math:`\sigma` is in millimetres when the
 measurement has a pixel spacing, and in pixels without one.

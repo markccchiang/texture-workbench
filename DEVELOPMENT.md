@@ -24,7 +24,7 @@ ctest --test-dir build
 ./build/glcm-tests --gtest_filter='TextureAnalysisTest.ConstantImage'   # a single test
 ```
 
-The tests (`core/tests/`) check the features against Haralick's worked example, against a simple, independent GLCM implementation, and against reference values from PyRadiomics and scikit-image. They also cover ROI masks and ROI operations, image loading, quantization, display rendering, the analysis pipeline, feature maps and the exporters.
+The tests (`core/tests/`) check the features against Haralick's worked example, against a simple, independent GLCM implementation, and against reference values from PyRadiomics, scikit-image, SimpleITK (resampling, Laplacian of Gaussian) and PyWavelets (wavelet). They also cover ROI masks and ROI operations, image loading, quantization, display rendering, the analysis pipeline, feature maps and the exporters.
 
 The JavaScript tests are described under [Web application](#web-application).
 
@@ -38,6 +38,7 @@ The JavaScript tests are described under [Web application](#web-application).
 | Run length (GLRLM) | Short/Long Run Emphasis, Gray Level and Run Length Non-Uniformity (and normalized), Run Percentage, Gray Level Variance, Run Variance, Run Entropy, Low/High Gray Level Run Emphasis, Short/Long Run Low/High Gray Level Emphasis |
 | Size zone (GLSZM) | Small/Large Area Emphasis, Gray Level and Size Zone Non-Uniformity (and normalized), Zone Percentage, Gray Level Variance, Zone Variance, Zone Entropy, Low/High Gray Level Zone Emphasis, Small/Large Area Low/High Gray Level Emphasis |
 | Gray tone difference (NGTDM) | Coarseness, Contrast, Busyness, Complexity, Strength |
+| Shape (2D) | Mesh Surface, Pixel Surface, Perimeter, Perimeter to Surface Ratio, Sphericity, Maximum 2D Diameter, Major/Minor Axis Length, Elongation (in mm with a pixel spacing) |
 | Local binary patterns (LBP) | Fractions of the uniform patterns 0–8 and of non-uniform patterns, LBP Entropy, LBP Energy (rotation-invariant uniform LBP with 8 samples, radius = distance) |
 | Haralick | Energy (Angular Second Moment), Contrast, Correlation (I, II, III), Sum of Squares (in i, j, both), Homogeneity I, Homogeneity II (Inverse Difference Moment), Sum Average, Sum Variance, Sum Entropy, Entropy, Difference Variance, Difference Entropy, Information Measures of Correlation I and II, Maximal Correlation Coefficient |
 | Others | Auto Correlation, Cluster Shade, Cluster Prominence, Dissimilarity, Maximum Probability, Inverse Difference Normalized, Inverse Difference Moment Normalized |
@@ -116,7 +117,7 @@ The server is configured with environment variables:
 | `GLCM_TRUST_PROXY` | `false` | Use `X-Forwarded-*` headers from a reverse proxy |
 | `GLCM_PORT` | `8080` | Port |
 | `GLCM_DATA_DIR` | `~/.glcm-texture-analysis`; `/data` in server mode | Uploaded images, results and caches |
-| `GLCM_MAX_UPLOAD_BYTES` | 209,857,600 (200 MiB); 100 MiB in server mode | Largest upload |
+| `GLCM_MAX_UPLOAD_BYTES` | 209,715,200 (200 MiB); 100 MiB in server mode | Largest upload |
 | `GLCM_MAX_IMAGE_PIXELS` | 400,000,000; 100,000,000 in server mode | Largest image; checked from the file header before decoding |
 | `GLCM_MAX_VOLUME_BYTES` | 4 GiB; 1 GiB in server mode | Largest NIfTI volume (uncompressed voxel data); checked from the file header. Also the largest DICOM series upload |
 | `GLCM_MAX_STACK_PIXELS` | 1,000,000,000; 400,000,000 in server mode | Largest stack (pixels of all slices together: TIFF pages, DICOM frames and series, NIfTI volumes opened as stacks); checked before decoding |
@@ -149,8 +150,8 @@ Endpoints (full details in `packages/api/openapi.json` and the Developer guide):
 | `GET /api/v1/images/{id}/display.png?min&max&maxSize&slice` | 8-bit rendering with window/level (of one slice of a stack) |
 | `GET /api/v1/images/{id}/raw?slice` | Raw little-endian samples (of one slice), zstd or gzip compressed, for images up to 4096 × 4096 |
 | `GET /api/v1/images/{id}/pixel?x&y&slice` | One pixel value |
-| `GET /api/v1/images/{id}/edges.png?method&sigma&low&high` | Sobel or Canny edge map as an 8-bit PNG |
-| `GET /api/v1/images/{id}/gradient-stats?sigma` | Percentiles of the gradient magnitude, for choosing edge map limits |
+| `GET /api/v1/images/{id}/edges.png?method&sigma&low&high&maxSize&slice` | Sobel or Canny edge map as an 8-bit PNG |
+| `GET /api/v1/images/{id}/gradient-stats?sigma&slice` | Percentiles of the gradient magnitude, for choosing edge map limits |
 | `POST /api/v1/images/{id}/roi-stats` | Pixel count, bounding box, min/max/mean/STD of ROIs |
 | `POST /api/v1/images/{id}/threshold-rois` | ROIs of the connected regions in an intensity range (Threshold ROI) |
 | `POST /api/v1/images/{id}/livewire` | Livewire path between two pixels along strong edges |
@@ -158,6 +159,11 @@ Endpoints (full details in `packages/api/openapi.json` and the Developer guide):
 | `POST /api/v1/images/{id}/combine-rois` | Union, subtraction, intersection or XOR of ROIs, as one polygon |
 | `POST /api/v1/images/{id}/grow-roi` | An ROI enlarged, shrunk or turned into a band around it, in pixels or millimetres |
 | `POST /api/v1/images/{id}/brush-roi` | A brush or eraser stroke applied to an ROI |
+| `POST /api/v1/volumes` | Upload a NIfTI volume (`.nii`, `.nii.gz`) to choose slices from |
+| `GET`, `DELETE /api/v1/volumes/{id}` | Volume info (dimensions, orientation, slice geometry, value range); delete |
+| `GET /api/v1/volumes/{id}/preview.png?orientation&slice&volume&maxSize` | 8-bit rendering of one slice |
+| `POST /api/v1/volumes/{id}/images` | Open one slice as an image |
+| `POST /api/v1/volumes/{id}/stack` | Open every slice in one orientation as a stack |
 | `POST /api/v1/analyses` | Start an analysis (image id, ROIs, settings); returns `202` |
 | `GET`, `DELETE /api/v1/analyses/{id}` | Status; cancel (queued jobs are dropped) |
 | `GET /api/v1/analyses/{id}/events` | Server-Sent Events: `result`, `progress`, `finished` |
@@ -231,7 +237,7 @@ The `doc/` folder contains a [Sphinx](https://www.sphinx-doc.org/) site (theme: 
 - **Texture features:** the equations of every feature family as implemented in `core/analysis/` (GLCM, first-order, GLRLM, GLSZM, NGTDM, LBP, shape), and a list of references.
 - **Developer guide:** the architecture, the HTTP, Node.js addon and C++ APIs, the file formats, and the technologies and packages used.
 
-How to build it is described in [INSTALL.md](INSTALL.md#4-build-the-documentation-optional).
+How to build it is described in [INSTALL.md](INSTALL.md#5-build-the-documentation-optional).
 
 The screenshots of the user guide (`doc/user/images/`) are generated from the running application. After changing the user interface, regenerate them from the repository root with `npm run build:web && npm run docs:screenshots`.
 
@@ -239,7 +245,7 @@ The screenshots of the user guide (`doc/user/images/`) are generated from the ru
 
 | Path | Contents |
 | --- | --- |
-| `core/` | `glcm_core` library: `analysis/` (texture features), `roi/` (ROI masks, region selection and ROI operations), `imaging/` (loading, quantization, display), `pipeline/` (settings, analysis runner, feature maps), `io/` (JSON, CSV, ROI image export), `tests/` |
+| `core/` | `glcm_core` library: `analysis/` (texture features), `roi/` (ROI masks, region selection and ROI operations), `imaging/` (loading of images, stacks, DICOM and NIfTI; quantization; resampling and filters; edge detection; display), `pipeline/` (settings, analysis runner, feature maps), `io/` (JSON, CSV, ROI image export), `tests/` |
 | `bindings/node/` | Node-API addon (`@glcm/native`) exposing `glcm_core` to the server |
 | `packages/api/` | Shared API schemas and types (`@glcm/api`) and the generated OpenAPI document |
 | `packages/client/` | The API as a library (`@glcm/client`): HTTP transport and operations, with no file system and no native addon |

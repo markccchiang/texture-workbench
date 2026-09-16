@@ -19,7 +19,8 @@ Conventions
 - **Authentication:** when the server has an access token (always in server mode), every request except
   ``GET /health`` needs ``Authorization: Bearer <token>``. ``GET /health`` reports whether a token is needed.
 - **Errors:** every 4xx and 5xx response has the body ``{"error": "<code>", "message": "<description>"}``.
-- **Identifiers:** images are ``img_``, analyses ``ana_`` and feature maps ``fmap_`` followed by 32 hexadecimal digits.
+- **Identifiers:** images are ``img_``, analyses ``ana_``, feature maps ``fmap_`` and volumes ``vol_`` followed by 32
+  hexadecimal digits.
 - **Coordinates:** ROI coordinates are image pixels as floating-point numbers; pixel ``(column c, row r)`` covers
   ``[c, c + 1) × [r, r + 1)``.
 
@@ -113,8 +114,9 @@ Endpoints
      - ``{shape, path, radius, erase}`` → the same result: the pixels whose centres lie within ``radius`` of ``path``,
        added to ``shape`` (a new shape when ``null``) or removed from it
    * - ``POST /analyses``
-     - ``{imageId, rois, settings}`` → ``202`` with ``AnalysisInfo``; each ROI is measured on its ``slice``; ``400`` for
-       invalid settings or ROIs, or a slice the image does not have; ``422``
+     - ``{imageId, rois, settings, pixelSpacing?}`` → ``202`` with ``AnalysisInfo``; each ROI is measured on its ``slice``;
+       ``pixelSpacing`` (``{x, y}`` or ``null``) overrides the image's. ``400`` for invalid settings or ROIs, a slice the
+       image does not have, or resampling without a pixel spacing; ``422``
        ``TooManyJobs`` when ROIs × distances exceed ``GLCM_MAX_PENDING_JOBS``; ``503`` ``ServerBusy`` (with
        ``Retry-After``) while the job queue is full
    * - ``GET /analyses/{id}``
@@ -150,7 +152,7 @@ Endpoints
        slice with its pixel spacing
    * - ``POST /volumes/{id}/stack``
      - ``{orientation, volume?}`` → ``201`` with the ``ImageInfo`` of a stack of every slice in that orientation (slice 1
-       is the most inferior, posterior or left one), named ``<file> [<orientation>]``, with the window of the whole
+       is the most inferior, posterior or left one), named ``<file> [<orientation>]`` (``, volume <n>`` for 4D files), with the window of the whole
        volume; its original file is an uncompressed multi-page TIFF of the slices with the pixel spacing
 
 .. list-table:: Feature maps
@@ -190,8 +192,8 @@ Endpoints
 Main schemas
 ~~~~~~~~~~~~
 
-**ImageInfo** — ``imageId``, ``name``, ``sizeBytes``, ``width``, ``height``, ``bitDepth`` (8 or 16),
-``sourceChannels``, ``sha256``, ``transfer`` (``"raw"`` or ``"server"``), ``windowMin``, ``windowMax`` (0.5 and 99.5
+**ImageInfo** — ``imageId``, ``name``, ``sizeBytes``, ``width``, ``height``, ``bitDepth`` (8 or 16), ``slices`` (1 for a
+single image; width and height are those of one slice), ``sourceChannels``, ``sha256``, ``transfer`` (``"raw"`` or ``"server"``), ``windowMin``, ``windowMax`` (0.5 and 99.5
 percentiles, or the first DICOM window), ``histogram`` (256 bins), ``pixelSpacing``, ``valueConversion`` (DICOM and
 NIfTI only), ``warnings``, ``createdAt``.
 
@@ -210,11 +212,13 @@ coronal columns towards the right and rows from superior, sagittal columns towar
 slice 0 is the most inferior, posterior or left one.
 
 **Pixel spacing** — ``{x, y}`` in millimetres per pixel. ``ImageInfo.pixelSpacing`` comes from the file's resolution
-(PNG ``pHYs``, JPEG JFIF, BMP, TIFF; ``null`` without one, or for 72/96 dpi on both axes). An ``AnalysisRequest`` may
+(PNG ``pHYs``, JPEG JFIF, BMP, TIFF; ``null`` without one, or for 72/96 dpi on both axes), DICOM PixelSpacing or
+ImagerPixelSpacing, or the NIfTI voxel size. An ``AnalysisRequest`` may
 set ``pixelSpacing`` (a spacing, or ``null`` for none) to override it; ``AnalysisInfo.pixelSpacing`` records the value
 used, and the results document carries it as ``image.pixelSpacing``. Result documents with a spacing export an
 ``areaMm2`` column and a ``# pixelSpacingMm=x;y`` comment; ``POST /exports/results`` groups documents by spacing too.
-Features never depend on the spacing.
+Texture features are computed in pixels and do not depend on the spacing; shape features are in millimetres with it,
+and resampling and the sigma of the Laplacian of Gaussian use it.
 
 **ROI** — ``{id, name, color?, shape}`` where ``shape`` is one of:
 
@@ -250,6 +254,11 @@ A request may contain up to 1000 ROIs; a polygon up to 10 000 vertices.
 - ``logBase``: ``natural`` or ``log2``.
 - ``score.profile``: ``calibration`` computes the score inputs with Ng = 256, d = 1 and all directions whatever the
   settings; ``currentSettings`` uses the settings and warns.
+- ``resampling`` (optional): ``{x, y}``, the pixel spacing in millimetres to resample the image and the ROIs to before
+  measuring; needs the image's pixel spacing (see :ref:`Resampling <resampling>`).
+- ``filter`` (optional): ``{"type": "laplacianOfGaussian", "sigma": s}`` or ``{"type": "wavelet", "wavelet": "coif1"
+  (optional), "band": "LL"|"LH"|"HL"|"HH"}``, applied after resampling. A filtered image has real values, so it needs
+  quantization ``fixedBinWidth`` or ``roiMinMax``, and neither local binary patterns nor the score.
 
 **MeasurementResult** — one ROI at one distance:
 
@@ -317,10 +326,13 @@ Error codes
      - Missing or wrong access token (with ``WWW-Authenticate: Bearer``)
    * - 404
      - ``NotFound``
-     - Unknown image, analysis, sample or route
+     - Unknown image, analysis, feature map, volume, sample or route
    * - 409
      - ``RawNotAvailable``
      - Raw samples requested for a large image; use ``display.png`` and ``/pixel``
+   * - 409
+     - ``NotReady``
+     - Feature map values requested before the map has completed
    * - 413
      - ``PayloadTooLarge``
      - Upload larger than ``GLCM_MAX_UPLOAD_BYTES``
@@ -392,12 +404,13 @@ script.
    * - ``glcm measure <image...> [--rois <file>]``
      - Measures the ROIs (the whole image without ``--rois``) and writes CSV or JSON; several images with equal
        settings are merged into one table. ``--rois`` takes an ROI set, a project, an array of ROIs, or ImageJ's
-       ``.roi`` and ``RoiSet.zip``
+       ``.roi`` and ``RoiSet.zip``. On a stack, the whole of every slice, or of ``--slice n``; more than 1000 ROIs are
+       measured in parts and joined
    * - ``glcm regions <image> [--min --max | --at x,y]``
      - Regions by intensity or around a pixel, written as an ROI set the application also reads, or with an
-       ``--out`` name ending in ``.zip`` as a ``RoiSet.zip`` for ImageJ
+       ``--out`` name ending in ``.zip`` as a ``RoiSet.zip`` for ImageJ; ``--slice n`` for a slice of a stack
    * - ``glcm feature-map <image> --feature <id>``
-     - One feature over the whole image, written as a 32-bit floating point TIFF
+     - One feature over the whole image (``--slice n`` of a stack), written as a 32-bit floating point TIFF
    * - ``glcm mcp``
      - Serves the operations to an AI agent over MCP
 
@@ -432,14 +445,15 @@ run in a terminal says on standard error (standard output belongs to the protoco
    * - ``open_image``
      - ``image``
    * - ``view_image``
-     - ``image``, ``kind`` (``display`` or ``edges``), ``min``, ``max``
+     - ``image``, ``kind`` (``display`` or ``edges``), ``min``, ``max``, ``slice``
    * - ``select_regions``
      - ``image``, ``min``, ``max``, ``minPixels``, ``maxPixels``, ``minSphericity``, ``maxRegions``, ``at``, ``tolerance``,
-       ``saveTo``
+       ``saveTo``, ``slice``
    * - ``measure``
-     - ``image``, ``rois``, ``rectangles``, ``preset``, ``features``, ``grayLevels``, ``distances``, ``maxRows``, ``saveTo``
+     - ``image``, ``rois``, ``rectangles``, ``preset``, ``features``, ``grayLevels``, ``distances``, ``maxRows``, ``saveTo``,
+       ``slice`` (of the rectangles or the whole image; without regions every slice of a stack is measured)
    * - ``feature_map``
-     - ``image``, ``feature``, ``window``, ``saveTo``
+     - ``image``, ``feature``, ``window``, ``saveTo``, ``slice``
 
 The packages MCP needs are optional dependencies, so an installation can leave them out: the Docker image carries the
 command line but not the MCP server, and ``glcm mcp`` says so there rather than failing obscurely.
@@ -464,8 +478,10 @@ functions throw, with an ``Error`` whose ``code`` is ``INVALID_ARGUMENT``, ``UNS
      - Version of ``glcm_core``
    * - ``catalog(): NativeCatalog``
      - Features, presets and limits
-   * - ``decodeImageFile(path, {maxPixels}?): Promise<DecodedImage>``
-     - Size, bit depth, channels, warnings, default window, histogram and pixels of an image file. With ``maxPixels``,
+   * - ``decodeImageFile(path, {maxPixels, maxStackPixels}?): Promise<DecodedImage>``
+     - Size, bit depth, ``slices``, channels, warnings, default window, histogram and pixels of an image file; the pages
+       of a multi-page TIFF and the frames of a DICOM file are slices, their pixels one slice after another, and
+       ``maxStackPixels`` limits all of them together. With ``maxPixels``,
        the size is read from the header first: larger images reject with ``IMAGE_TOO_LARGE`` before decoding, and
        files that are not PNG, JPEG, BMP, TIFF, DICOM or NIfTI with ``DECODE_FAILED``. Also ``valueConversion`` (or
        ``null``); DICOM files give their window as ``windowMin``/``windowMax``
@@ -474,6 +490,11 @@ functions throw, with an ``Error`` whose ``code`` is ``INVALID_ARGUMENT``, ``UNS
        window of a NIfTI file, written uncompressed to ``copyPath`` (``glcm::InspectNiftiVolume``)
    * - ``extractNiftiSlice(path, {orientation, slice, volume, storage, maxPixels?, encodePng?}): Promise<DecodedImage & {png}>``
      - One slice as a decoded image (``glcm::ExtractNiftiSlice``), optionally also as a PNG with its pixel spacing
+   * - ``extractNiftiStack(path, {orientation, volume, storage, maxPixels?, maxStackPixels?}): Promise<DecodedStack>``
+     - Every slice of one volume in one orientation (``glcm::ExtractNiftiStack``), with ``tiff``: an uncompressed
+       multi-page TIFF of them
+   * - ``decodeDicomSeries(paths, {maxPixels, maxStackPixels}?): Promise<DecodedStack>``
+     - The files of a DICOM series as one stack (``glcm::LoadDicomSeries``), with ``tiff`` and ``seriesDescription``
    * - ``renderDisplay(pixels, width, height, bitDepth, min, max, maxSize): Promise<Buffer>``
      - PNG with window/level, downscaled to ``maxSize``
    * - ``roiStats(pixels, width, height, bitDepth, roisJson): Promise<NativeRoiStatistics[]>``
@@ -493,6 +514,8 @@ functions throw, with an ``Error`` whose ``code`` is ``INVALID_ARGUMENT``, ``UNS
      - ``glcm::CombineShapes``
    * - ``brushRoi(roisJson, path, radius, erase, width, height): Promise<{points, pixelCount, boundingBox}>``
      - ``glcm::PaintStroke``; ``path`` is a ``Float64Array`` of x, y pairs and ``roisJson`` holds at most one ROI
+   * - ``growRoi(roisJson, operation, distance, spacingX, spacingY, width, height): Promise<{points, pixelCount, boundingBox}>``
+     - ``glcm::GrowShape`` with ``operation`` ``"enlarge"``, ``"shrink"`` or ``"band"``; ``roisJson`` holds one ROI
    * - ``validateAnalysis(roisJson, settingsJson): void``
      - Parses and validates an analysis request
    * - ``runAnalysis(pixels, width, height, bitDepth, roisJson, settingsJson, pixelSpacing?): Promise<string>``
@@ -541,10 +564,11 @@ paths are relative to ``core/``. The main entry points:
    * - Header
      - Functions and types
    * - ``imaging/ImageLoader.hpp``
-     - ``LoadImageFile``, ``LoadImageBytes`` → ``LoadedImage{gray, info, warnings, window}``
+     - ``LoadImageFile``, ``LoadImageBytes`` → ``LoadedImage{gray, info, warnings, window}``; ``LoadImageStackFile`` →
+       ``LoadedStack{pixels, slices, info, warnings, window, series_description}``; ``EncodeTiffStack``
    * - ``imaging/DicomReader.hpp``, ``imaging/NiftiReader.hpp``
-     - ``LoadDicomFile``, ``LoadDicomBytes``; ``InspectNiftiVolume`` → ``NiftiVolumeInfo``, ``ExtractNiftiSlice``,
-       ``LoadNiftiFile``, ``SliceOrientation``
+     - ``LoadDicomFile``, ``LoadDicomBytes``, ``LoadDicomStackFile``, ``LoadDicomSeries``; ``InspectNiftiVolume`` →
+       ``NiftiVolumeInfo``, ``ExtractNiftiSlice``, ``ExtractNiftiStack``, ``LoadNiftiFile``, ``SliceOrientation``
    * - ``imaging/ValueConversion.hpp``, ``imaging/PngEncoder.hpp``
      - ``ChooseStorage``, ``StoredSample``, ``ValueConversion``; ``EncodePng`` (with ``pHYs``)
    * - ``roi/Roi.hpp``
@@ -558,13 +582,17 @@ paths are relative to ``core/``. The main entry points:
    * - ``roi/Livewire.hpp``
      - ``LivewirePath``: the cheapest path between two pixels along strong edges
    * - ``roi/RoiOperations.hpp``
-     - ``MaskOutline`` (an exact polygon for any mask), ``CombineShapes`` (union, subtract) and ``PaintStroke`` (brush,
-       eraser)
+     - ``MaskOutline`` (an exact polygon for any mask), ``CombineShapes`` (union, subtract, intersect, xor), ``GrowShape``
+       (enlarge, shrink, band) and ``PaintStroke`` (brush, eraser)
    * - ``imaging/ImageHeader.hpp``
      - ``ReadImageSize``, ``ReadImageSizeFromBytes`` → ``ImageSize{width, height, more_images, pixel_spacing}``;
        ``PixelSpacing``, ``SpacingFromDensity``
    * - ``imaging/Quantizer.hpp``
-     - ``QuantizationSettings``, ``Quantize``
+     - ``QuantizationSettings``, ``Quantize``, ``QuantizeReal`` (filtered images)
+   * - ``imaging/Resampling.hpp``
+     - ``ResampledGrid``, ``ResampledValidSize``, ``ResampleImage``, ``ResampleValues``, ``ResampleShape``
+   * - ``imaging/ImageFilters.hpp``
+     - ``LaplacianOfGaussian``, ``WaveletImage``, ``WaveletBand``
    * - ``analysis/TextureAnalysis.hpp``
      - ``TextureAnalysis``, ``Type``, ``Direction``, ``Features``, ``TextureOptions``
    * - ``analysis/FirstOrder.hpp``
@@ -637,19 +665,20 @@ Every JSON file has ``format`` and an integer ``version``; readers reject other 
      - ``*.roi.json``
      - ``image`` (name, width, height, bitDepth, ``slices`` for a stack, sha256), optional ``classes`` (``[{name, color}]``)
        and ``rois`` (each with an optional ``class`` and, on a stack, ``slice`` from 1); written by the web app and by
-       ``glcm::RoiSetToJson``
+       ``glcm::RoiSetToJson`` (which writes the ROIs' slices but not ``image.slices``)
    * - ``glcm-results``
      - ``*-results.json``
-     - ``coreVersion``, ``timestamp``, ``image`` (name, sha256), ``settings`` and ``results``
-       (``MeasurementResult`` objects)
+     - ``coreVersion``, ``timestamp``, ``image`` (name, sha256, and ``pixelSpacing`` and ``valueConversion`` when set),
+       ``settings`` and ``results`` (``MeasurementResult`` objects); documents from the server also carry ``analysisId``,
+       ``status`` and ``image.id``
    * - ``glcm-results-csv``
      - ``*-results.csv``
      - ``# key=value`` lines with the format, versions, image and settings, then a header row and one row per ROI ×
        distance × direction (or per aggregation); a ``roiClass`` column follows ``roiId`` when an ROI has a class, then a
        ``slice`` column when an ROI lies on a slice of a stack.
-       With resampling, ``# resampledPixelSpacingMm=x;y`` follows ``# pixelSpacingMm`` and ``areaMm2`` counts the
-       resampled pixels; with a filter, ``# filter=laplacianOfGaussian;sigma=s`` or ``# filter=wavelet;wavelet=coif1;band=HH`` comes
-       before it. The ``quantization``
+       After the pixel spacing and value conversion lines come ``# filter=laplacianOfGaussian;sigma=s`` or
+       ``# filter=wavelet;wavelet=coif1;band=HH`` with a filter, then ``# resampledPixelSpacingMm=x;y`` with resampling,
+       when ``areaMm2`` counts the resampled pixels. The ``quantization``
        bounds of a result are real numbers for a filtered image.
        Non-standard feature columns end with ``[non-standard]``; numbers
        use the shortest text that reads back to the same double; fields are quoted per RFC 4180; text fields starting

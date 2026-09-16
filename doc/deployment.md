@@ -40,7 +40,9 @@ node scripts/smoke-test.mjs http://127.0.0.1:8080   # uses GLCM_API_TOKEN from t
 The image is built in two stages from base images pinned by digest (Dependabot proposes updates). The first compiles `glcm_core`, the Node-API addon and the web app. The runtime stage is `node:24-bookworm-slim` with only the OpenCV runtime libraries, and runs as the unprivileged `node` user. It stores everything in the `/data` volume:
 - `images/` holds uploads and decoded pixels;
 - `results/` holds finished analyses, so they survive restarts (on `SIGTERM` the server finishes writing them before it exits);
-- `cache/` holds rendered display images.
+- `cache/` holds rendered display images;
+- `uploads/` holds uploads in progress and `volumes/` NIfTI volumes being opened; both are emptied when the server starts;
+- `server.lock` marks the folder as used by the running server.
 
 The image also carries the `glcm` command, so a container is enough to measure from a script, with no clone of the
 repository:
@@ -111,5 +113,5 @@ These are the requirements of `doc/ui-design-plan.md`, section 8.2, and how each
 | Input validation: image size, `Ng` ≤ 256, distances ≤ 64, ≤ 10 000 vertices per ROI, ≤ 1 000 ROIs per request, every body schema-validated | TypeBox schemas in `packages/api`; `maxUploadBytes`; `maxImagePixels`, checked from the file header before decoding (`glcm::ReadImageSize`, so a small file declaring a huge image is refused without allocating memory); `glcm::ValidateSettings` | `security.test.ts` › limits; `analyses.test.ts`; `images.test.ts`; core `ImageHeaderTest`, `ImageLoaderTest` |
 | Analyses cannot exhaust the server | `JobManager`: at most `GLCM_MAX_PENDING_JOBS` jobs queued or running (`422 TooManyJobs` for larger analyses, `503 ServerBusy` with `Retry-After` while full); analyses take turns, one job each; a feature map is split into bands of about a second of computing that count against the same limit, at most `GLCM_MAX_FEATURE_MAP_BANDS` per map, and cancelling it stops its running bands; pixel buffers are shared through a byte-limited cache (`GLCM_PIXEL_CACHE_BYTES`) | `analyses.test.ts` › job limits and fairness; `images.test.ts` › pixel cache |
 | Uploaded images and results expire | `startRetention()` in `server/src/storage/retention.ts`, at startup and periodically | `security.test.ts` › storage |
-| Storage under the data directory with random names | `ImageStore` (`images/`), `ResultStore` (`results/`), `DisplayCache` (`cache/`); exports are generated per request and not stored | `security.test.ts` › storage |
+| Storage under the data directory with random names | `ImageStore` (`images/`, `uploads/`), `VolumeStore` (`volumes/`), `ResultStore` (`results/`), `DisplayCache` (`cache/`); exports are generated per request and not stored | `security.test.ts` › storage |
 | The token is not logged | Fastify logger redacts `req.headers.authorization` | Code review (`server/src/app.ts`) |

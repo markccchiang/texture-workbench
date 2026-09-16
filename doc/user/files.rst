@@ -4,7 +4,7 @@ Saving, importing and exporting
 ===============================
 
 .. figure:: images/file-menu.png
-   :alt: The File menu with Open Image, Open Sample Image, Open Project, Save Project, Export Results as CSV, Export
+   :alt: The File menu with Open Image, Open DICOM Series, Open Sample Image, Open Project, Save Project, Export Results as CSV, Export
          Results as JSON, Save Report and Close Image.
    :align: center
 
@@ -84,7 +84,8 @@ the open image:
 
 - If the ROIs were drawn on a different image (other size, bit depth or file), a warning says so; the ROIs are imported
   anyway.
-- ROIs that extend beyond the image are cut at its border; ROIs completely outside it are skipped, and the notification
+- ROIs that extend beyond the image are cut at its border (an ellipse that overlaps the image is kept whole; only its
+  pixels on the image are measured); ROIs completely outside it are skipped, and the notification
   lists them.
 - Classes of the file that the class list does not have yet are added to it; the ROIs keep their classes.
 - ROIs of a stack keep their slices (see :ref:`stacks`). ROIs without a slice are put on the slice shown; ROIs on
@@ -180,7 +181,8 @@ images gives one report with ten sections. For each image it shows:
 - the ROI list with class, shape, pixel count and area;
 - the analysis settings of every measurement, with the time it was made;
 - the results table, exactly as in the Results panel;
-- a bar chart per feature, a polar chart of the directions and a chart against the distance, as in the Plot view.
+- charts as in the Plot view: a bar chart per feature (for at most 12 features), a polar chart of the directions of the
+  first feature when the directions were kept, and a chart against the distance when several distances were measured.
 
 .. figure:: images/report.png
    :alt: A report with the title, the notes, the image with its ROIs, the ROI table and the beginning of the settings.

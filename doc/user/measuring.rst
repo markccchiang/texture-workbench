@@ -159,6 +159,8 @@ once (``# images=`` gives the number of images) and the ``image`` and ``imageSha
 If the images needed different settings, for example 8-bit and 16-bit images with a fixed quantization range, the
 download is a ZIP with one CSV per group of settings.
 
+.. _feature-maps:
+
 Feature maps
 ------------
 

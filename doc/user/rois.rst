@@ -260,13 +260,15 @@ Each row shows, from left to right:
 - **shape** — Rectangle, Ellipse, Polygon or Freehand, after the slice number for ROIs on a slice of a stack (see
   :ref:`stacks`); clicking an ROI of another slice shows its slice;
 - **pixel count**, or ⚠ with an explanation when the ROI cannot be measured;
-- a **menu** (⋯) with *Zoom to ROI*, *Rename*, a choice of eight **colors**, *Duplicate*, *Copy to All Slices* (stacks)
-  and *Delete*. Changing the color
-  can be undone like other ROI changes.
+- a **menu** (⋯) with *Zoom to ROI*, *Rename*, a choice of eight **colors**, the **class** (*No class*, the classes and
+  *Manage Classes…*), *Duplicate*, *Copy to All Slices* (stacks) and *Delete*. Changing the color can be undone like
+  other ROI changes.
 
 Click a row to select the ROI; :kbd:`⌘`/:kbd:`Ctrl`-click to add it to the selection; :kbd:`Shift`-click to select a
 range. The selection and the highlighted ROI are the same on the canvas and in the manager.
 
 The buttons below the list add the active ROI, duplicate the selected ROIs (the copies are moved by 10 pixels) and
-delete the selected ROIs. The menu at the top right shows or hides all ROIs, and imports and exports ROI sets (see
-:ref:`roi-sets`), also from and for ImageJ (see :ref:`imagej-rois`).
+delete the selected ROIs. The menu at the top right shows or hides all ROIs; opens *Manage Classes…*; unites, subtracts,
+intersects or XORs the selected ROIs, enlarges, shrinks or bands them (see :ref:`editing-rois`) and copies them to all
+slices of a stack; and imports and exports ROI sets (see :ref:`roi-sets`), also from and for ImageJ (see
+:ref:`imagej-rois`), and ROI images.

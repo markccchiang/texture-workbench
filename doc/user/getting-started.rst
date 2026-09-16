@@ -142,7 +142,8 @@ The main window
 
 #. **Menu bar** — *File*, *Edit*, *Image*, *ROI*, *Analyze*, *View* and *Help*. The badge at the right shows
    **Local** on your own computer, or the server name.
-#. **Toolbar** — pointer and pan tools, the four ROI tools, zoom, the display window, and **Measure**.
+#. **Toolbar** — pointer and pan tools, the ROI tools (rectangle, ellipse, polygon, freehand, livewire, magic wand, brush
+   and eraser), the ruler, zoom, the display window, and **Measure**.
 #. **Image canvas** — the image with its ROIs. A navigator appears in the corner when the image is larger than the
    view.
 #. **ROI Manager** — the ROIs of the image with their pixel counts.

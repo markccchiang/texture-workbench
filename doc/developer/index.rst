@@ -3,8 +3,8 @@
 Developer guide
 ===============
 
-This part of the documentation is for people who change or extend the application. It complements three other
-documents in the repository:
+This part of the documentation is for people who change or extend the application. It complements these documents in
+the repository:
 
 - ``README.md``: what the application does.
 - ``INSTALL.md``: requirements, building the application, setting up the command line and MCP clients, the C++
@@ -61,6 +61,7 @@ Conventions
 - **Schemas first:** request and response shapes are defined once in ``packages/api`` and used for validation,
   serialization, the OpenAPI document and the web app's types.
 - **One implementation of the numbers:** masks, quantization, features, window/level and exports are computed by
-  ``glcm_core``; TypeScript code never recomputes them (the window/level lookup table and shader follow the same
-  integer formula and are tested against it).
+  ``glcm_core``; TypeScript code does not recompute them, with two exceptions tested against the core: the window/level
+  lookup table and shader follow the same integer formula, and the ImageJ ROI writer rasterizes shapes with a port of
+  ``RasterizeMask``.
 - **Documentation:** a change to what the core computes must be reflected in :doc:`../equations`.

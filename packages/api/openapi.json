@@ -11398,6 +11398,10 @@
       "description": "Upload, display and pixel data"
     },
     {
+      "name": "volumes",
+      "description": "NIfTI volumes: previews, and slices or stacks opened as images"
+    },
+    {
       "name": "rois",
       "description": "ROI pixel counts and statistics"
     },

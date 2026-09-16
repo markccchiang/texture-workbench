@@ -87,6 +87,7 @@ export async function buildApp(config: ServerConfig, options: BuildAppOptions = 
       tags: [
         { name: 'system', description: 'Health and feature catalog' },
         { name: 'images', description: 'Upload, display and pixel data' },
+        { name: 'volumes', description: 'NIfTI volumes: previews, and slices or stacks opened as images' },
         { name: 'rois', description: 'ROI pixel counts and statistics' },
         { name: 'analyses', description: 'Texture measurements' },
         { name: 'featureMaps', description: 'Texture features computed in a sliding window over the whole image' },

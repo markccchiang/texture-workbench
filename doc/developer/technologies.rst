@@ -31,7 +31,8 @@ Languages and runtimes
      - Server, web app, shared schemas, tests and scripts (strict mode)
    * - Python
      - 3
-     - Building this documentation
+     - Building this documentation; the diagrams of this guide (``scripts/docs-diagrams.py``, standard library only);
+       the reference values and medical samples (Python 3.12, see Testing)
 
 C++ libraries
 -------------
@@ -184,23 +185,47 @@ Testing
    * - ``jsdom``
      - 27.4.0
      - Browser environment for the web unit tests
-   * - ``@testing-library/react``, ``@testing-library/dom``
-     - 16.3.3, 10.4.2
-     - Rendering helpers for component tests
    * - ``@playwright/test``
      - 1.63.0
      - End-to-end tests in Chromium and WebKit, starting the servers from ``playwright.config.ts``
    * - ``pngjs``
      - 7.0.0
-     - Reading PNG output in addon tests
+     - Reading PNG output in addon, server and end-to-end tests, and writing the synthetic samples
    * - GoogleTest
      - system package
      - Core unit tests
-   * - PyRadiomics, scikit-image (Python 3.12)
-     - 3.1.0 (git tag), 0.26.0
-     - Reference values for the first-order and texture features: ``scripts/radiomics-reference.py`` (packages pinned
-       in ``scripts/requirements-radiomics.txt``) writes ``core/tests/data/*.json``, which the core tests compare
-       against. Only regenerating those files needs Python; the tests and the application do not run it.
+   * - PyRadiomics, scikit-image, SimpleITK, PyWavelets (Python 3.12)
+     - 3.1.0 (git tag), 0.26.0, 2.5.6, 1.10.0
+     - Reference values for the features, the resampling and the Laplacian of Gaussian and wavelet filters:
+       ``scripts/radiomics-reference.py`` (packages pinned in ``scripts/requirements-radiomics.txt``) writes
+       ``core/tests/data/*.json``, which the core tests compare against. Only regenerating those files needs Python; the
+       tests and the application do not run it.
+   * - pydicom, nibabel (Python 3.12)
+     - 3.0.2, 5.4.2
+     - Writing the medical samples and their pixel spacing: ``scripts/fetch-medical-samples.py`` (pinned in
+       ``scripts/requirements-medical.txt``)
+
+Command line and MCP
+--------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 32 20 48
+
+   * - Package
+     - Version
+     - Used for
+   * - ``@modelcontextprotocol/sdk``
+     - 1.30.0
+     - The MCP server of ``glcm mcp`` (standard input and output); an optional dependency, left out of the Docker image
+   * - ``zod``
+     - 4.6.5
+     - Input schemas of the MCP tools; optional like the SDK
+   * - ``tsx``
+     - 4.23.13
+     - Runs the TypeScript command line (``cli/bin/glcm.mjs`` registers it)
+
+The command line has no parser dependency: options are read with ``node:util`` ``parseArgs``.
 
 Documentation, build and deployment
 -----------------------------------
@@ -223,8 +248,8 @@ Documentation, build and deployment
      - ``compose.yaml``
      - Deployment example with a data volume
    * - GitHub Actions
-     - ``actions/checkout@v7``, ``actions/setup-node@v7``, ``actions/upload-artifact@v7``,
-       ``docker/setup-buildx-action@v4``
+     - ``actions/checkout@v7``, ``actions/setup-node@v7``, ``actions/cache@v6``, ``actions/upload-artifact@v7``,
+       ``docker/setup-buildx-action@v4``, ``docker/build-push-action@v7`` (pinned to commit SHAs)
      - Continuous integration on ``ubuntu-latest`` and ``macos-latest``, Docker image build and smoke test
    * - clang-format, clang-tidy
      - ``.clang-format``, ``.clang-tidy``
