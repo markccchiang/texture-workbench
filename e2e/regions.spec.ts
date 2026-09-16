@@ -45,6 +45,28 @@ test('Threshold ROI adds the regions inside the display window', async ({ page }
   await expect(page.getByTestId('roi-manager')).toContainText(`${expected.regions[0].pixelCount.toLocaleString('en-US')} px`);
 });
 
+test('Threshold ROI leaves out regions by largest size and sphericity', async ({ page }) => {
+  await openSample(page);
+  await page.evaluate(() => (window as unknown as RegionHooks).__glcm.viewer.getState().setWindow(0, 40));
+  await chooseMenuItem(page, 'ROI', 'Threshold ROI…');
+  const dialog = page.getByRole('dialog', { name: 'Threshold ROI' });
+  await dialog.getByRole('textbox', { name: 'Minimum size' }).fill('20');
+  await dialog.getByRole('textbox', { name: 'Maximum size' }).fill('5000');
+  await dialog.getByRole('textbox', { name: 'Minimum sphericity' }).fill('0.6');
+
+  const image = await camera();
+  const expected = await native.selectThresholdRegions(image.pixels, image.width, image.height, image.bitDepth, 0, 40, 20, 1000, 5000, 0.6);
+  const unfiltered = await native.selectThresholdRegions(image.pixels, image.width, image.height, image.bitDepth, 0, 40, 20, 0);
+  expect(expected.total).toBeGreaterThan(0);
+  expect(expected.total).toBeLessThan(unfiltered.total);
+  await expect(dialog.getByTestId('threshold-summary')).toContainText(`${expected.total} region`);
+  await expect(dialog.getByTestId('threshold-summary')).toContainText('20 to 5,000 pixels and a sphericity of at least 0.6');
+  await dialog.getByRole('button', { name: /^Add \d+ ROIs?$/ }).click();
+  await expect.poll(async () => (await storedRois(page)).map((roi) => roi.shape)).toEqual(
+    expected.regions.map((region) => ({ type: 'polygon', points: region.points })),
+  );
+});
+
 test('the magic wand makes the clicked region the active ROI', async ({ page }) => {
   await openSample(page);
   await page.getByTestId('image-canvas').click({ position: { x: 5, y: 5 } });

@@ -111,7 +111,7 @@ export const analysisRoutes: FastifyPluginAsyncTypebox<AnalysisRoutesOptions> = 
       schema: {
         summary: 'ROIs from the pixels in an intensity range',
         description:
-          'Each 8-connected part of the pixels with min ≤ value ≤ max becomes a polygon along the pixel edges with its holes filled (a part inside another part\'s hole belongs to it). Regions with fewer than minPixels pixels are left out; the largest maxRegions are returned, largest first, and total counts all of them.',
+          'Each 8-connected part of the pixels with min ≤ value ≤ max becomes a polygon along the pixel edges with its holes filled (a part inside another part\'s hole belongs to it). Regions with fewer than minPixels or more than maxPixels pixels, or a sphericity below minSphericity, are left out; the largest maxRegions are returned, largest first, and total counts all of them.',
         tags: ['rois'],
         params: ImageIdParams,
         body: ThresholdRoisRequest,
@@ -120,9 +120,11 @@ export const analysisRoutes: FastifyPluginAsyncTypebox<AnalysisRoutesOptions> = 
     },
     async (request) => {
       const info = await requireImage(request.params.id);
-      const { min, max, minPixels, maxRegions } = request.body;
+      const { min, max, minPixels, maxRegions, maxPixels, minSphericity } = request.body;
       const pixels = await store.pixels(info.imageId);
-      return native.selectThresholdRegions(pixels, info.width, info.height, info.bitDepth, min, max, minPixels, maxRegions).catch(nativeError);
+      return native
+        .selectThresholdRegions(pixels, info.width, info.height, info.bitDepth, min, max, minPixels, maxRegions, maxPixels ?? null, minSphericity ?? null)
+        .catch(nativeError);
     },
   );
 

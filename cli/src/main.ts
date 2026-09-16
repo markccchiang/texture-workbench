@@ -65,6 +65,15 @@ function integer(context: Context, name: string, fallback?: number): number | un
   return parsed;
 }
 
+/** A number from 0 to 1 */
+function fraction(context: Context, name: string): number {
+  const value = Number(text(context, name));
+  if (!(value >= 0 && value <= 1)) {
+    throw new ApiError(0, 'BadOption', `--${name} must be a number from 0 to 1`);
+  }
+  return value;
+}
+
 function numbers(value: string | undefined): number[] | undefined {
   if (value === undefined) {
     return undefined;
@@ -306,7 +315,8 @@ const COMMANDS: Record<string, Command> = {
     summary: 'Select regions by intensity and save them as an ROI set',
     usage: 'glcm regions <image> [--min <v> --max <v>] [--at <x,y> --tolerance <v>] [--out <file>]',
     details: [
-      'Without --at, the regions are the connected areas whose intensities lie between --min and --max.',
+      'Without --at, the regions are the connected areas whose intensities lie between --min and --max,',
+      'with at least --min-pixels (50) and at most --max-pixels pixels and a sphericity of at least --min-sphericity (0 to 1).',
       'With --at they are the one region around that pixel, as the magic wand gives it.',
       'The ROI set can then be measured: glcm measure <image> --rois <file>',
       'An --out name ending in .zip writes a RoiSet.zip for ImageJ instead of an ROI set.',
@@ -315,6 +325,8 @@ const COMMANDS: Record<string, Command> = {
       min: { type: 'string' },
       max: { type: 'string' },
       'min-pixels': { type: 'string' },
+      'max-pixels': { type: 'string' },
+      'min-sphericity': { type: 'string' },
       'max-regions': { type: 'string' },
       at: { type: 'string' },
       tolerance: { type: 'string' },
@@ -347,6 +359,8 @@ const COMMANDS: Record<string, Command> = {
           max: integer(context, 'max', info.windowMax)!,
           minPixels: integer(context, 'min-pixels', 50)!,
           maxRegions: integer(context, 'max-regions', 20)!,
+          ...(text(context, 'max-pixels') !== undefined ? { maxPixels: integer(context, 'max-pixels')! } : {}),
+          ...(text(context, 'min-sphericity') !== undefined ? { minSphericity: fraction(context, 'min-sphericity') } : {}),
         });
         regions = found.regions;
         total = found.total;

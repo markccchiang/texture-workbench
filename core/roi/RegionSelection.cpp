@@ -7,6 +7,7 @@
 #include <tuple>
 #include <utility>
 
+#include "analysis/Shape.hpp"
 #include "roi/Outline.hpp"
 
 namespace glcm {
@@ -45,7 +46,8 @@ int PixelValue(const cv::Mat& gray, int x, int y) {
 
 } // namespace
 
-ThresholdSelection SelectThresholdRegions(const cv::Mat& gray, int min_value, int max_value, int min_pixels, int max_regions) {
+ThresholdSelection SelectThresholdRegions(
+    const cv::Mat& gray, int min_value, int max_value, int min_pixels, int max_regions, int max_pixels, double min_sphericity) {
     CheckImage(gray);
     if (min_value > max_value) {
         throw std::invalid_argument("The threshold minimum must not be above its maximum");
@@ -56,6 +58,12 @@ ThresholdSelection SelectThresholdRegions(const cv::Mat& gray, int min_value, in
     if (max_regions < 0) {
         throw std::invalid_argument("The maximum number of regions must not be negative");
     }
+    if (max_pixels < min_pixels) {
+        throw std::invalid_argument("The maximum region size must not be below the minimum size");
+    }
+    if (!(min_sphericity >= 0.0 && min_sphericity <= 1.0)) {
+        throw std::invalid_argument("The minimum sphericity must lie between 0 and 1");
+    }
 
     const cv::Mat filled = FillHoles(RangeMask(gray, min_value, max_value));
     cv::Mat labels;
@@ -65,9 +73,19 @@ ThresholdSelection SelectThresholdRegions(const cv::Mat& gray, int min_value, in
 
     std::vector<int> candidates;
     for (int label = 1; label < count; ++label) {
-        if (stats.at<int>(label, cv::CC_STAT_AREA) >= min_pixels) {
-            candidates.push_back(label);
+        const int area = stats.at<int>(label, cv::CC_STAT_AREA);
+        if (area < min_pixels || area > max_pixels) {
+            continue;
         }
+        if (min_sphericity > 0.0) {
+            const cv::Rect box(stats.at<int>(label, cv::CC_STAT_LEFT), stats.at<int>(label, cv::CC_STAT_TOP),
+                stats.at<int>(label, cv::CC_STAT_WIDTH), stats.at<int>(label, cv::CC_STAT_HEIGHT));
+            const cv::Mat region = labels(box) == label;
+            if (ComputeShapeFeatures(region, {1.0, 1.0}, {Type::ShapeSphericity}).at(Type::ShapeSphericity) < min_sphericity) {
+                continue;
+            }
+        }
+        candidates.push_back(label);
     }
     std::sort(candidates.begin(), candidates.end(), [&stats](int a, int b) {
         const auto key = [&stats](int label) {

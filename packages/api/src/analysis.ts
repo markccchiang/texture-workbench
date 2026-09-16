@@ -101,12 +101,16 @@ export const ThresholdRoisRequest = Type.Object({
   max: Intensity,
   minPixels: Type.Integer({ minimum: 1, description: 'Regions with fewer pixels (holes included) are left out' }),
   maxRegions: Type.Integer({ minimum: 0, maximum: MAX_ROIS_PER_REQUEST, description: 'Regions returned, largest first; 0 returns only the total' }),
+  maxPixels: Type.Optional(Type.Integer({ minimum: 1, description: 'Regions with more pixels (holes included) are left out' })),
+  minSphericity: Type.Optional(
+    Type.Number({ minimum: 0, maximum: 1, description: 'Regions with a lower sphericity (the shape feature, in pixel units) are left out' }),
+  ),
 });
 export type ThresholdRoisRequest = Static<typeof ThresholdRoisRequest>;
 
 export const ThresholdRoisResponse = Type.Object({
   regions: Type.Array(SelectedRegion),
-  total: Type.Integer({ description: 'Regions with at least minPixels pixels, including those not returned' }),
+  total: Type.Integer({ description: 'Regions that pass the size and sphericity filters, including those not returned' }),
 });
 export type ThresholdRoisResponse = Static<typeof ThresholdRoisResponse>;
 

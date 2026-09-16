@@ -113,6 +113,12 @@ Namespace ``glcm``; include paths are relative to ``core/``.
      - ``LocalBinaryPatternCode`` (rotation-invariant uniform LBP with 8 samples, replicating scikit-image's arithmetic)
        and ``ComputeLocalBinaryPatternFeatures``: the code fractions, entropy and energy of an ROI, sampling the whole
        image around the ROI's box. ``LocalBinaryPatternTest`` compares them with ``core/tests/data/scikit-image-lbp.json``.
+   * - ``analysis/Shape``
+     - ``ComputeShapeFeatures``: PyRadiomics' 2D shape features of a mask with a pixel spacing — a marching squares mesh
+       through the midpoints between pixel centres (surface, perimeter; the maximum diameter on the convex hull of its
+       vertices, found in integer half-pixel units) and the principal components of the pixel centres (axis lengths,
+       elongation). ``ShapeTest`` compares them with ``core/tests/data/pyradiomics-shape2d.json`` (masks as runs, three
+       spacings). ``SelectThresholdRegions`` uses the sphericity to filter regions.
    * - ``analysis/Score``
      - The age-based score from mean, entropy and contrast with configurable ``ScoreCoefficients``.
    * - ``roi/Roi``
@@ -174,8 +180,9 @@ Namespace ``glcm``; include paths are relative to ``core/``.
        the whole map.
    * - ``pipeline/AnalysisRunner``
      - ``RunAnalysis`` measures every ROI at every distance: region statistics, first-order statistics, run length and
-       size zone features (once per ROI), gray tone difference and local binary pattern features (per distance; LBP
-       also reads the pixels around the ROI)
+       size zone and shape features (once per ROI; shape features with the pixel spacing passed to ``RunAnalysis``, in mm,
+       or in pixels without one), gray tone difference and local binary pattern features (per distance; LBP also reads
+       the pixels around the ROI)
        from the original intensities, quantization, texture features, the score (calibration or current-settings profile), warnings, and
        ``Skipped``/``Failed`` results instead of exceptions for single ROIs.
    * - ``io/``

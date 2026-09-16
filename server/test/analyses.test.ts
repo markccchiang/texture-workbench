@@ -166,6 +166,19 @@ describe('analyses', () => {
     expect((await start({ pixelSpacing: { x: 0, y: 1 } })).statusCode).toBe(400);
   });
 
+  it('measures shape features in millimetres with the pixel spacing of the request', async () => {
+    const settings = { ...SETTINGS, features: ['ShapePixelSurface'], aggregation: 'meanOnly' as const };
+    const surface = async (request: Partial<AnalysisRequest>) => {
+      const info = (await start({ settings, ...request })).json<AnalysisInfo>();
+      await t.app.inject({ method: 'GET', url: `/api/v1/analyses/${info.analysisId}/events` });
+      const results = (await t.app.inject({ method: 'GET', url: `/api/v1/analyses/${info.analysisId}/results` })).json<AnalysisResults>();
+      return results.results[0].values.ShapePixelSurface.mean;
+    };
+    // The 4 × 4 image: 16 pixels, or 16 × 0.5 × 0.25 mm²
+    expect(await surface({})).toBe(16);
+    expect(await surface({ pixelSpacing: { x: 0.5, y: 0.25 } })).toBe(2);
+  });
+
   it('computes the calibration score', async () => {
     const response = await start({ settings: { ...SETTINGS, score: { ...SETTINGS.score, enabled: true } } });
     const { analysisId } = response.json<AnalysisInfo>();

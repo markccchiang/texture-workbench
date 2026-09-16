@@ -2,13 +2,13 @@ Texture Feature Equations
 =========================
 
 This page lists the equations exactly as they are implemented in the C++ core: ``core/analysis/TextureAnalysis.cpp``
-(the co-occurrence features), ``FirstOrder.cpp``, ``RunLength.cpp``, ``SizeZone.cpp``, ``GrayToneDifference.cpp`` and
-``LocalBinaryPattern.cpp``. Where the implementation differs from the usual literature definition, the difference is
+(the co-occurrence features), ``FirstOrder.cpp``, ``RunLength.cpp``, ``SizeZone.cpp``, ``GrayToneDifference.cpp``,
+``LocalBinaryPattern.cpp`` and ``Shape.cpp``. Where the implementation differs from the usual literature definition, the difference is
 noted.
 
 Every feature is returned as a ``glcm::Features`` value with one field per direction: ``H``, ``V``, ``LD`` and ``RD``.
 Co-occurrence and run length features are computed separately for each direction; first-order statistics and the size
-zone, gray tone difference and local binary pattern features have no direction and repeat the same value. The
+zone, gray tone difference, local binary pattern and shape features have no direction and repeat the same value. The
 directions setting (``glcm::TextureOptions`` in ``TextureAnalysis``) can restrict the directions; the others then hold
 NaN. ``Features::Avg()`` and ``Features::Range()`` are the mean and the range (maximum − minimum) over the computed
 directions.
@@ -641,6 +641,79 @@ With :math:`h_k` the fraction of the ROI's pixels with code :math:`k`:
 The features have no direction, so the same value is reported for every direction; each distance gives its own radius.
 ``ComputeLocalBinaryPatternFeatures`` (``core/analysis/LocalBinaryPattern``) computes them; all values are NaN for an
 empty region.
+
+Shape features (2D)
+~~~~~~~~~~~~~~~~~~~
+
+Shape features describe the size and outline of the ROI's pixels and do not look at the intensities, so neither the
+quantization nor the gray levels affect them. They follow PyRadiomics' ``shape2D`` class [vanGriethuysen2017]_, and the
+core tests compare them with PyRadiomics on masks with curved edges, holes, several parts and pixels that touch only at
+a corner.
+
+**Units.** Positions are the pixel centres multiplied by the pixel spacing: column steps of :math:`s_x` and row steps
+of :math:`s_y` millimetres. Lengths are then in mm and surfaces in mm². Without a pixel spacing, :math:`s_x = s_y = 1`
+and they are in pixels. The spacing of a measurement is written into the exported results (``# pixelSpacingMm``).
+
+**The mesh.** The outline is a mesh of line segments found with marching squares [Lorensen1987]_: every 2 × 2 square
+of neighbouring pixel centres is inspected, and where some of its corners belong to the ROI and others do not, a segment
+joins the midpoints of the square's edges that separate them. A square whose opposite corners belong to the ROI gets two
+segments, so pixels touching only at a corner are separate parts. The mesh thus runs half a pixel outside the outermost
+pixel centres, and cuts off the corners of a pixel staircase. Its segments :math:`(\mathbf a_i, \mathbf b_i)`,
+:math:`i = 1, \dots, N_f`, are oriented consistently around the ROI.
+
+With :math:`N_p` the number of pixels, the mesh surface :math:`A` and the perimeter :math:`P`:
+
+``ShapeMeshSurface`` — Mesh Surface
+   .. math:: A = \frac{1}{2} \sum_{i=1}^{N_f} \left( a_{i,y}\, b_{i,x} - b_{i,y}\, a_{i,x} \right)
+
+   The signed areas of the triangles between the origin and each segment; those outside the ROI cancel.
+
+``ShapePixelSurface`` — Pixel Surface
+   .. math:: A_{pixel} = N_p\, s_x s_y
+
+``ShapePerimeter`` — Perimeter
+   .. math:: P = \sum_{i=1}^{N_f} \lVert \mathbf a_i - \mathbf b_i \rVert
+
+   Holes add their outline to the perimeter.
+
+``ShapePerimeterSurfaceRatio`` — Perimeter to Surface Ratio
+   .. math:: f = \frac{P}{A}
+
+``ShapeSphericity`` — Sphericity
+   .. math:: f = \frac{2 \sqrt{\pi A}}{P}
+
+   The perimeter of a circle with the ROI's surface divided by the ROI's perimeter: 1 for a circle, lower for less
+   compact or more ragged outlines. The mesh of a pixelated circle is not a circle, so values stay somewhat below 1.
+
+``ShapeMaximumDiameter`` — Maximum 2D Diameter
+   The largest distance between two vertices of the mesh. (The core looks only at the vertices of their convex hull,
+   where the largest distance always lies, and gets the same value faster.)
+
+For the remaining features, :math:`\lambda_{major} \ge \lambda_{minor}` are the eigenvalues of the covariance matrix
+of the pixel centres' positions (in mm), divided by :math:`N_p`: the variances along the ROI's principal axes. They do
+not use the mesh.
+
+``ShapeMajorAxisLength`` — Major Axis Length
+   .. math:: f = 4 \sqrt{\lambda_{major}}
+
+``ShapeMinorAxisLength`` — Minor Axis Length
+   .. math:: f = 4 \sqrt{\lambda_{minor}}
+
+   For a filled ellipse, the major and minor axis lengths are close to its diameters.
+
+``ShapeElongation`` — Elongation
+   .. math:: f = \sqrt{\frac{\lambda_{minor}}{\lambda_{major}}}
+
+   1 for a shape without a preferred direction (a circle, a square), towards 0 for a long thin one.
+
+Eigenvalues between :math:`-10^{-10}` and 0 are rounded to 0, as in PyRadiomics; a more negative one gives NaN.
+``ComputeShapeFeatures`` (``core/analysis/Shape``) computes them once per ROI, so every distance and direction reports the
+same value; all values are NaN for an empty region.
+
+.. note::
+
+   Surfaces and lengths grow with the ROI, so compare them between ROIs measured with the same pixel spacing.
+   Sphericity and elongation have no unit. With non-square pixels, the shape is measured as it is in millimetres.
 
 Score
 ~~~~~

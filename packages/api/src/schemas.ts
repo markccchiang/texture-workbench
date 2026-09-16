@@ -38,6 +38,7 @@ export const FeatureGroup = Type.Union([
   Type.Literal('sizeZone'),
   Type.Literal('grayToneDifference'),
   Type.Literal('localBinaryPattern'),
+  Type.Literal('shape'),
 ]);
 
 export const FeatureInfo = Type.Object({

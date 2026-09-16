@@ -106,6 +106,9 @@ Regions can also be found by intensity, without drawing anything:
    glcm regions ct-chest.png --min 0 --max 700 --min-pixels 4000 --out lungs.roi.json
    glcm measure ct-chest.png --rois lungs.roi.json --preset haralick --out lungs.csv
 
+``--max-pixels`` and ``--min-sphericity`` leave out regions that are too large or not round enough, as the Threshold ROI
+dialog does.
+
 The ROI set is an ordinary file of the application: *ROI ▸ Import ROI Set…* opens it in the browser to look at what was
 measured.
 

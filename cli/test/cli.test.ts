@@ -86,6 +86,27 @@ describe('glcm', () => {
     expect(Object.keys(results.results[0].values).sort()).toEqual(['Contrast', 'Entropy']);
   });
 
+  it('filters regions by size and sphericity, and measures shape features in millimetres', async () => {
+    const file = path.join(dataDir, 'filtered.roi.json');
+    const options = ['--min', '0', '--max', '110', '--min-pixels', '20', '--max-regions', '50'];
+    const all = await glcm('regions', SAMPLE, ...options, '--json');
+    const filtered = await glcm('regions', SAMPLE, ...options, '--max-pixels', '400', '--min-sphericity', '0.5', '--out', file);
+    expect(filtered.code).toBe(0);
+    const kept = JSON.parse(await fs.readFile(file, 'utf8')) as RoiSetDocument;
+    expect(kept.rois.length).toBeGreaterThan(0);
+    expect(kept.rois.length).toBeLessThan((JSON.parse(all.out) as RoiSetDocument).rois.length);
+    expect((await glcm('regions', SAMPLE, ...options, '--min-sphericity', '2')).err).toContain('--min-sphericity must be a number from 0 to 1');
+
+    const measured = await glcm('measure', SAMPLE, '--rois', file, '--preset', 'shape', '--spacing', '0.5,0.5', '--aggregation', 'meanOnly', '--json');
+    expect(measured.code).toBe(0);
+    const results = (JSON.parse(measured.out) as ResultsDocument).results;
+    for (const result of results) {
+      expect(result.pixelCount).toBeLessThanOrEqual(400);
+      expect(result.values.ShapePixelSurface.mean).toBe(result.pixelCount * 0.25);
+      expect(result.values.ShapeSphericity.mean).toBeGreaterThanOrEqual(0.5);
+    }
+  });
+
   it('writes regions for ImageJ and measures ImageJ ROI files the same way', async () => {
     const json = path.join(dataDir, 'imagej-regions.roi.json');
     const zip = path.join(dataDir, 'RoiSet.zip');

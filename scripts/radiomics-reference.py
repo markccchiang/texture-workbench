@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Reference values of first-order and texture features from PyRadiomics and scikit-image, for the core tests.
+"""Reference values of first-order, texture and shape features from PyRadiomics and scikit-image, for the core tests.
 
 Writes core/tests/data/pyradiomics-firstorder.json (FirstOrderTest), pyradiomics-glrlm.json (RunLengthTest),
 pyradiomics-glszm.json (SizeZoneTest), pyradiomics-ngtdm.json (GrayToneDifferenceTest) and scikit-image-lbp.json
-(LocalBinaryPatternTest): for rectangle ROIs on sample images, the values of PyRadiomics' first-order, GLRLM, GLSZM and
+(LocalBinaryPatternTest) and pyradiomics-shape2d.json (ShapeTest): for rectangle ROIs on sample images, the values of PyRadiomics' first-order, GLRLM, GLSZM and
 NGTDM feature classes, and the histogram of scikit-image's local_binary_pattern (which PyRadiomics' LBP filter uses).
 Rectangles avoid differences in mask rasterization (the core covers the pixels whose centres lie inside). Entropy and
 uniformity are computed with a bin width of 1 on 8-bit images, which matches the core with quantization "none" and 256
 gray levels; 16-bit cases only list the features that use the original intensities. The texture classes use 8-bit
 images with a bin width of 1 in 2D (four in-plane directions, 8-connected zones, NGTDM rings at distances 1 and 2),
 matching the core's fixed bin width of 1. LBP uses the original 8- and 16-bit intensities of the whole image at radii 1
-and 2.
+and 2. Shape features use masks of their own (ellipses, a ring, separate parts, pixels touching only at corners, a
+thresholded part of an image) at three pixel spacings, stored as runs so the test uses exactly the same pixels.
 
 Only developers run this script, to regenerate the reference data; the application and the tests never call Python.
 
@@ -27,7 +28,7 @@ import numpy as np
 import radiomics
 import SimpleITK as sitk
 import skimage
-from radiomics import firstorder, glrlm, glszm, ngtdm
+from radiomics import firstorder, glrlm, glszm, ngtdm, shape2D
 from skimage.feature import local_binary_pattern
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -36,6 +37,7 @@ GLRLM_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pyradiomics-glrlm.json'
 GLSZM_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pyradiomics-glszm.json'
 NGTDM_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pyradiomics-ngtdm.json'
 LBP_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'scikit-image-lbp.json'
+SHAPE_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pyradiomics-shape2d.json'
 LBP_SAMPLES = 8
 
 # PyRadiomics feature name -> core feature id
@@ -132,6 +134,62 @@ def lbp_reference(image_path: str, rectangle: tuple[int, int, int, int], radius:
     return {'image': image_path, 'rectangle': list(rectangle), 'radius': radius, 'features': features}
 
 
+def shape_masks() -> dict[str, np.ndarray]:
+    """Masks for the shape features, pixel (row, col) inside when its centre (col + 0.5, row + 0.5) is"""
+    rows, cols = np.mgrid[0:48, 0:64]
+    x = cols + 0.5
+    y = rows + 0.5
+    masks = {}
+    masks['ellipse'] = ((x - 30.3) / 17.2) ** 2 + ((y - 20.7) / 9.4) ** 2 <= 1
+    angle = np.deg2rad(35)
+    u = (x - 32) * np.cos(angle) + (y - 24) * np.sin(angle)
+    v = -(x - 32) * np.sin(angle) + (y - 24) * np.cos(angle)
+    masks['rotated ellipse'] = (u / 22) ** 2 + (v / 7.5) ** 2 <= 1
+    distance = np.hypot(x - 30, y - 24)
+    masks['ring'] = (distance <= 18) & (distance > 9)
+    parts = np.zeros((48, 64), dtype=bool)
+    parts[5:15, 4:20] = True
+    parts[30:44, 40:58] = True
+    parts[20:26, 30:33] = True
+    masks['three parts'] = parts
+    # Pixels that touch only at their corners: the ambiguous squares of marching squares
+    diagonal = np.zeros((48, 64), dtype=bool)
+    for k in range(12):
+        diagonal[10 + k, 10 + k] = True
+        diagonal[10 + k, 12 + k] = True
+    diagonal[30:40:2, 30:50:2] = True
+    masks['corners'] = diagonal
+    triangle = (y > 6) & (x > 5) & (y < 0.8 * x + 10) & (y < -1.3 * x + 80)
+    masks['triangle'] = triangle
+    camera = sitk.GetArrayFromImage(sitk.ReadImage(str(ROOT / 'samples' / 'textures' / 'camera.png')))
+    masks['camera threshold'] = camera[140:188, 200:264] < 60
+    return masks
+
+
+def shape_reference(name: str, mask: np.ndarray, spacing: tuple[float, float]) -> dict:
+    """PyRadiomics shape2D values of a mask with a pixel spacing (x, y) in mm"""
+    image = sitk.GetImageFromArray(np.zeros((1, *mask.shape), dtype=np.uint8))
+    label = sitk.GetImageFromArray(mask.astype(np.uint8)[np.newaxis])
+    for volume in (image, label):
+        volume.SetSpacing((spacing[0], spacing[1], 1.0))
+    features = shape2D.RadiomicsShape2D(image, label, force2D=True, force2Ddimension=0)
+    features.enableAllFeatures()
+    values = features.execute()
+    runs = []
+    for row in range(mask.shape[0]):
+        padded = np.concatenate(([False], mask[row], [False]))
+        edges = np.flatnonzero(padded[1:] != padded[:-1])
+        runs.extend([row, int(start), int(end)] for start, end in zip(edges[::2], edges[1::2]))
+    return {
+        'name': name,
+        'width': mask.shape[1],
+        'height': mask.shape[0],
+        'spacing': list(spacing),
+        'runs': runs,
+        'features': {feature: float(value) for feature, value in sorted(values.items())},
+    }
+
+
 def main() -> None:
     document = {
         'source': (
@@ -180,6 +238,18 @@ def main() -> None:
     }
     LBP_OUTPUT.write_text(json.dumps(patterns, indent=2) + '\n')
     print(f'{LBP_OUTPUT.relative_to(ROOT)}: {len(patterns["cases"])} cases from {patterns["source"]}')
+
+    shapes = {
+        'source': document['source'],
+        'settings': {'force2D': True, 'force2Ddimension': 0, 'spacing': '(x, y) in mm'},
+        'cases': [
+            shape_reference(name, mask, spacing)
+            for name, mask in shape_masks().items()
+            for spacing in ((1.0, 1.0), (0.7, 1.3), (0.46875, 0.46875))
+        ],
+    }
+    SHAPE_OUTPUT.write_text(json.dumps(shapes, indent=2) + '\n')
+    print(f'{SHAPE_OUTPUT.relative_to(ROOT)}: {len(shapes["cases"])} cases')
 
 
 if __name__ == '__main__':

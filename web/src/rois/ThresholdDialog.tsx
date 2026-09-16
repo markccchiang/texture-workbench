@@ -8,22 +8,27 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { selectThresholdRois } from '../api/client';
 import { useViewer } from '../stores/viewerStore';
-import { addThresholdRois } from './regionActions';
+import { addThresholdRois, thresholdFilterFields, type ThresholdFilters } from './regionActions';
 import { DEFAULT_THRESHOLD_MIN_PIXELS } from './regions';
 
 export function ThresholdRoiContent({ onClose }: { onClose(): void }) {
   const image = useViewer((state) => state.image);
   const window = useViewer((state) => state.window);
   const [minPixels, setMinPixels] = useState<number | string>(DEFAULT_THRESHOLD_MIN_PIXELS);
+  const [maxPixels, setMaxPixels] = useState<number | string>('');
+  const [minSphericity, setMinSphericity] = useState<number | string>(0);
+  // Each value on its own: a new object every render would restart the debounce forever
   const [debouncedMinPixels] = useDebouncedValue(minPixels, 250);
+  const [debouncedMaxPixels] = useDebouncedValue(maxPixels, 250);
+  const [debouncedMinSphericity] = useDebouncedValue(minSphericity, 250);
   const [adding, setAdding] = useState(false);
   const imageId = image?.info.imageId ?? null;
-  const size = typeof debouncedMinPixels === 'number' && Number.isInteger(debouncedMinPixels) && debouncedMinPixels >= 1 ? debouncedMinPixels : null;
+  const filters = validFilters(debouncedMinPixels, debouncedMaxPixels, debouncedMinSphericity);
 
   const count = useQuery({
-    queryKey: ['threshold-rois', imageId, window.min, window.max, size],
-    queryFn: ({ signal }) => selectThresholdRois(imageId!, { min: window.min, max: window.max, minPixels: size!, maxRegions: 0 }, signal),
-    enabled: imageId !== null && size !== null,
+    queryKey: ['threshold-rois', imageId, window.min, window.max, filters],
+    queryFn: ({ signal }) => selectThresholdRois(imageId!, { min: window.min, max: window.max, ...thresholdFilterFields(filters!), maxRegions: 0 }, signal),
+    enabled: imageId !== null && filters !== null,
     staleTime: Infinity,
   });
 
@@ -37,14 +42,16 @@ export function ThresholdRoiContent({ onClose }: { onClose(): void }) {
 
   const total = count.data?.total;
   const adds = total === undefined ? 0 : Math.min(total, MAX_ROIS_PER_REQUEST);
-  let summary = 'Enter a whole number of pixels.';
-  if (size !== null) {
+  let summary = 'Enter whole numbers of pixels, the largest size at least the smallest, and a sphericity from 0 to 1.';
+  if (filters !== null) {
     if (count.isError) {
       summary = (count.error as Error).message;
     } else if (total === undefined) {
       summary = 'Counting regions…';
     } else {
-      summary = `${total.toLocaleString()} ${total === 1 ? 'region' : 'regions'} of at least ${size.toLocaleString()} pixels.`;
+      const size = filters.maxPixels === null ? `at least ${filters.minPixels.toLocaleString()}` : `${filters.minPixels.toLocaleString()} to ${filters.maxPixels.toLocaleString()}`;
+      const shape = filters.minSphericity > 0 ? ` and a sphericity of at least ${filters.minSphericity}` : '';
+      summary = `${total.toLocaleString()} ${total === 1 ? 'region' : 'regions'} of ${size} pixels${shape}.`;
       if (total > MAX_ROIS_PER_REQUEST) {
         summary += ` Only the largest ${MAX_ROIS_PER_REQUEST.toLocaleString()} are added; raise the minimum size to add fewer.`;
       }
@@ -54,7 +61,7 @@ export function ThresholdRoiContent({ onClose }: { onClose(): void }) {
   const add = async () => {
     setAdding(true);
     try {
-      await addThresholdRois(imageId, size!, adds);
+      await addThresholdRois(imageId, filters!, adds);
       onClose();
     } catch (error) {
       notifications.show({ color: 'red', title: 'Could not add the ROIs', message: (error as Error).message });
@@ -72,7 +79,20 @@ export function ThresholdRoiContent({ onClose }: { onClose(): void }) {
       <Text size="xs" c="dimmed">
         To select other intensities, close this dialog and change the window first.
       </Text>
-      <NumberInput label="Minimum size" description="Pixels, holes included; smaller parts are left out" min={1} allowDecimal={false} value={minPixels} onChange={setMinPixels} />
+      <Group grow align="flex-start">
+        <NumberInput label="Minimum size" description="Pixels, holes included" min={1} allowDecimal={false} value={minPixels} onChange={setMinPixels} />
+        <NumberInput label="Maximum size" description="Empty for no limit" min={1} allowDecimal={false} value={maxPixels} onChange={setMaxPixels} />
+      </Group>
+      <NumberInput
+        label="Minimum sphericity"
+        description="1 for a circle, lower for elongated or ragged outlines (see the shape features); 0 keeps every shape"
+        min={0}
+        max={1}
+        step={0.05}
+        decimalScale={3}
+        value={minSphericity}
+        onChange={setMinSphericity}
+      />
       <Text size="sm" data-testid="threshold-summary">
         {summary}
       </Text>
@@ -80,10 +100,23 @@ export function ThresholdRoiContent({ onClose }: { onClose(): void }) {
         <Button variant="default" onClick={onClose}>
           Cancel
         </Button>
-        <Button loading={adding} disabled={adds === 0 || size === null || count.isFetching} onClick={() => void add()}>
+        <Button loading={adding} disabled={adds === 0 || filters === null || count.isFetching} onClick={() => void add()}>
           {adds === 1 ? 'Add 1 ROI' : `Add ${adds.toLocaleString()} ROIs`}
         </Button>
       </Group>
     </Stack>
   );
+}
+
+/** The filters as numbers, or null while one of them is not valid */
+function validFilters(minPixels: number | string, maxPixels: number | string, minSphericity: number | string): ThresholdFilters | null {
+  const whole = (value: number | string): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 1;
+  if (!whole(minPixels) || (maxPixels !== '' && (!whole(maxPixels) || maxPixels < minPixels))) {
+    return null;
+  }
+  const sphericity = minSphericity === '' ? 0 : minSphericity;
+  if (typeof sphericity !== 'number' || !(sphericity >= 0 && sphericity <= 1)) {
+    return null;
+  }
+  return { minPixels, maxPixels: maxPixels === '' ? null : maxPixels, minSphericity: sphericity };
 }

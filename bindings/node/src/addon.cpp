@@ -552,8 +552,12 @@ private:
 
 class RunAnalysisWorker : public PixelWorker {
 public:
-    RunAnalysisWorker(Napi::Env env, const PixelArguments& arguments, std::string rois_json, std::string settings_json)
-        : PixelWorker(env, arguments), _rois_json(std::move(rois_json)), _settings_json(std::move(settings_json)) {}
+    RunAnalysisWorker(Napi::Env env, const PixelArguments& arguments, std::string rois_json, std::string settings_json,
+        std::optional<glcm::PixelSpacing> pixel_spacing)
+        : PixelWorker(env, arguments),
+          _rois_json(std::move(rois_json)),
+          _settings_json(std::move(settings_json)),
+          _pixel_spacing(pixel_spacing) {}
 
     void Execute() override {
         glcm::AnalysisSettings settings;
@@ -567,7 +571,7 @@ public:
             return;
         }
         try {
-            const glcm::AnalysisOutput output = glcm::RunAnalysis(Gray(), rois, settings);
+            const glcm::AnalysisOutput output = glcm::RunAnalysis(Gray(), rois, settings, nullptr, _pixel_spacing);
             _json = glcm::ResultsToJson(output.results, settings, glcm::ExportContext{});
         } catch (const std::invalid_argument& error) {
             Fail(CODE_INVALID_ARGUMENT, error.what());
@@ -583,6 +587,7 @@ public:
 private:
     std::string _rois_json;
     std::string _settings_json;
+    std::optional<glcm::PixelSpacing> _pixel_spacing;
     std::string _json;
 };
 
@@ -872,10 +877,23 @@ Napi::Value ValidateAnalysis(const Napi::CallbackInfo& info) {
     return info.Env().Undefined();
 }
 
-// runAnalysis(pixels, width, height, bitDepth, roisJson, settingsJson): Promise<string> (glcm-results JSON)
+// runAnalysis(pixels, width, height, bitDepth, roisJson, settingsJson, pixelSpacing?): Promise<string> (glcm-results JSON)
 Napi::Value RunAnalysis(const Napi::CallbackInfo& info) {
     const PixelArguments pixels = ReadPixelArguments(info, 0);
-    auto* worker = new RunAnalysisWorker(info.Env(), pixels, StringArgument(info, 4, "roisJson"), StringArgument(info, 5, "settingsJson"));
+    // Optional pixelSpacing {x, y} in mm (shape features are then in mm); null or absent: pixels
+    std::optional<glcm::PixelSpacing> spacing;
+    if (info.Length() > 6 && !info[6].IsNull() && !info[6].IsUndefined()) {
+        if (!info[6].IsObject()) {
+            throw Napi::TypeError::New(info.Env(), "pixelSpacing must be an object {x, y} or null");
+        }
+        const Napi::Object object = info[6].As<Napi::Object>();
+        if (!object.Get("x").IsNumber() || !object.Get("y").IsNumber()) {
+            throw Napi::TypeError::New(info.Env(), "pixelSpacing must have numbers x and y");
+        }
+        spacing = glcm::PixelSpacing{object.Get("x").As<Napi::Number>().DoubleValue(), object.Get("y").As<Napi::Number>().DoubleValue()};
+    }
+    auto* worker =
+        new RunAnalysisWorker(info.Env(), pixels, StringArgument(info, 4, "roisJson"), StringArgument(info, 5, "settingsJson"), spacing);
     const Napi::Promise promise = worker->Promise();
     worker->Queue();
     return promise;
@@ -1058,14 +1076,24 @@ Napi::Object SelectedRegionToJs(Napi::Env env, const glcm::SelectedRegion& regio
     return result;
 }
 
+double NumberArgument(const Napi::CallbackInfo& info, size_t index, const char* name);
+
 class ThresholdRegionsWorker : public PixelWorker {
 public:
-    ThresholdRegionsWorker(Napi::Env env, const PixelArguments& arguments, int min_value, int max_value, int min_pixels, int max_regions)
-        : PixelWorker(env, arguments), _min_value(min_value), _max_value(max_value), _min_pixels(min_pixels), _max_regions(max_regions) {}
+    ThresholdRegionsWorker(Napi::Env env, const PixelArguments& arguments, int min_value, int max_value, int min_pixels, int max_regions,
+        int max_pixels, double min_sphericity)
+        : PixelWorker(env, arguments),
+          _min_value(min_value),
+          _max_value(max_value),
+          _min_pixels(min_pixels),
+          _max_regions(max_regions),
+          _max_pixels(max_pixels),
+          _min_sphericity(min_sphericity) {}
 
     void Execute() override {
         try {
-            _selection = glcm::SelectThresholdRegions(Gray(), _min_value, _max_value, _min_pixels, _max_regions);
+            _selection =
+                glcm::SelectThresholdRegions(Gray(), _min_value, _max_value, _min_pixels, _max_regions, _max_pixels, _min_sphericity);
         } catch (const std::invalid_argument& error) {
             Fail(CODE_INVALID_ARGUMENT, error.what());
         } catch (const std::exception& error) {
@@ -1090,6 +1118,8 @@ private:
     int _max_value;
     int _min_pixels;
     int _max_regions;
+    int _max_pixels;
+    double _min_sphericity;
     glcm::ThresholdSelection _selection;
 };
 
@@ -1119,12 +1149,15 @@ private:
     std::optional<glcm::SelectedRegion> _region;
 };
 
-// selectThresholdRegions(pixels, width, height, bitDepth, min, max, minPixels, maxRegions): Promise<{regions, total}>
-// (glcm::SelectThresholdRegions)
+// selectThresholdRegions(pixels, width, height, bitDepth, min, max, minPixels, maxRegions, maxPixels?, minSphericity?):
+// Promise<{regions, total}> (glcm::SelectThresholdRegions); maxPixels and minSphericity may be omitted or null
 Napi::Value SelectThresholdRegions(const Napi::CallbackInfo& info) {
     const PixelArguments pixels = ReadPixelArguments(info, 0);
+    const auto given = [&info](size_t index) { return info.Length() > index && !info[index].IsNull() && !info[index].IsUndefined(); };
+    const int max_pixels = given(8) ? IntegerArgument(info, 8, "maxPixels") : INT_MAX;
+    const double min_sphericity = given(9) ? NumberArgument(info, 9, "minSphericity") : 0.0;
     auto* worker = new ThresholdRegionsWorker(info.Env(), pixels, IntegerArgument(info, 4, "min"), IntegerArgument(info, 5, "max"),
-        IntegerArgument(info, 6, "minPixels"), IntegerArgument(info, 7, "maxRegions"));
+        IntegerArgument(info, 6, "minPixels"), IntegerArgument(info, 7, "maxRegions"), max_pixels, min_sphericity);
     const Napi::Promise promise = worker->Promise();
     worker->Queue();
     return promise;

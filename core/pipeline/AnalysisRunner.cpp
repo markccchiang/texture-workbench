@@ -9,6 +9,7 @@
 #include "analysis/LocalBinaryPattern.hpp"
 #include "analysis/RunLength.hpp"
 #include "analysis/Score.hpp"
+#include "analysis/Shape.hpp"
 #include "analysis/SizeZone.hpp"
 #include "imaging/Quantizer.hpp"
 
@@ -107,10 +108,12 @@ struct PreparedRegion {
     std::map<Type, double> first_order;  // the requested first-order statistics
     std::map<Type, Features> run_length; // the requested run length features: they do not depend on the distance
     std::map<Type, double> size_zone;    // the requested size zone features: no direction, no distance
+    std::map<Type, double> shape;        // the requested shape features: no gray levels, direction or distance
 };
 
-PreparedRegion Prepare(const cv::Mat& gray, const cv::Mat& mask, const AnalysisSettings& settings) {
-    PreparedRegion prepared{ComputeRegionStatistics(gray, mask), Quantize(gray, mask, settings.gray_levels, settings.quantization), {}, {}, {}};
+PreparedRegion Prepare(const cv::Mat& gray, const cv::Mat& mask, const AnalysisSettings& settings, cv::Point2d spacing) {
+    PreparedRegion prepared{
+        ComputeRegionStatistics(gray, mask), Quantize(gray, mask, settings.gray_levels, settings.quantization), {}, {}, {}, {}};
     std::set<Type> first_order;
     for (Type type : settings.features) {
         if (IsFirstOrderStatistic(type)) {
@@ -128,8 +131,8 @@ PreparedRegion Prepare(const cv::Mat& gray, const cv::Mat& mask, const AnalysisS
         }
     }
     if (!run_length.empty()) {
-        prepared.run_length =
-            ComputeRunLengthFeatures(prepared.quantized.image, mask, settings.gray_levels, settings.directions, settings.log_base, run_length);
+        prepared.run_length = ComputeRunLengthFeatures(
+            prepared.quantized.image, mask, settings.gray_levels, settings.directions, settings.log_base, run_length);
     }
     std::set<Type> size_zone;
     for (Type type : settings.features) {
@@ -139,6 +142,15 @@ PreparedRegion Prepare(const cv::Mat& gray, const cv::Mat& mask, const AnalysisS
     }
     if (!size_zone.empty()) {
         prepared.size_zone = ComputeSizeZoneFeatures(prepared.quantized.image, mask, settings.gray_levels, settings.log_base, size_zone);
+    }
+    std::set<Type> shape;
+    for (Type type : settings.features) {
+        if (IsShapeFeature(type)) {
+            shape.insert(type);
+        }
+    }
+    if (!shape.empty()) {
+        prepared.shape = ComputeShapeFeatures(mask, spacing, shape);
     }
     return prepared;
 }
@@ -169,8 +181,7 @@ void Measure(const cv::Mat& gray, const cv::Mat& mask, const PreparedRegion& pre
     std::set<Type> texture_types;
     for (Type type : settings.features) {
         if (type != Type::Mean && type != Type::Std && !IsFirstOrderStatistic(type) && !IsRunLengthFeature(type) &&
-            !IsSizeZoneFeature(type) && !IsGrayToneDifferenceFeature(type) &&
-            !IsLocalBinaryPatternFeature(type)) {
+            !IsSizeZoneFeature(type) && !IsGrayToneDifferenceFeature(type) && !IsLocalBinaryPatternFeature(type) && !IsShapeFeature(type)) {
             texture_types.insert(type);
         }
     }
@@ -198,6 +209,9 @@ void Measure(const cv::Mat& gray, const cv::Mat& mask, const PreparedRegion& pre
     for (const auto& [type, value] : prepared.size_zone) {
         result.values[type] = Uniform(value, settings.directions);
     }
+    for (const auto& [type, value] : prepared.shape) {
+        result.values[type] = Uniform(value, settings.directions);
+    }
     // Gray tone difference features take their neighbourhood from the distance, but have no direction
     std::set<Type> gray_tone;
     for (Type type : settings.features) {
@@ -206,7 +220,8 @@ void Measure(const cv::Mat& gray, const cv::Mat& mask, const PreparedRegion& pre
         }
     }
     if (!gray_tone.empty()) {
-        for (const auto& [type, value] : ComputeGrayToneDifferenceFeatures(quantized.image, mask, settings.gray_levels, distance, gray_tone)) {
+        for (const auto& [type, value] :
+            ComputeGrayToneDifferenceFeatures(quantized.image, mask, settings.gray_levels, distance, gray_tone)) {
             result.values[type] = Uniform(value, settings.directions);
         }
     }
@@ -228,8 +243,8 @@ void Measure(const cv::Mat& gray, const cv::Mat& mask, const PreparedRegion& pre
 }
 
 // LBP samples the pixels around the ROI too, so it needs the whole image and the ROI's box; the radius is the distance
-void AddLocalBinaryPatternFeatures(const cv::Mat& gray, const cv::Rect& box, const cv::Mat& mask, int distance, const AnalysisSettings& settings,
-    MeasurementResult& result) {
+void AddLocalBinaryPatternFeatures(const cv::Mat& gray, const cv::Rect& box, const cv::Mat& mask, int distance,
+    const AnalysisSettings& settings, MeasurementResult& result) {
     std::set<Type> types;
     for (Type type : settings.features) {
         if (IsLocalBinaryPatternFeature(type)) {
@@ -297,10 +312,14 @@ RegionStatistics ComputeRegionStatistics(const cv::Mat& gray, const cv::Mat& mas
     return statistics;
 }
 
-AnalysisOutput RunAnalysis(
-    const cv::Mat& gray, const std::vector<Roi>& rois, const AnalysisSettings& settings, const ProgressCallback& progress) {
+AnalysisOutput RunAnalysis(const cv::Mat& gray, const std::vector<Roi>& rois, const AnalysisSettings& settings,
+    const ProgressCallback& progress, const std::optional<PixelSpacing>& pixel_spacing) {
     RequireAnalysableImage(gray);
     ValidateSettings(settings);
+    const cv::Point2d spacing = pixel_spacing ? cv::Point2d(pixel_spacing->x_mm, pixel_spacing->y_mm) : cv::Point2d(1.0, 1.0);
+    if (!std::isfinite(spacing.x) || !std::isfinite(spacing.y) || spacing.x <= 0.0 || spacing.y <= 0.0) {
+        throw std::invalid_argument("The pixel spacing must be positive");
+    }
 
     AnalysisOutput output;
     const int total = static_cast<int>(rois.size() * settings.distances.size());
@@ -339,7 +358,7 @@ AnalysisOutput RunAnalysis(
             } else {
                 try {
                     if (!prepared) {
-                        prepared = Prepare(region, mask, settings);
+                        prepared = Prepare(region, mask, settings, spacing);
                     }
                     Measure(region, mask, *prepared, distance, settings, result);
                     AddLocalBinaryPatternFeatures(gray, cropped.box, mask, distance, settings, result);

@@ -43,6 +43,10 @@ Sources of additional features
 Standardized definitions
 ------------------------
 
+.. [Lorensen1987] W. E. Lorensen and H. E. Cline, "Marching Cubes: A High Resolution 3D Surface Construction
+   Algorithm," *ACM SIGGRAPH Computer Graphics*, vol. 21, no. 4, pp. 163–169, 1987.
+   `doi:10.1145/37402.37422 <https://doi.org/10.1145/37402.37422>`__
+
 .. [Zwanenburg2020] A. Zwanenburg et al., "The Image Biomarker Standardization Initiative: Standardized Quantitative
    Radiomics for High-Throughput Image-based Phenotyping," *Radiology*, vol. 295, no. 2, pp. 328–338, 2020.
    `doi:10.1148/radiol.2020191145 <https://doi.org/10.1148/radiol.2020191145>`__

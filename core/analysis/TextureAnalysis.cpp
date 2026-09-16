@@ -943,6 +943,24 @@ std::string TextureAnalysis::TypeToString(Type type) {
             return "LBP Entropy";
         case Type::LbpEnergy:
             return "LBP Energy";
+        case Type::ShapeMeshSurface:
+            return "Mesh Surface";
+        case Type::ShapePixelSurface:
+            return "Pixel Surface";
+        case Type::ShapePerimeter:
+            return "Perimeter";
+        case Type::ShapePerimeterSurfaceRatio:
+            return "Perimeter to Surface Ratio";
+        case Type::ShapeSphericity:
+            return "Sphericity";
+        case Type::ShapeMaximumDiameter:
+            return "Maximum 2D Diameter";
+        case Type::ShapeMajorAxisLength:
+            return "Major Axis Length";
+        case Type::ShapeMinorAxisLength:
+            return "Minor Axis Length";
+        case Type::ShapeElongation:
+            return "Elongation";
         case Type::Score:
             return "Score";
         case Type::Age:

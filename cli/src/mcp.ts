@@ -197,13 +197,20 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         min: z.number().optional().describe('Lowest intensity of the regions; the image window minimum by default'),
         max: z.number().optional(),
         minPixels: z.number().optional().describe('Regions smaller than this are ignored (default 50)'),
+        maxPixels: z.number().optional().describe('Regions larger than this are ignored'),
+        minSphericity: z
+          .number()
+          .min(0)
+          .max(1)
+          .optional()
+          .describe('Regions less round than this are ignored: 1 is a circle, long or ragged outlines are lower'),
         maxRegions: z.number().optional().describe('Largest regions to keep (default 10)'),
         at: z.object({ x: z.number(), y: z.number() }).optional().describe('Select the one region around this pixel instead'),
         tolerance: z.number().optional().describe('How far a value may differ from the pixel at "at" (default 5 % of the window)'),
         saveTo: z.string().optional().describe('Write the regions as an ROI set file as well; a name ending in .zip writes a RoiSet.zip for ImageJ'),
       },
     },
-    async ({ image, min, max, minPixels, maxRegions, at, tolerance, saveTo }) => {
+    async ({ image, min, max, minPixels, maxPixels, minSphericity, maxRegions, at, tolerance, saveTo }) => {
       try {
         const client = await dependencies.client();
         const { info } = await openImageTarget(client, image);
@@ -217,6 +224,8 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
                 max: max ?? info.windowMax,
                 minPixels: minPixels ?? 50,
                 maxRegions: maxRegions ?? 10,
+                ...(maxPixels !== undefined ? { maxPixels } : {}),
+                ...(minSphericity !== undefined ? { minSphericity } : {}),
               })
             ).regions;
         if (regions.length === 0) {

@@ -2,7 +2,7 @@
 // Rejected promises and thrown errors carry `code`: INVALID_ARGUMENT, UNSUPPORTED_IMAGE, IMAGE_TOO_LARGE,
 // DECODE_FAILED, INTERNAL_ERROR or (computeFeatureMap with a cancelled token) CANCELLED. Invalid argument types throw a TypeError synchronously.
 
-export type FeatureGroupId = 'regionStatistics' | 'haralick' | 'other' | 'runLength' | 'sizeZone' | 'grayToneDifference' | 'localBinaryPattern';
+export type FeatureGroupId = 'regionStatistics' | 'haralick' | 'other' | 'runLength' | 'sizeZone' | 'grayToneDifference' | 'localBinaryPattern' | 'shape';
 
 export interface NativeFeatureInfo {
   id: string;
@@ -238,6 +238,10 @@ export function selectThresholdRegions(
   max: number,
   minPixels: number,
   maxRegions: number,
+  /** Regions with more pixels are left out */
+  maxPixels?: number | null,
+  /** Regions whose sphericity (in pixel units) is lower are left out */
+  minSphericity?: number | null,
 ): Promise<{ regions: NativeSelectedRegion[]; total: number }>;
 
 /**
@@ -338,6 +342,8 @@ export function runAnalysis(
   bitDepth: 8 | 16,
   roisJson: string,
   settingsJson: string,
+  /** Millimetres per pixel; shape features are in mm with it and in pixels without it */
+  pixelSpacing?: { x: number; y: number } | null,
 ): Promise<string>;
 
 /**

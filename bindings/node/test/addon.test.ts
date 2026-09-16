@@ -56,9 +56,9 @@ describe('catalog', () => {
 
   it('lists every feature with its flags', () => {
     const catalog = native.catalog();
-    expect(catalog.features).toHaveLength(96);
-    expect(new Set(catalog.features.map((feature) => feature.id)).size).toBe(96);
-    expect(new Set(catalog.features.map((feature) => feature.name)).size).toBe(96);
+    expect(catalog.features).toHaveLength(105);
+    expect(new Set(catalog.features.map((feature) => feature.id)).size).toBe(105);
+    expect(new Set(catalog.features.map((feature) => feature.name)).size).toBe(105);
 
     const nonStandard = catalog.features.filter((feature) => feature.nonStandard).map((feature) => feature.id);
     expect(nonStandard.sort()).toEqual(['CorrelationIII', 'SumOfSquares']);
@@ -69,6 +69,8 @@ describe('catalog', () => {
     expect(catalog.features.filter((feature) => feature.group === 'sizeZone')).toHaveLength(16);
     expect(catalog.features.filter((feature) => feature.group === 'grayToneDifference')).toHaveLength(5);
     expect(catalog.features.filter((feature) => feature.group === 'localBinaryPattern')).toHaveLength(12);
+    expect(catalog.features.filter((feature) => feature.group === 'shape')).toHaveLength(9);
+    expect(catalog.features.find((feature) => feature.id === 'ShapeSphericity')).toMatchObject({ name: 'Sphericity', docAnchor: 'equations.html#shape-features-2d' });
     expect(catalog.features.find((feature) => feature.id === 'LbpEntropy')).toMatchObject({ docAnchor: 'equations.html#local-binary-pattern-features-lbp' });
     expect(catalog.features.find((feature) => feature.id === 'NgtdmBusyness')).toMatchObject({
       docAnchor: 'equations.html#neighbourhood-gray-tone-difference-features-ngtdm',
@@ -76,7 +78,7 @@ describe('catalog', () => {
     expect(catalog.features.find((feature) => feature.id === 'GlszmZoneEntropy')).toMatchObject({ docAnchor: 'equations.html#size-zone-features-glszm' });
     expect(catalog.features.find((feature) => feature.id === 'GlrlmRunEntropy')).toMatchObject({ docAnchor: 'equations.html#run-length-features-glrlm' });
 
-    expect(catalog.presets.map((preset) => preset.id)).toEqual(['haralick', 'clausi2002', 'basic', 'score', 'firstOrder', 'glrlm', 'glszm', 'ngtdm', 'lbp', 'all']);
+    expect(catalog.presets.map((preset) => preset.id)).toEqual(['haralick', 'clausi2002', 'basic', 'score', 'firstOrder', 'glrlm', 'glszm', 'ngtdm', 'lbp', 'shape', 'all']);
     expect(catalog.presets[0].features).toHaveLength(14);
     expect(catalog.limits).toMatchObject({
       minGrayLevels: 2,
@@ -294,6 +296,25 @@ describe('analysis', () => {
       ['tiny', 4, 'skipped'],
     ]);
     expect(document.results[1].warnings.join(' ')).toContain('No pixel pairs at distance 4');
+  });
+
+  it('computes shape features in pixels, or in millimetres with a pixel spacing', async () => {
+    const shape = { ...settings, features: ['ShapePixelSurface', 'ShapePerimeter', 'ShapeSphericity'], aggregation: 'meanOnly' };
+    const measure = async (spacing?: { x: number; y: number } | null) =>
+      JSON.parse(await native.runAnalysis(HARALICK_PIXELS, 4, 4, 8, JSON.stringify([FULL_IMAGE_ROI]), JSON.stringify(shape), spacing)).results[0].values;
+    const pixels = await measure();
+    // A 4 × 4 square: the mesh cuts half a pixel off each corner
+    expect(pixels.ShapePixelSurface.mean).toBe(16);
+    expect(pixels.ShapePerimeter.mean).toBeCloseTo(4 * 3 + 4 * Math.SQRT1_2, 12);
+    expect(await measure(null)).toEqual(pixels);
+    const millimetres = await measure({ x: 0.5, y: 0.5 });
+    expect(millimetres.ShapePixelSurface.mean).toBe(4);
+    expect(millimetres.ShapePerimeter.mean).toBeCloseTo(pixels.ShapePerimeter.mean / 2, 12);
+    expect(millimetres.ShapeSphericity.mean).toBeCloseTo(pixels.ShapeSphericity.mean, 12);
+    expect(() => native.runAnalysis(HARALICK_PIXELS, 4, 4, 8, JSON.stringify([FULL_IMAGE_ROI]), JSON.stringify(shape), { x: 'a' } as never)).toThrow(TypeError);
+    expect(await rejectionCode(native.runAnalysis(HARALICK_PIXELS, 4, 4, 8, JSON.stringify([FULL_IMAGE_ROI]), JSON.stringify(shape), { x: 0, y: 1 }))).toBe(
+      'INVALID_ARGUMENT',
+    );
   });
 
   it('rejects invalid settings with INVALID_ARGUMENT', async () => {

@@ -35,9 +35,23 @@ export async function wandAt(imageId: string, x: number, y: number): Promise<voi
 }
 
 /** Adds the largest regions inside the display window to the ROI Manager; resolves to the number added */
-export async function addThresholdRois(imageId: string, minPixels: number, count: number): Promise<number> {
+/** Filters of Threshold ROI besides the display window */
+export interface ThresholdFilters {
+  minPixels: number;
+  /** null: no largest size */
+  maxPixels: number | null;
+  /** 0: any shape */
+  minSphericity: number;
+}
+
+/** The request fields of the filters, leaving out those that filter nothing */
+export function thresholdFilterFields({ minPixels, maxPixels, minSphericity }: ThresholdFilters) {
+  return { minPixels, ...(maxPixels !== null ? { maxPixels } : {}), ...(minSphericity > 0 ? { minSphericity } : {}) };
+}
+
+export async function addThresholdRois(imageId: string, filters: ThresholdFilters, count: number): Promise<number> {
   const { min, max } = useViewer.getState().window;
-  const { regions } = await selectThresholdRois(imageId, { min, max, minPixels, maxRegions: count });
+  const { regions } = await selectThresholdRois(imageId, { min, max, ...thresholdFilterFields(filters), maxRegions: count });
   if (useViewer.getState().image?.info.imageId !== imageId || regions.length === 0) {
     return 0;
   }

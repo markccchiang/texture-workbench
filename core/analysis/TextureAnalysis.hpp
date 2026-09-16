@@ -115,6 +115,16 @@ enum class Type {
     LbpNonUniform,
     LbpEntropy,
     LbpEnergy,
+    // 2D shape features (analysis/Shape): no gray levels, no direction, no distance
+    ShapeMeshSurface,
+    ShapePixelSurface,
+    ShapePerimeter,
+    ShapePerimeterSurfaceRatio,
+    ShapeSphericity,
+    ShapeMaximumDiameter,
+    ShapeMajorAxisLength,
+    ShapeMinorAxisLength,
+    ShapeElongation,
     // Not texture features: added by CalculateScore
     Score,
     Age

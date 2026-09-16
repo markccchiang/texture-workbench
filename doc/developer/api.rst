@@ -77,9 +77,10 @@ Endpoints
    * - ``POST /images/{id}/roi-stats``
      - ``{rois: [{id, shape}]}`` → ``{stats: [{roiId, pixelCount, boundingBox, min, max, mean, std, error}]}``
    * - ``POST /images/{id}/threshold-rois``
-     - ``{min, max, minPixels, maxRegions}`` → ``{regions: [{points, pixelCount, boundingBox}], total}``: the 8-connected
-       parts of the pixels in ``[min, max]`` with holes filled, outlined along the pixel edges, at least ``minPixels``
-       pixels each, the largest ``maxRegions`` (at most 1000; 0 returns only ``total``)
+     - ``{min, max, minPixels, maxRegions, maxPixels?, minSphericity?}`` → ``{regions: [{points, pixelCount,
+       boundingBox}], total}``: the 8-connected parts of the pixels in ``[min, max]`` with holes filled, outlined along
+       the pixel edges, with ``minPixels`` to ``maxPixels`` pixels and a sphericity (the shape feature, in pixels) of at
+       least ``minSphericity``, the largest ``maxRegions`` (at most 1000; 0 returns only ``total``)
    * - ``POST /images/{id}/wand-roi``
      - ``{x, y, tolerance}`` → ``{region}``: the 8-connected region around pixel ``(x, y)`` whose values differ from its
        value by at most ``tolerance``, outlined the same way; ``null`` outside the image
@@ -415,7 +416,8 @@ run in a terminal says on standard error (standard output belongs to the protoco
    * - ``view_image``
      - ``image``, ``kind`` (``display`` or ``edges``), ``min``, ``max``
    * - ``select_regions``
-     - ``image``, ``min``, ``max``, ``minPixels``, ``maxRegions``, ``at``, ``tolerance``, ``saveTo``
+     - ``image``, ``min``, ``max``, ``minPixels``, ``maxPixels``, ``minSphericity``, ``maxRegions``, ``at``, ``tolerance``,
+       ``saveTo``
    * - ``measure``
      - ``image``, ``rois``, ``rectangles``, ``preset``, ``features``, ``grayLevels``, ``distances``, ``maxRows``, ``saveTo``
    * - ``feature_map``
@@ -458,8 +460,9 @@ functions throw, with an ``Error`` whose ``code`` is ``INVALID_ARGUMENT``, ``UNS
      - PNG with window/level, downscaled to ``maxSize``
    * - ``roiStats(pixels, width, height, bitDepth, roisJson): Promise<NativeRoiStatistics[]>``
      - Pixel count, bounding box and intensity statistics per ROI
-   * - ``selectThresholdRegions(pixels, width, height, bitDepth, min, max, minPixels, maxRegions): Promise<{regions, total}>``
-     - ``glcm::SelectThresholdRegions``; each region is ``{points, pixelCount, boundingBox}``
+   * - ``selectThresholdRegions(pixels, width, height, bitDepth, min, max, minPixels, maxRegions, maxPixels?, minSphericity?): Promise<{regions, total}>``
+     - ``glcm::SelectThresholdRegions``; each region is ``{points, pixelCount, boundingBox}``; ``maxPixels`` and
+       ``minSphericity`` may be ``null``
    * - ``selectWandRegion(pixels, width, height, bitDepth, x, y, tolerance): Promise<region | null>``
      - ``glcm::SelectWandRegion``
    * - ``gradientStatistics(pixels, width, height, bitDepth, sigma): Promise<{sigma, percentiles, max}>``
@@ -474,8 +477,9 @@ functions throw, with an ``Error`` whose ``code`` is ``INVALID_ARGUMENT``, ``UNS
      - ``glcm::PaintStroke``; ``path`` is a ``Float64Array`` of x, y pairs and ``roisJson`` holds at most one ROI
    * - ``validateAnalysis(roisJson, settingsJson): void``
      - Parses and validates an analysis request
-   * - ``runAnalysis(pixels, width, height, bitDepth, roisJson, settingsJson): Promise<string>``
-     - Every ROI at every distance, as ``glcm-results`` JSON
+   * - ``runAnalysis(pixels, width, height, bitDepth, roisJson, settingsJson, pixelSpacing?): Promise<string>``
+     - Every ROI at every distance, as ``glcm-results`` JSON; shape features are in mm with ``pixelSpacing``
+       (``{x, y}``), in pixels without it
    * - ``formatResults(resultsJson, format): string``
      - A ``glcm-results`` document written again as ``"csv"`` or canonical ``"json"``
    * - ``exportRoiImages(pixels, width, height, bitDepth, roisJson, settingsJson, transparentOutside, includeQuantized): Promise<ExportedFile[]>``
@@ -557,6 +561,8 @@ paths are relative to ``core/``. The main entry points:
    * - ``analysis/LocalBinaryPattern.hpp``
      - ``LocalBinaryPatternCode``, ``ComputeLocalBinaryPatternHistogram``, ``ComputeLocalBinaryPatternFeatures``,
        ``IsLocalBinaryPatternFeature``
+   * - ``analysis/Shape.hpp``
+     - ``ComputeShapeFeatures(mask, spacing, types)``, ``IsShapeFeature``
    * - ``pipeline/AnalysisSettings.hpp``
      - ``AnalysisSettings``, ``DefaultSettings``, ``ValidateSettings``
    * - ``pipeline/AnalysisRunner.hpp``

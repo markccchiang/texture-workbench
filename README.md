@@ -30,6 +30,7 @@ Texture Workbench measures the **texture** of regions in grayscale images: how s
 | Size zone (GLSZM) | small and large area emphasis, zone entropy |
 | Gray tone difference (NGTDM) | coarseness, busyness, complexity |
 | Local binary patterns (LBP) | uniform pattern fractions, LBP entropy |
+| Shape (2D) | perimeter, sphericity, maximum diameter, elongation |
 
 The features follow their published definitions and are tested against [PyRadiomics](https://pyradiomics.readthedocs.io/) and [scikit-image](https://scikit-image.org/). The documentation gives the formula of every feature.
 

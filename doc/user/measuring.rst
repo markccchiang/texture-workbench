@@ -26,7 +26,7 @@ sessions, and results already in the table keep the settings they were measured 
      - A named set of features: *Haralick F1–F14*, *Clausi (2002): Contrast, Correlation, Entropy*, *Basic*,
        *Score (Mean, Entropy, Contrast)* (the inputs of the age-based score, with the score switched on), one preset
        per feature family (*First-order statistics*, *Run length (GLRLM)*, *Size zone (GLSZM)*, *Gray tone difference
-       (NGTDM)* and *Local binary patterns (LBP)*), or *All features*. Changing the features by hand shows *Custom*.
+       (NGTDM)*, *Local binary patterns (LBP)* and *Shape (2D)*), or *All features*. Changing the features by hand shows *Custom*.
        The presets are also in *Analyze ▸ Presets*.
    * - **Features**
      - The features to compute. **N selected…** opens the feature picker.
@@ -34,7 +34,7 @@ sessions, and results already in the table keep the settings they were measured 
      - How many gray levels the intensities are reduced to for the co-occurrence, run length, size zone and gray tone
        difference features and for first-order entropy and uniformity: 2–256; the menu in the field offers 8, 16, 32,
        64, 128 and 256. More levels keep more detail but need larger regions for stable values. The other first-order
-       statistics and the local binary patterns use the original intensities.
+       statistics and the local binary patterns use the original intensities, and shape features no intensities at all.
    * - **Quantization**
      - How intensities are mapped to gray levels: **Fixed range** (from *Min* to *Max*, the same for every ROI —
        usually the full range of the image), **ROI min–max** (from the lowest to the highest intensity inside each
@@ -43,8 +43,8 @@ sessions, and results already in the table keep the settings they were measured 
    * - **Distances**
      - Distances in pixels, e.g. ``1, 2, 4``; each distance is measured separately. The distance is the gap between the
        two pixels of a co-occurrence pair, the ring of neighbours of the gray tone difference features and the radius
-       of the local binary patterns. First-order statistics, run length and size zone features give the same values at
-       every distance.
+       of the local binary patterns. First-order statistics, run length, size zone and shape features give the same
+       values at every distance.
    * - **Directions**
      - The directions of co-occurrence pairs and runs: 0° (horizontal), 45°, 90° (vertical) and 135°. The other
        features have no direction and report the same value for each selected direction.
@@ -72,6 +72,11 @@ including choosing a preset or resetting to the defaults. Opening a project star
    :align: center
 
    The feature picker.
+
+**Shape features** (perimeter, sphericity, maximum diameter, axis lengths and others) describe the outline of each ROI
+rather than its texture. They are in millimetres, and surfaces in mm², when the image has a pixel spacing (see
+:ref:`pixel-spacing`), and in pixels otherwise; the exported results record which spacing was used. Compare lengths and
+surfaces only between measurements with the same spacing; sphericity and elongation have no unit.
 
 In the **feature picker**, features are grouped as in :doc:`../equations`. Type in the search field to filter them;
 **Select all** and **Clear all** apply to the listed features. Two features are marked **⚠ non-standard**

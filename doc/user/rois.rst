@@ -96,13 +96,16 @@ Holes inside a region are filled: they belong to the ROI, and so does anything l
   is the **±** field that appears next to the tool buttons while the wand is chosen. It starts at 5 % of the image's
   default display window whenever an image opens.
 - **Threshold ROI** (*ROI ▸ Threshold ROI…*): selects every pixel whose value lies inside the current display window
-  (see :doc:`viewing`), so set the window first. Each connected part with at least the **Minimum size** (50 pixels by
-  default, holes included) becomes an ROI. The dialog shows how many regions that gives; **Add** puts them into the ROI
-  Manager, largest first, with the usual names and colours, and selects them. At most 1,000 are added at once; raise
-  the minimum size to add fewer. One undo step removes them all.
+  (see :doc:`viewing`), so set the window first. Each connected part becomes an ROI when it has at least the **Minimum
+  size** (50 pixels by default, holes included), at most the **Maximum size** (empty: no limit) and at least the
+  **Minimum sphericity** — the shape feature of the same name, measured in pixels: 1 for a circle, lower for elongated
+  or ragged parts, so 0.7 keeps roughly round cells and drops streaks and noise. The dialog shows how many regions that
+  gives; **Add** puts them into the ROI Manager, largest first, with the usual names and colours, and selects them. At
+  most 1,000 are added at once; narrow the filters to add fewer. One undo step removes them all.
 
 .. figure:: images/threshold-roi.png
-   :alt: The Threshold ROI dialog with the window range, the minimum size field, the number of regions and the Add button.
+   :alt: The Threshold ROI dialog with the window range, the minimum and maximum size and minimum sphericity fields,
+         the number of regions and the Add button.
    :width: 60%
 
    Threshold ROI counts the regions inside the display window before adding them.

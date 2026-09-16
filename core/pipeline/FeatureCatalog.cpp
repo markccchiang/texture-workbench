@@ -22,6 +22,7 @@ const char RUN_LENGTH_ANCHOR[] = "equations.html#run-length-features-glrlm";
 const char SIZE_ZONE_ANCHOR[] = "equations.html#size-zone-features-glszm";
 const char GRAY_TONE_ANCHOR[] = "equations.html#neighbourhood-gray-tone-difference-features-ngtdm";
 const char LBP_ANCHOR[] = "equations.html#local-binary-pattern-features-lbp";
+const char SHAPE_ANCHOR[] = "equations.html#shape-features-2d";
 
 FeatureInfo Make(Type type, const char* id, FeatureGroup group, const char* anchor, FeatureCost cost = FeatureCost::Normal,
     const char* non_standard_reason = "") {
@@ -131,6 +132,16 @@ std::vector<FeatureInfo> BuildCatalog() {
         Make(Type::LbpNonUniform, "LbpNonUniform", G::LocalBinaryPattern, LBP_ANCHOR),
         Make(Type::LbpEntropy, "LbpEntropy", G::LocalBinaryPattern, LBP_ANCHOR),
         Make(Type::LbpEnergy, "LbpEnergy", G::LocalBinaryPattern, LBP_ANCHOR),
+
+        Make(Type::ShapeMeshSurface, "ShapeMeshSurface", G::Shape, SHAPE_ANCHOR),
+        Make(Type::ShapePixelSurface, "ShapePixelSurface", G::Shape, SHAPE_ANCHOR),
+        Make(Type::ShapePerimeter, "ShapePerimeter", G::Shape, SHAPE_ANCHOR),
+        Make(Type::ShapePerimeterSurfaceRatio, "ShapePerimeterSurfaceRatio", G::Shape, SHAPE_ANCHOR),
+        Make(Type::ShapeSphericity, "ShapeSphericity", G::Shape, SHAPE_ANCHOR),
+        Make(Type::ShapeMaximumDiameter, "ShapeMaximumDiameter", G::Shape, SHAPE_ANCHOR),
+        Make(Type::ShapeMajorAxisLength, "ShapeMajorAxisLength", G::Shape, SHAPE_ANCHOR),
+        Make(Type::ShapeMinorAxisLength, "ShapeMinorAxisLength", G::Shape, SHAPE_ANCHOR),
+        Make(Type::ShapeElongation, "ShapeElongation", G::Shape, SHAPE_ANCHOR),
         Make(Type::MaximumProbability, "MaximumProbability", G::Other, OTHER_ANCHOR),
         Make(Type::InverseDifferenceNormalized, "InverseDifferenceNormalized", G::Other, OTHER_ANCHOR),
         Make(Type::InverseDifferenceMomentNormalized, "InverseDifferenceMomentNormalized", G::Other, OTHER_ANCHOR),
@@ -170,6 +181,7 @@ const std::vector<FeaturePreset>& FeaturePresets() {
         std::set<Type> size_zone;
         std::set<Type> gray_tone;
         std::set<Type> local_binary_pattern;
+        std::set<Type> shape;
         for (const FeatureInfo& info : FeatureCatalog()) {
             all.insert(info.type);
             if (info.group == FeatureGroup::RegionStatistics) {
@@ -182,6 +194,8 @@ const std::vector<FeaturePreset>& FeaturePresets() {
                 gray_tone.insert(info.type);
             } else if (info.group == FeatureGroup::LocalBinaryPattern) {
                 local_binary_pattern.insert(info.type);
+            } else if (info.group == FeatureGroup::Shape) {
+                shape.insert(info.type);
             }
         }
         return std::vector<FeaturePreset>{
@@ -199,6 +213,7 @@ const std::vector<FeaturePreset>& FeaturePresets() {
             {"glszm", "Size zone (GLSZM)", size_zone, false},
             {"ngtdm", "Gray tone difference (NGTDM)", gray_tone, false},
             {"lbp", "Local binary patterns (LBP)", local_binary_pattern, false},
+            {"shape", "Shape (2D)", shape, false},
             {"all", "All features", all, false},
         };
     }();
@@ -221,6 +236,8 @@ std::string FeatureGroupId(FeatureGroup group) {
             return "grayToneDifference";
         case FeatureGroup::LocalBinaryPattern:
             return "localBinaryPattern";
+        case FeatureGroup::Shape:
+            return "shape";
     }
     throw std::invalid_argument("Unknown feature group");
 }

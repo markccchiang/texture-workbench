@@ -225,7 +225,7 @@ Everything else needs the built native addon (`npm run build:native`), so it run
 
 The `doc/` folder contains a [Sphinx](https://www.sphinx-doc.org/) site (theme: [sphinx_rtd_theme](https://sphinx-rtd-theme.readthedocs.io/)) with three parts:
 - **User guide:** opening and viewing images, drawing and editing ROIs, measuring, and saving, importing and exporting, with screenshots and a keyboard, mouse and menu reference.
-- **Texture features:** the equations of every feature family as implemented in `core/analysis/` (GLCM, first-order, GLRLM, GLSZM, NGTDM, LBP), and a list of references.
+- **Texture features:** the equations of every feature family as implemented in `core/analysis/` (GLCM, first-order, GLRLM, GLSZM, NGTDM, LBP, shape), and a list of references.
 - **Developer guide:** the architecture, the HTTP, Node.js addon and C++ APIs, the file formats, and the technologies and packages used.
 
 How to build it is described in [INSTALL.md](INSTALL.md#4-build-the-documentation-optional).

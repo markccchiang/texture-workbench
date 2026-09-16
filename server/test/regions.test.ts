@@ -36,6 +36,17 @@ describe('ROIs from pixel values', () => {
     expect((await threshold({ min: 100, max: 255, minPixels: 4, maxRegions: 0 })).json()).toEqual({ regions: [], total: 1 });
   });
 
+  it('filters the parts by their largest size and their sphericity', async () => {
+    const count = async (filters: Record<string, unknown>) =>
+      (await threshold({ min: 100, max: 255, minPixels: 1, maxRegions: 10, ...filters })).json<ThresholdRoisResponse>().regions.map((region) => region.pixelCount);
+    expect(await count({ maxPixels: 15 })).toEqual([3]);
+    // The filled 4 × 4 ring has a sphericity of about 0.94; the three pixels touching at corners are three small diamonds, about 0.51
+    expect(await count({ minSphericity: 0.9 })).toEqual([16]);
+    expect(await count({ minSphericity: 0.5 })).toEqual([16, 3]);
+    expect((await threshold({ min: 100, max: 255, minPixels: 1, maxRegions: 10, minSphericity: 1.5 })).statusCode).toBe(400);
+    expect((await threshold({ min: 100, max: 255, minPixels: 5, maxRegions: 10, maxPixels: 4 })).statusCode).toBe(400);
+  });
+
   it('selects the region around a clicked pixel', async () => {
     const response = await wand({ x: 8, y: 5, tolerance: 0 });
     expect(response.statusCode).toBe(200);

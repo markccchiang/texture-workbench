@@ -232,6 +232,7 @@ export class JobManager {
         image.bitDepth,
         JSON.stringify([job.roi]),
         JSON.stringify({ ...request.settings, distances: [job.distance] }),
+        state.info.pixelSpacing ?? null,
       );
       result = (JSON.parse(json) as { results: MeasurementResult[] }).results[0];
     } catch (error) {

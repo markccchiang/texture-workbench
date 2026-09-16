@@ -211,7 +211,7 @@ export interface RegionResult {
 export async function selectThresholdRegions(
   client: ApiClient,
   imageId: string,
-  query: { min: number; max: number; minPixels: number; maxRegions: number },
+  query: { min: number; max: number; minPixels: number; maxRegions: number; maxPixels?: number; minSphericity?: number },
 ): Promise<{ regions: RegionResult[]; total: number }> {
   const result = requireOk(await client.request('POST', `/images/${imageId}/threshold-rois`, { json: query }), 'The regions could not be selected');
   return result.json<{ regions: RegionResult[]; total: number }>();

@@ -3,7 +3,7 @@ Texture Workbench
 
 Texture Workbench computes texture features of regions of interest (ROIs) in 8- and 16-bit grayscale images: Haralick
 features from the Gray Level Co-occurrence Matrix (GLCM), first-order statistics, and run length (GLRLM), size zone
-(GLSZM), neighbourhood gray tone difference (NGTDM) and local binary pattern (LBP) features. Users open an image in the
+(GLSZM), neighbourhood gray tone difference (NGTDM), local binary pattern (LBP) and 2D shape features. Users open an image in the
 browser, view it with a display window and colour tables, draw rectangle, ellipse, polygon or freehand ROIs, choose the
 features and analysis settings, measure, and export the results. A feature map shows how a co-occurrence feature changes
 across the whole image, computed in a sliding window and drawn in colour over the image. The application runs on a
@@ -14,8 +14,8 @@ This documentation has three parts:
 - **User guide** explains how to use the application: opening and viewing images, drawing ROIs, measuring, and saving,
   importing and exporting.
 - **Texture features** describes exactly how the core (``core/analysis/``) computes each feature: the co-occurrence
-  matrices of ``glcm::TextureAnalysis``, the first-order statistics, and the run length, size zone, gray tone difference
-  and local binary pattern features. It also lists the literature the features come from and the reference
+  matrices of ``glcm::TextureAnalysis``, the first-order statistics, and the run length, size zone, gray tone difference,
+  local binary pattern and shape features. It also lists the literature the features come from and the reference
   implementations (PyRadiomics, scikit-image) they are checked against.
 - **Developer guide** describes the architecture of the application, its APIs (HTTP, Node.js addon and C++) and file
   formats, and the technologies and packages it is built with.

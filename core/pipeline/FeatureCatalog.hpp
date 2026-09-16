@@ -10,7 +10,7 @@
 
 namespace glcm {
 
-enum class FeatureGroup { RegionStatistics, Haralick, Other, RunLength, SizeZone, GrayToneDifference, LocalBinaryPattern };
+enum class FeatureGroup { RegionStatistics, Haralick, Other, RunLength, SizeZone, GrayToneDifference, LocalBinaryPattern, Shape };
 
 enum class FeatureCost { Normal, Slow };
 
@@ -43,7 +43,7 @@ std::optional<Type> FeatureTypeFromId(const std::string& id);
 
 const std::vector<FeaturePreset>& FeaturePresets();
 
-// "regionStatistics", "haralick", "other", "runLength", "sizeZone", "grayToneDifference" or "localBinaryPattern"
+// "regionStatistics", "haralick", "other", "runLength", "sizeZone", "grayToneDifference", "localBinaryPattern" or "shape"
 std::string FeatureGroupId(FeatureGroup group);
 
 } // namespace glcm

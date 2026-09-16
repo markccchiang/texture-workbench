@@ -174,6 +174,12 @@
                                 "enum": [
                                   "localBinaryPattern"
                                 ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shape"
+                                ]
                               }
                             ]
                           },
@@ -2239,7 +2245,7 @@
         "tags": [
           "rois"
         ],
-        "description": "Each 8-connected part of the pixels with min ≤ value ≤ max becomes a polygon along the pixel edges with its holes filled (a part inside another part's hole belongs to it). Regions with fewer than minPixels pixels are left out; the largest maxRegions are returned, largest first, and total counts all of them.",
+        "description": "Each 8-connected part of the pixels with min ≤ value ≤ max becomes a polygon along the pixel edges with its holes filled (a part inside another part's hole belongs to it). Regions with fewer than minPixels or more than maxPixels pixels, or a sphericity below minSphericity, are left out; the largest maxRegions are returned, largest first, and total counts all of them.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2273,6 +2279,17 @@
                     "minimum": 0,
                     "maximum": 1000,
                     "description": "Regions returned, largest first; 0 returns only the total"
+                  },
+                  "maxPixels": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Regions with more pixels (holes included) are left out"
+                  },
+                  "minSphericity": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Regions with a lower sphericity (the shape feature, in pixel units) are left out"
                   }
                 }
               }
@@ -2364,7 +2381,7 @@
                     },
                     "total": {
                       "type": "integer",
-                      "description": "Regions with at least minPixels pixels, including those not returned"
+                      "description": "Regions that pass the size and sphericity filters, including those not returned"
                     }
                   }
                 }

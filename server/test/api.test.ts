@@ -26,7 +26,7 @@ describe('system routes', () => {
     const response = await t.app.inject({ method: 'GET', url: '/api/v1/catalog' });
     expect(response.statusCode).toBe(200);
     const catalog = response.json<CatalogResponse>();
-    expect(catalog.features).toHaveLength(96);
+    expect(catalog.features).toHaveLength(105);
     expect(catalog.features.find((feature) => feature.id === 'CorrelationIII')).toMatchObject({ nonStandard: true, group: 'other' });
     expect(catalog.presets.map((preset) => preset.id)).toContain('haralick');
     expect(catalog.limits.defaultGrayLevels).toBe(32);

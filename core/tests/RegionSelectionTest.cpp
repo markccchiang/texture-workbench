@@ -1,12 +1,16 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <climits>
+#include <cmath>
 #include <deque>
 #include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+#include "analysis/Shape.hpp"
 #include "roi/RegionSelection.hpp"
 #include "roi/Roi.hpp"
 
@@ -207,6 +211,37 @@ TEST(RegionSelectionTest, WandFillsHolesAndMatchesItsOutline) {
     ASSERT_TRUE(background.has_value());
     EXPECT_EQ(background->pixel_count, 70);
     EXPECT_EQ(background->outline, (std::vector<std::array<double, 2>>{{0, 0}, {10, 0}, {10, 7}, {0, 7}}));
+}
+
+TEST(RegionSelectionTest, FiltersRegionsBySizeAndSphericity) {
+    // A disc, a long bar and a small square on a dark image
+    cv::Mat gray = cv::Mat::zeros(80, 120, CV_8UC1);
+    cv::circle(gray, cv::Point(30, 30), 18, cv::Scalar(200), cv::FILLED);
+    gray(cv::Rect(60, 20, 50, 4)).setTo(200);
+    gray(cv::Rect(80, 60, 6, 6)).setTo(200);
+    const auto count = [&gray](int min_pixels, int max_pixels, double min_sphericity) {
+        return SelectThresholdRegions(gray, 100, 255, min_pixels, 10, max_pixels, min_sphericity).total;
+    };
+    EXPECT_EQ(count(1, INT_MAX, 0.0), 3);
+    // The disc has about 1,000 pixels, the bar 200 and the square 36
+    EXPECT_EQ(count(1, 200, 0.0), 2);
+    EXPECT_EQ(count(37, 199, 0.0), 0);
+    EXPECT_EQ(count(36, 36, 0.0), 1);
+
+    const auto sphericity = [&gray](const cv::Rect& box) {
+        return ComputeShapeFeatures(gray(box) >= 100, {1, 1}, {Type::ShapeSphericity}).at(Type::ShapeSphericity);
+    };
+    const double disc = sphericity(cv::Rect(0, 0, 60, 60));
+    const double bar = sphericity(cv::Rect(55, 15, 60, 14));
+    ASSERT_GT(disc, 0.8);
+    ASSERT_LT(bar, 0.5);
+    // Only the bar falls below a threshold between the two; a threshold at the disc's own value keeps it
+    const ThresholdSelection round = SelectThresholdRegions(gray, 100, 255, 1, 10, INT_MAX, (bar + disc) / 2);
+    EXPECT_EQ(round.total, 2);
+    EXPECT_EQ(SelectThresholdRegions(gray, 100, 255, 1, 10, INT_MAX, disc).total, 1);
+    EXPECT_THROW(SelectThresholdRegions(gray, 100, 255, 10, 10, 9), std::invalid_argument);
+    EXPECT_THROW(SelectThresholdRegions(gray, 100, 255, 1, 10, INT_MAX, 1.5), std::invalid_argument);
+    EXPECT_THROW(SelectThresholdRegions(gray, 100, 255, 1, 10, INT_MAX, NAN), std::invalid_argument);
 }
 
 TEST(RegionSelectionTest, RejectsInvalidArguments) {

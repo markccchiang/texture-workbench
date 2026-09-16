@@ -14,6 +14,7 @@ add_library(glcm_core STATIC
         analysis/FirstOrder.cpp
         analysis/GrayToneDifference.cpp
         analysis/LocalBinaryPattern.cpp
+        analysis/Shape.cpp
         analysis/RunLength.cpp
         analysis/Score.cpp
         analysis/SizeZone.cpp
@@ -64,6 +65,7 @@ if (GLCM_BUILD_TESTS)
                 tests/FirstOrderTest.cpp
                 tests/GrayToneDifferenceTest.cpp
                 tests/LocalBinaryPatternTest.cpp
+                tests/ShapeTest.cpp
                 tests/RunLengthTest.cpp
                 tests/SizeZoneTest.cpp
                 tests/TextureAnalysisTest.cpp

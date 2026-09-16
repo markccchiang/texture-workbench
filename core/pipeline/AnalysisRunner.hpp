@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "analysis/TextureAnalysis.hpp"
+#include "imaging/ImageHeader.hpp"
 #include "pipeline/AnalysisSettings.hpp"
 #include "roi/Roi.hpp"
 
@@ -61,9 +62,10 @@ using ProgressCallback = std::function<bool(int completed, int total)>;
 
 // Measures every ROI at every distance. Settings and image are validated first (std::invalid_argument); problems with
 // a single ROI (e.g. too few pixels, invalid geometry, values outside the quantization) only mark its results as
-// Skipped or Failed.
-AnalysisOutput RunAnalysis(
-    const cv::Mat& gray, const std::vector<Roi>& rois, const AnalysisSettings& settings, const ProgressCallback& progress = nullptr);
+// Skipped or Failed. Shape features are in millimetres with a pixel spacing and in pixels without one; a spacing that is
+// not positive and finite throws std::invalid_argument.
+AnalysisOutput RunAnalysis(const cv::Mat& gray, const std::vector<Roi>& rois, const AnalysisSettings& settings,
+    const ProgressCallback& progress = nullptr, const std::optional<PixelSpacing>& pixel_spacing = std::nullopt);
 
 } // namespace glcm
 
