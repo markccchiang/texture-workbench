@@ -98,6 +98,9 @@ export function MenuBar() {
         <Menu.Item disabled={!hasResults} onClick={() => void exportResultsFile('json')}>
           Export Results as JSON
         </Menu.Item>
+        <Menu.Item disabled={!hasResults} onClick={() => ui().setModal('report')}>
+          Save Report…
+        </Menu.Item>
         <Menu.Divider />
         <Menu.Item
           disabled={!hasImage}

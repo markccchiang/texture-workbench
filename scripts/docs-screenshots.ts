@@ -390,6 +390,26 @@ async function main(): Promise<void> {
     await page.keyboard.press('Escape');
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
 
+    // Save Report dialog, and the report it writes
+    await chooseMenuItem(page, 'File', 'Save Report…');
+    const reportDialog = page.getByRole('dialog', { name: 'Save Report' });
+    await reportDialog.getByLabel('Title').fill('Cameraman texture report');
+    await reportDialog.getByLabel('Notes').fill('Three ROIs on the cameraman photograph, measured at d = 1 and d = 2.');
+    await dialogShot(page, 'save-report', reportDialog);
+    const [reportDownload] = await Promise.all([
+      page.waitForEvent('download'),
+      reportDialog.getByRole('button', { name: 'Save Report' }).click(),
+    ]);
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
+    const reportFile = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'glcm-report-')), reportDownload.suggestedFilename());
+    await reportDownload.saveAs(reportFile);
+    const reportPage = await context.newPage();
+    await reportPage.setViewportSize({ width: 1060, height: 1180 });
+    await reportPage.goto(`file://${reportFile}`);
+    await reportPage.locator('figure.chart svg').first().waitFor();
+    await shot(reportPage, 'report');
+    await reportPage.close();
+
     // Slice dialog of a NIfTI volume: a synthetic head phantom
     await page.getByTestId('file-input').setInputFiles({ name: 'phantom.nii.gz', mimeType: 'application/gzip', buffer: headPhantom() });
     const sliceDialog = page.getByRole('dialog', { name: 'Open Slice of phantom.nii.gz' });

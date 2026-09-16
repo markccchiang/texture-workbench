@@ -5,7 +5,7 @@ Saving, importing and exporting
 
 .. figure:: images/file-menu.png
    :alt: The File menu with Open Image, Open Sample Image, Open Project, Save Project, Export Results as CSV, Export
-         Results as JSON and Close Image.
+         Results as JSON, Save Report and Close Image.
    :align: center
 
    The File menu.
@@ -29,6 +29,9 @@ Saving, importing and exporting
    * - Everything: ROIs, settings and results
      - *File ▸ Save Project…*
      - ``<image>.glcmproj``
+   * - A report to read, share or print
+     - *File ▸ Save Report…*
+     - ``<image>-report-<date>.html``
 
 Files are saved by your browser, usually into the Downloads folder.
 
@@ -107,6 +110,59 @@ Exporting ROI images
   When two ROIs would share a file name, for example ROIs named ``a`` and ``a_mask``, ``_2``, ``_3``, ... is appended,
   so no file overwrites another.
 - ``manifest.json`` lists every ROI with its shape, bounding box, pixel count and files, or why it was skipped.
+
+.. _reports:
+
+Reports
+-------
+
+A report is one HTML file that tells the whole story of a session: the images with their ROIs, what was measured, with
+which settings, and the results as tables and charts. It is meant to be read, sent to a colleague, attached to a study,
+or printed.
+
+.. figure:: images/save-report.png
+   :alt: The Save Report dialog with a title, notes and switches for images, ROI list, analysis settings, results table
+         and charts.
+   :align: center
+
+   Saving a report.
+
+*File ▸ Save Report…* opens the dialog:
+
+- **Title** and **Notes** appear at the top of the report. Use the notes to say what was measured and why; they are the
+  only part that is not taken from the data.
+- The **switches** choose what the report contains: the images, the ROI list, the analysis settings, the results table
+  and the charts. Your choice is remembered for the next report.
+- The line above the buttons counts what would be saved, for example *2 images · 7 ROIs · 84 result rows · 16 charts*.
+
+The report contains every image in the Results panel, in the order in which they were measured — a batch run over ten
+images gives one report with ten sections. For each image it shows:
+
+- its file name, size, pixel spacing, value conversion (for DICOM and NIfTI files) and SHA-256 checksum;
+- a picture of the image. The image currently open is drawn as you see it, with the display window, colour table and its
+  ROIs; images measured earlier are drawn with their own default window, without ROIs, as long as the server still has
+  them;
+- the ROI list with class, shape, pixel count and area;
+- the analysis settings of every measurement, with the time it was made;
+- the results table, exactly as in the Results panel;
+- a bar chart per feature, a polar chart of the directions and a chart against the distance, as in the Plot view.
+
+.. figure:: images/report.png
+   :alt: A report with the title, the notes, the image with its ROIs, the ROI table and the beginning of the settings.
+   :align: center
+
+   The beginning of a report, opened in a browser.
+
+The file is **self-contained**: the pictures are embedded in it and the charts are drawn as vectors inside the file, so
+it needs no other files and no internet connection. Nothing is loaded from the network when it is opened, which also
+means it can be archived or attached to an email as it is.
+
+**For a PDF**, open the report in a browser and use *Print ▸ Save as PDF* (the button at the top right of the report
+does the same). The report has a print layout: each image starts on a new page, tables and figures are not split across
+pages, and the page is printed on white.
+
+A report is a record, not a project: it cannot be opened again for editing. Save a project as well when you want to
+continue working (see below).
 
 Projects
 --------

@@ -8,6 +8,7 @@ import { BatchContent } from '../batch/BatchDialog';
 import { FeatureMapContent } from '../featureMaps/FeatureMapDialog';
 import { ThresholdRoiContent } from '../rois/ThresholdDialog';
 import { RoiClassesContent } from '../rois/ClassesDialog';
+import { ReportContent } from '../report/ReportDialog';
 import { CATALOG_QUERY } from '../api/queryClient';
 import { useAnalysisSettings } from '../analysis/settingsStore';
 import { exportRoiImagesFile, saveProjectFile } from '../files/actions';
@@ -482,6 +483,7 @@ const TITLES: Record<ModalName, string> = {
   featureMap: 'Feature Map',
   thresholdRoi: 'Threshold ROI',
   roiClasses: 'ROI Classes',
+  report: 'Save Report',
 };
 
 export function AppModals() {
@@ -500,6 +502,7 @@ export function AppModals() {
       {modal === 'about' && <AboutContent />}
       {modal === 'samples' && <SamplesContent onClose={close} />}
       {modal === 'saveProject' && <SaveProjectContent onClose={close} />}
+      {modal === 'report' && <ReportContent onClose={close} />}
       {modal === 'exportRoiImages' && <ExportRoiImagesContent onClose={close} />}
     </Modal>
   );

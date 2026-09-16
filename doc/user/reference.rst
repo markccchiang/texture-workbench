@@ -99,7 +99,7 @@ Menus
    * - Menu
      - Items
    * - File
-     - Open Image…, Open Sample Image…, Open Project…, Save Project…, Export Results as CSV, Export Results as JSON,
+     - Open Image…, Open Sample Image…, Open Project…, Save Project…, Export Results as CSV, Export Results as JSON, Save Report…,
        Close Image, Change Access Token… (servers with an access token)
    * - Edit
      - Undo, Redo, Select All ROIs, Delete ROI, Preferences…

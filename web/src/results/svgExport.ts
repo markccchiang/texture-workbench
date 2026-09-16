@@ -1,8 +1,9 @@
-// A chart as a stand-alone SVG file: colours that come from CSS variables are resolved, and the panel background is added
+// A chart outside the app: colours that come from CSS variables are resolved, and a background is added. inlineSvg
+// gives the markup (for the HTML report), standaloneSvg a complete SVG file.
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-export function standaloneSvg(svg: SVGSVGElement, background: string): string {
+export function inlineSvg(svg: SVGSVGElement, background: string): string {
   const clone = svg.cloneNode(true) as SVGSVGElement;
   const sources = [svg, ...svg.querySelectorAll('*')];
   const targets = [clone, ...clone.querySelectorAll('*')];
@@ -23,5 +24,9 @@ export function standaloneSvg(svg: SVGSVGElement, background: string): string {
   rect.setAttribute('height', '100%');
   rect.setAttribute('fill', background);
   clone.insertBefore(rect, clone.firstChild);
-  return `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(clone)}\n`;
+  return new XMLSerializer().serializeToString(clone);
+}
+
+export function standaloneSvg(svg: SVGSVGElement, background: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>\n${inlineSvg(svg, background)}\n`;
 }

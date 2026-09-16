@@ -35,9 +35,9 @@ const AXIS = 'var(--mantine-color-default-border)';
 const LABEL = 'var(--mantine-color-dimmed)';
 const FONT_SIZE = 10;
 
-type SeriesProps = (series: Series, index: number) => SVGProps<SVGGElement>;
+export type SeriesProps = (series: Series, index: number) => SVGProps<SVGGElement>;
 
-interface ChartProps {
+export interface ChartProps {
   width: number;
   height: number;
   series: Series[];
@@ -347,9 +347,10 @@ function DistanceChart({ width, height, series, colors, featureName, seriesProps
   );
 }
 
-const CHARTS: Record<ChartKind, (props: ChartProps) => React.JSX.Element> = { bars: BarsChart, box: BoxChart, polar: PolarChart, distance: DistanceChart };
+/** The chart drawings, also used by the report (report/reportAssets.tsx) */
+export const CHARTS: Record<ChartKind, (props: ChartProps) => React.JSX.Element> = { bars: BarsChart, box: BoxChart, polar: PolarChart, distance: DistanceChart };
 
-function caption(kind: ChartKind, distance: number, distances: number, byClass: boolean): string {
+export function chartCaption(kind: ChartKind, distance: number, distances: number, byClass: boolean): string {
   switch (kind) {
     case 'bars':
       return byClass
@@ -454,7 +455,7 @@ export function ResultsPlot() {
           <Switch size="xs" label="Group by class" checked={groupByClass} onChange={(event) => setGroupByClass(event.currentTarget.checked)} />
         )}
         <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 160 }}>
-          {caption(kind, distance, distances.length, byClass)}
+          {chartCaption(kind, distance, distances.length, byClass)}
         </Text>
         <Button size="compact-xs" variant="subtle" color="gray" leftSection={<IconDownload size={12} />} disabled={series.length === 0} onClick={save}>
           Save SVG

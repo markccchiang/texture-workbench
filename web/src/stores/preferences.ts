@@ -3,6 +3,7 @@
 import type { PixelSpacing } from '@glcm/api';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { DEFAULT_SECTIONS, type ReportSections } from '../report/reportHtml';
 import type { ScrollBehaviour } from '../viewer/wheel';
 
 /** A display window saved by the user; offered for images of the same bit depth */
@@ -21,6 +22,8 @@ export interface PreferencesState {
   /** Pixel spacing chosen for an image (by SHA-256): a spacing, or null to ignore the file's; the most recent ones */
   pixelSpacings: Record<string, PixelSpacing | null>;
   showScaleBar: boolean;
+  /** Sections chosen in the Save Report dialog */
+  reportSections: ReportSections;
   setScrollBehaviour(scrollBehaviour: ScrollBehaviour): void;
   setUseWebGl(useWebGl: boolean): void;
   /** Adds a preset, replacing one with the same name and bit depth */
@@ -29,6 +32,7 @@ export interface PreferencesState {
   /** undefined forgets the choice, so the image uses the spacing of its file again */
   rememberPixelSpacing(sha256: string, spacing: PixelSpacing | null | undefined): void;
   setShowScaleBar(showScaleBar: boolean): void;
+  setReportSections(reportSections: ReportSections): void;
 }
 
 const MAX_REMEMBERED_SPACINGS = 200;
@@ -55,6 +59,7 @@ export const usePreferences = create<PreferencesState>()(
       windowPresets: [],
       pixelSpacings: {},
       showScaleBar: true,
+      reportSections: DEFAULT_SECTIONS,
       setScrollBehaviour: (scrollBehaviour) => set({ scrollBehaviour }),
       setUseWebGl: (useWebGl) => set({ useWebGl }),
       saveWindowPreset: (preset) =>
@@ -70,6 +75,7 @@ export const usePreferences = create<PreferencesState>()(
           return { pixelSpacings: Object.fromEntries(entries.slice(-MAX_REMEMBERED_SPACINGS)) };
         }),
       setShowScaleBar: (showScaleBar) => set({ showScaleBar }),
+      setReportSections: (reportSections) => set({ reportSections }),
     }),
     { name: 'glcm.preferences', version: 1, storage: safeStorage },
   ),
