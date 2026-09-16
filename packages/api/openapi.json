@@ -2609,11 +2609,11 @@
     },
     "/api/v1/images/{id}/combine-rois": {
       "post": {
-        "summary": "Unite or subtract ROIs",
+        "summary": "Unite, subtract, intersect or xor ROIs",
         "tags": [
           "rois"
         ],
-        "description": "Rasterizes the shapes on the image grid (pixel-centre rule) and returns the union, or the first shape without the others, as one polygon along the pixel edges; separate parts and holes are joined by zero-width cuts, so the polygon covers exactly the resulting pixels.",
+        "description": "Rasterizes the shapes on the image grid (pixel-centre rule) and returns the union, the first shape without the others, the pixels all shapes cover, or the pixels an odd number of shapes cover, as one polygon along the pixel edges; separate parts and holes are joined by zero-width cuts, so the polygon covers exactly the resulting pixels.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2637,6 +2637,18 @@
                         "type": "string",
                         "enum": [
                           "subtract"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "intersect"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "xor"
                         ]
                       }
                     ]
@@ -2756,7 +2768,7 @@
                     },
                     "minItems": 2,
                     "maxItems": 1000,
-                    "description": "union: the pixels of any shape; subtract: the pixels of the first shape that no other shape covers"
+                    "description": "union: the pixels of any shape; subtract: the pixels of the first shape that no other shape covers; intersect: the pixels every shape covers; xor: the pixels an odd number of shapes cover"
                   }
                 }
               }
@@ -3092,6 +3104,353 @@
                   },
                   "erase": {
                     "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^img_[0-9a-f]{32}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Image id returned by POST /images"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "shape",
+                    "pixelCount",
+                    "boundingBox"
+                  ],
+                  "properties": {
+                    "shape": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "type",
+                            "points"
+                          ],
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "polygon"
+                              ]
+                            },
+                            "points": {
+                              "type": "array",
+                              "items": {
+                                "type": "array",
+                                "additionalItems": false,
+                                "items": [
+                                  {
+                                    "type": "number",
+                                    "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                                  },
+                                  {
+                                    "type": "number",
+                                    "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                                  }
+                                ],
+                                "minItems": 2
+                              },
+                              "maxItems": 10000
+                            },
+                            "freehand": {
+                              "type": "boolean"
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "One polygon along the pixel edges whose pixels are exactly the result, with separate parts and holes joined by zero-width cuts (even-odd rule); null when no pixel is left"
+                    },
+                    "pixelCount": {
+                      "type": "integer"
+                    },
+                    "boundingBox": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "x",
+                            "y",
+                            "width",
+                            "height"
+                          ],
+                          "properties": {
+                            "x": {
+                              "type": "integer"
+                            },
+                            "y": {
+                              "type": "integer"
+                            },
+                            "width": {
+                              "type": "integer"
+                            },
+                            "height": {
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error returned by every endpoint for 4xx and 5xx responses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error code, e.g. \"NotFound\" or \"PayloadTooLarge\""
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description"
+                    }
+                  },
+                  "description": "Error returned by every endpoint for 4xx and 5xx responses"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error returned by every endpoint for 4xx and 5xx responses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error code, e.g. \"NotFound\" or \"PayloadTooLarge\""
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description"
+                    }
+                  },
+                  "description": "Error returned by every endpoint for 4xx and 5xx responses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/images/{id}/grow-roi": {
+      "post": {
+        "summary": "Enlarge or shrink an ROI, or make a band around it",
+        "tags": [
+          "rois"
+        ],
+        "description": "Distances are measured between pixel centres, in pixels, or in millimetres with pixelSpacing (non-square pixels are exact). enlarge: the image pixels within the distance of a pixel of the shape; shrink: the pixels of the shape farther than the distance from every pixel outside it, pixels beyond the image counting as outside; band: the pixels enlarge adds. The result is outlined like combine-rois; shape is null when no pixel is left.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "shape",
+                  "operation",
+                  "distance"
+                ],
+                "properties": {
+                  "shape": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "type",
+                          "x",
+                          "y",
+                          "width",
+                          "height"
+                        ],
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "rectangle"
+                            ]
+                          },
+                          "x": {
+                            "type": "number",
+                            "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                          },
+                          "width": {
+                            "type": "number"
+                          },
+                          "height": {
+                            "type": "number"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "type",
+                          "cx",
+                          "cy",
+                          "rx",
+                          "ry"
+                        ],
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "ellipse"
+                            ]
+                          },
+                          "cx": {
+                            "type": "number",
+                            "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                          },
+                          "cy": {
+                            "type": "number",
+                            "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                          },
+                          "rx": {
+                            "type": "number",
+                            "description": "Semi-axis along the ellipse x axis"
+                          },
+                          "ry": {
+                            "type": "number",
+                            "description": "Semi-axis along the ellipse y axis"
+                          },
+                          "angle": {
+                            "type": "number",
+                            "description": "Rotation in degrees, clockwise on screen"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "type",
+                          "points"
+                        ],
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "polygon"
+                            ]
+                          },
+                          "points": {
+                            "type": "array",
+                            "items": {
+                              "type": "array",
+                              "additionalItems": false,
+                              "items": [
+                                {
+                                  "type": "number",
+                                  "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                                },
+                                {
+                                  "type": "number",
+                                  "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                                }
+                              ],
+                              "minItems": 2
+                            },
+                            "maxItems": 10000
+                          },
+                          "freehand": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "operation": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "enlarge"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "shrink"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "band"
+                        ]
+                      }
+                    ]
+                  },
+                  "distance": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100000,
+                    "description": "Between pixel centres: in pixels, or in millimetres when pixelSpacing is given"
+                  },
+                  "pixelSpacing": {
+                    "type": "object",
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "maximum": 1000000,
+                        "description": "Millimetres per pixel, horizontally"
+                      },
+                      "y": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "maximum": 1000000,
+                        "description": "Millimetres per pixel, vertically"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "description": "Physical size of one pixel"
                   }
                 }
               }

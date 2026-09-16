@@ -473,7 +473,7 @@ describe('ROI editing', () => {
   const outer = { type: 'rectangle', x: 2, y: 3, width: 20, height: 15 };
   const inner = { type: 'rectangle', x: 8, y: 7, width: 6, height: 5 };
 
-  it('unites and subtracts ROIs into one polygon', async () => {
+  it('unites, subtracts, intersects and xors ROIs into one polygon', async () => {
     const union = await native.combineRois(roisJson(outer, { type: 'rectangle', x: 10, y: 10, width: 20, height: 10 }), 'union', 40, 30);
     expect(union.pixelCount).toBe(300 + 200 - 96);
     expect(await pixelCount(union.points)).toBe(union.pixelCount);
@@ -484,7 +484,35 @@ describe('ROI editing', () => {
     expect(await pixelCount(hole.points)).toBe(270);
 
     expect(await native.combineRois(roisJson(inner, outer), 'subtract', 40, 30)).toEqual({ points: [], pixelCount: 0, boundingBox: null });
-    expect(() => native.combineRois(roisJson(outer, inner), 'xor' as 'union', 40, 30)).toThrow(TypeError);
+
+    const crossing = { type: 'rectangle', x: 10, y: 10, width: 20, height: 10 };
+    const both = await native.combineRois(roisJson(outer, crossing), 'intersect', 40, 30);
+    expect(both).toMatchObject({ pixelCount: 12 * 8, boundingBox: { x: 10, y: 10, width: 12, height: 8 } });
+    expect(await pixelCount(both.points)).toBe(96);
+    const either = await native.combineRois(roisJson(outer, crossing), 'xor', 40, 30);
+    expect(either.pixelCount).toBe(300 + 200 - 2 * 96);
+    expect(await pixelCount(either.points)).toBe(either.pixelCount);
+    expect(() => native.combineRois(roisJson(outer, inner), 'and' as 'union', 40, 30)).toThrow(TypeError);
+  });
+
+  it('enlarges, shrinks and makes bands in pixels or millimetres', async () => {
+    // The 20 × 15 rectangle: enlarged by 1 it gains a pixel on every side but not the corners (they are √2 away)
+    const enlarged = await native.growRoi(roisJson(outer), 'enlarge', 1, 1, 1, 40, 30);
+    expect(enlarged.pixelCount).toBe(22 * 17 - 4);
+    expect(await pixelCount(enlarged.points)).toBe(enlarged.pixelCount);
+    expect(await native.growRoi(roisJson(outer), 'shrink', 2, 1, 1, 40, 30)).toMatchObject({ pixelCount: 16 * 11, boundingBox: { x: 4, y: 5, width: 16, height: 11 } });
+    const band = await native.growRoi(roisJson(outer), 'band', 1, 1, 1, 40, 30);
+    expect(band.pixelCount).toBe(22 * 17 - 4 - 300);
+    expect(await pixelCount(band.points)).toBe(band.pixelCount);
+
+    // 0.5 mm wide and 1 mm high pixels: 1 mm reaches two columns but only one row
+    expect((await native.growRoi(roisJson(inner), 'band', 1, 0.5, 1, 40, 30)).boundingBox).toEqual({ x: 6, y: 6, width: 10, height: 7 });
+
+    expect(await native.growRoi(roisJson(inner), 'shrink', 3, 1, 1, 40, 30)).toEqual({ points: [], pixelCount: 0, boundingBox: null });
+    expect(await rejectionCode(native.growRoi(roisJson(outer), 'enlarge', -1, 1, 1, 40, 30))).toBe('INVALID_ARGUMENT');
+    expect(await rejectionCode(native.growRoi(roisJson(outer, inner), 'enlarge', 1, 1, 1, 40, 30))).toBe('INVALID_ARGUMENT');
+    expect(() => native.growRoi(roisJson(outer), 'grow' as 'band', 1, 1, 1, 40, 30)).toThrow(TypeError);
+    expect(() => native.growRoi(roisJson(outer), 'band', Number.NaN, 1, 1, 40, 30)).toThrow(TypeError);
   });
 
   it('paints and erases brush strokes', async () => {

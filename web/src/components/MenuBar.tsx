@@ -10,6 +10,7 @@ import { applyPreset, matchingPreset } from '@glcm/api';
 import { useAnalysisSettings } from '../analysis/settingsStore';
 import { renameSelectedRoi } from '../app/actions';
 import { combineSelectedRois } from '../rois/editActions';
+import { openGrowDialog } from '../rois/GrowDialog';
 import { exportImageJRoisFile, exportResultsFile, exportRoiSetFile } from '../files/actions';
 import { clearStoredLayouts } from '../layout/layoutStorage';
 import { useResults } from '../results/resultsStore';
@@ -221,6 +222,18 @@ export function MenuBar() {
         </Menu.Item>
         <Menu.Item disabled={selectedCount < 2} onClick={() => void combineSelectedRois('subtract')}>
           Subtract
+        </Menu.Item>
+        <Menu.Item disabled={selectedCount < 2} onClick={() => void combineSelectedRois('intersect')}>
+          Intersect
+        </Menu.Item>
+        <Menu.Item disabled={selectedCount < 2} onClick={() => void combineSelectedRois('xor')}>
+          XOR
+        </Menu.Item>
+        <Menu.Item disabled={selectedCount === 0} onClick={() => openGrowDialog('enlarge')}>
+          Enlarge or Shrink…
+        </Menu.Item>
+        <Menu.Item disabled={selectedCount === 0} onClick={() => openGrowDialog('band')}>
+          Make Band…
         </Menu.Item>
         <Menu.Divider />
         <Menu.Item disabled={!hasActive} rightSection={<Shortcut>T</Shortcut>} onClick={() => rois().addActiveRoi()}>

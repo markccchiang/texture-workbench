@@ -8,6 +8,7 @@ import {
   AnalysisResults,
   BrushRoiRequest,
   CombineRoisRequest,
+  GrowRoiRequest,
   LivewireRequest,
   LivewireResponse,
   RoiShapeResult,
@@ -158,9 +159,9 @@ export const analysisRoutes: FastifyPluginAsyncTypebox<AnalysisRoutesOptions> = 
     '/images/:id/combine-rois',
     {
       schema: {
-        summary: 'Unite or subtract ROIs',
+        summary: 'Unite, subtract, intersect or xor ROIs',
         description:
-          'Rasterizes the shapes on the image grid (pixel-centre rule) and returns the union, or the first shape without the others, as one polygon along the pixel edges; separate parts and holes are joined by zero-width cuts, so the polygon covers exactly the resulting pixels.',
+          'Rasterizes the shapes on the image grid (pixel-centre rule) and returns the union, the first shape without the others, the pixels all shapes cover, or the pixels an odd number of shapes cover, as one polygon along the pixel edges; separate parts and holes are joined by zero-width cuts, so the polygon covers exactly the resulting pixels.',
         tags: ['rois'],
         params: ImageIdParams,
         body: CombineRoisRequest,
@@ -192,6 +193,27 @@ export const analysisRoutes: FastifyPluginAsyncTypebox<AnalysisRoutesOptions> = 
       const { shape, path, radius, erase } = request.body;
       const flat = Float64Array.from(path.flat());
       return shapeResult(await native.brushRoi(roisJson(shape ? [shape] : []), flat, radius, erase, info.width, info.height).catch(nativeError));
+    },
+  );
+
+  app.post(
+    '/images/:id/grow-roi',
+    {
+      schema: {
+        summary: 'Enlarge or shrink an ROI, or make a band around it',
+        description:
+          'Distances are measured between pixel centres, in pixels, or in millimetres with pixelSpacing (non-square pixels are exact). enlarge: the image pixels within the distance of a pixel of the shape; shrink: the pixels of the shape farther than the distance from every pixel outside it, pixels beyond the image counting as outside; band: the pixels enlarge adds. The result is outlined like combine-rois; shape is null when no pixel is left.',
+        tags: ['rois'],
+        params: ImageIdParams,
+        body: GrowRoiRequest,
+        response: { 200: RoiShapeResult, 400: ErrorResponse, 404: ErrorResponse },
+      },
+    },
+    async (request) => {
+      const info = await requireImage(request.params.id);
+      const { shape, operation, distance, pixelSpacing } = request.body;
+      const spacing = pixelSpacing ?? { x: 1, y: 1 };
+      return shapeResult(await native.growRoi(roisJson([shape]), operation, distance, spacing.x, spacing.y, info.width, info.height).catch(nativeError));
     },
   );
 

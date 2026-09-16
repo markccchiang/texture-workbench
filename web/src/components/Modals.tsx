@@ -7,6 +7,7 @@ import { getSamples } from '../api/client';
 import { BatchContent } from '../batch/BatchDialog';
 import { FeatureMapContent } from '../featureMaps/FeatureMapDialog';
 import { ThresholdRoiContent } from '../rois/ThresholdDialog';
+import { GrowRoiContent } from '../rois/GrowDialog';
 import { RoiClassesContent } from '../rois/ClassesDialog';
 import { ReportContent } from '../report/ReportDialog';
 import { CATALOG_QUERY } from '../api/queryClient';
@@ -482,6 +483,7 @@ const TITLES: Record<ModalName, string> = {
   batch: 'Batch Measure',
   featureMap: 'Feature Map',
   thresholdRoi: 'Threshold ROI',
+  growRoi: 'Enlarge, Shrink or Band',
   roiClasses: 'ROI Classes',
   report: 'Save Report',
 };
@@ -498,6 +500,7 @@ export function AppModals() {
       {modal === 'batch' && <BatchContent onClose={close} />}
       {modal === 'featureMap' && <FeatureMapContent onClose={close} />}
       {modal === 'thresholdRoi' && <ThresholdRoiContent onClose={close} />}
+      {modal === 'growRoi' && <GrowRoiContent onClose={close} />}
       {modal === 'roiClasses' && <RoiClassesContent onClose={close} />}
       {modal === 'about' && <AboutContent />}
       {modal === 'samples' && <SamplesContent onClose={close} />}

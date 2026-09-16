@@ -131,8 +131,12 @@ Namespace ``glcm``; include paths are relative to ``core/``.
      - ``LivewirePath``: Dijkstra over 8-connected pixels in a box 32 pixels around the two points, entering a pixel
        costing its step length times ``1.05 − g / g_max`` of the box's gradient; returns the turning pixel centres.
    * - ``roi/RoiOperations``
-     - ``CombineShapes`` and ``PaintStroke`` work on masks (``RasterizeCroppedMask`` of each shape, or the pixels within a
-       radius of a stroke) and return ``MaskOutline`` of the result: the outline of every 8-connected part and of every
+     - ``CombineShapes`` (union, subtract, intersect, xor), ``GrowShape`` (enlarge, shrink, band) and ``PaintStroke``
+       work on masks (``RasterizeCroppedMask`` of each shape, or the pixels within a radius of a stroke) and return
+       ``MaskOutline`` of the result. ``GrowShape`` finds the pixels within a distance with an exact squared Euclidean
+       distance transform (Felzenszwalb and Huttenlocher), separable with different column and row steps so that
+       millimetres on non-square pixels are exact, and shrinks by enlarging the outside of the shape (with a ring of
+       outside pixels around its box, standing for the image border). ``MaskOutline`` is the outline of every 8-connected part and of every
        4-connected hole along the pixel edges, joined into one polygon by cuts that are walked in both directions, so
        they add no crossings under the even-odd rule of ``RasterizeMask``. The web app draws polygons with the even-odd
        fill rule for the same reason.

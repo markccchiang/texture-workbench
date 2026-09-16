@@ -57,6 +57,8 @@ The status bar shows the column (``x``), row (``y``) and value of the pixel unde
 stored image: 0–255 for 8-bit images and 0–65535 for 16-bit images, after conversion to grayscale for color images.
 Column 0, row 0 is the upper left pixel.
 
+.. _pixel-spacing:
+
 Pixel spacing and scale bar
 ---------------------------
 

@@ -1,8 +1,9 @@
-// Brush, eraser, union and subtract: the server computes the result on the pixel grid and the ROIs are updated with it.
+// Brush, eraser, union, subtract, intersect, xor, enlarge, shrink and band: the server computes the result on the pixel grid and
+// the ROIs are updated with it.
 
-import { MAX_POLYGON_VERTICES, type PolygonShape, type RoiOperation, type RoiShape } from '@glcm/api';
+import { MAX_POLYGON_VERTICES, type GrowOperation, type PolygonShape, type RoiOperation, type RoiShape } from '@glcm/api';
 import { notifications } from '@mantine/notifications';
-import { brushRoi, combineRois } from '../api/client';
+import { brushRoi, combineRois, growRoi } from '../api/client';
 import { useViewer } from '../stores/viewerStore';
 import { simplifyPolyline } from './geometry';
 import { regionShape } from './regions';
@@ -96,9 +97,11 @@ function applyResult(target: { id: string; shape: RoiShape } | null, result: Pol
   notifySimplified(simplified);
 }
 
+const OPERATION_NAMES: Record<RoiOperation, string> = { union: 'Union', subtract: 'Subtract', intersect: 'Intersect', xor: 'XOR' };
+
 /**
- * Union: the selected ROIs become one, which keeps the first selected ROI's name and colour. Subtract: the other selected
- * ROIs are removed from the first selected ROI, and stay. Both are one undo step.
+ * Union, intersect and XOR: the selected ROIs become one, which keeps the first selected ROI's name and colour. Subtract: the
+ * other selected ROIs are removed from the first selected ROI, and stay. Each is one undo step.
  */
 export async function combineSelectedRois(operation: RoiOperation): Promise<void> {
   const image = useViewer.getState().image;
@@ -108,7 +111,13 @@ export async function combineSelectedRois(operation: RoiOperation): Promise<void
   const { rois, selectedIds } = useRois.getState();
   const selected = selectedIds.flatMap((id) => rois.filter((roi) => roi.id === id));
   if (selected.length < 2) {
-    notify('Select at least two ROIs', operation === 'union' ? 'Union merges the selected ROIs into one.' : 'Subtract removes the other selected ROIs from the first one you selected.');
+    const what: Record<RoiOperation, string> = {
+      union: 'Union merges the selected ROIs into one.',
+      subtract: 'Subtract removes the other selected ROIs from the first one you selected.',
+      intersect: 'Intersect keeps the pixels all selected ROIs have in common.',
+      xor: 'XOR keeps the pixels that only one of two selected ROIs covers.',
+    };
+    notify('Select at least two ROIs', what[operation]);
     return;
   }
   const [first, ...others] = selected;
@@ -120,21 +129,104 @@ export async function combineSelectedRois(operation: RoiOperation): Promise<void
       return;
     }
     if (!result.shape) {
-      notify(
-        operation === 'union' ? 'Nothing to combine' : 'Nothing would be left',
-        operation === 'union' ? 'The selected ROIs cover no pixel of the image.' : `The other ROIs cover all of ${first.name}, so it was not changed.`,
-      );
+      const empty: Record<RoiOperation, [string, string]> = {
+        union: ['Nothing to combine', 'The selected ROIs cover no pixel of the image.'],
+        subtract: ['Nothing would be left', `The other ROIs cover all of ${first.name}, so it was not changed.`],
+        intersect: ['Nothing in common', 'The selected ROIs share no pixel, so they were not changed.'],
+        xor: ['Nothing would be left', 'The selected ROIs cover the same pixels, so they were not changed.'],
+      };
+      notify(...empty[operation]);
       return;
     }
     const { shape, simplified } = regionShape(result.shape);
-    if (operation === 'union') {
-      store.mergeRois(first.id, shape, others.map((roi) => roi.id));
-    } else {
+    if (operation === 'subtract') {
       store.replaceShape(first.id, shape);
       store.select([first.id]);
+    } else {
+      store.mergeRois(first.id, shape, others.map((roi) => roi.id));
     }
     notifySimplified(simplified);
   } catch (error) {
-    notify(operation === 'union' ? 'Union failed' : 'Subtract failed', (error as Error).message, 'red');
+    notify(`${OPERATION_NAMES[operation]} failed`, (error as Error).message, 'red');
   }
+}
+
+export type DistanceUnit = 'px' | 'mm';
+
+export interface GrowRequest {
+  operation: GrowOperation;
+  distance: number;
+  /** Millimetres need the image's pixel spacing */
+  unit: DistanceUnit;
+}
+
+/** "5 px", "2.5 mm" */
+export function formatDistance(distance: number, unit: DistanceUnit): string {
+  return `${Number(distance.toPrecision(6))} ${unit}`;
+}
+
+/**
+ * Enlarge and shrink change the selected ROIs, as one undo step; Band adds a new ROI around each selected ROI, named after
+ * it, and keeps the ROI. An ROI that would lose all its pixels is left unchanged. Returns the number of ROIs changed or added.
+ */
+export async function growSelectedRois({ operation, distance, unit }: GrowRequest): Promise<number> {
+  const image = useViewer.getState().image;
+  if (!image) {
+    return 0;
+  }
+  const spacing = useViewer.getState().pixelSpacing;
+  if (unit === 'mm' && !spacing) {
+    notify('No pixel spacing', 'Set the pixel spacing in Image Info to use millimetres, or use pixels.');
+    return 0;
+  }
+  const { rois, selectedIds } = useRois.getState();
+  const selected = selectedIds.flatMap((id) => rois.filter((roi) => roi.id === id));
+  if (selected.length === 0) {
+    notify('Select ROIs first', 'Enlarge, Shrink and Band work on the selected ROIs.');
+    return 0;
+  }
+  let results: Awaited<ReturnType<typeof growRoi>>[];
+  try {
+    results = await Promise.all(
+      selected.map((roi) =>
+        growRoi(image.info.imageId, { shape: roi.shape, operation, distance, ...(unit === 'mm' && spacing ? { pixelSpacing: spacing } : {}) }),
+      ),
+    );
+  } catch (error) {
+    notify(`${operation === 'band' ? 'Band' : operation === 'enlarge' ? 'Enlarge' : 'Shrink'} failed`, (error as Error).message, 'red');
+    return 0;
+  }
+  const store = useRois.getState();
+  const unchanged = selected.every((roi) => store.rois.find((candidate) => candidate.id === roi.id)?.shape === roi.shape);
+  if (useViewer.getState().image?.info.imageId !== image.info.imageId || !unchanged) {
+    return 0;
+  }
+
+  const emptied = selected.filter((_, i) => !results[i].shape).map((roi) => roi.name);
+  let simplified = false;
+  const outcomes = selected.flatMap((roi, i) => {
+    const polygon = results[i].shape;
+    if (!polygon) {
+      return [];
+    }
+    const outline = regionShape(polygon);
+    simplified ||= outline.simplified;
+    return [{ roi, shape: outline.shape }];
+  });
+  if (operation === 'band') {
+    store.importRois(outcomes.map(({ roi, shape }) => ({ name: `${roi.name} band ${formatDistance(distance, unit)}`, color: '', shape })));
+  } else {
+    store.replaceShapes(outcomes.map(({ roi, shape }) => ({ id: roi.id, shape })));
+  }
+  if (emptied.length > 0) {
+    const reasons: Record<GrowOperation, string> = {
+      enlarge: 'no pixel lies on the image',
+      shrink: `shrinking by ${formatDistance(distance, unit)} would leave no pixel`,
+      band: 'the image has no pixel around it',
+    };
+    const reason = reasons[operation];
+    notify(`${emptied.length === 1 ? '1 ROI' : `${emptied.length} ROIs`} left unchanged`, `For ${emptied.join(', ')}, ${reason}.`);
+  }
+  notifySimplified(simplified);
+  return outcomes.length;
 }

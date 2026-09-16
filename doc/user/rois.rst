@@ -136,8 +136,8 @@ the classes (see :doc:`files`).
 Painting and combining ROIs
 ---------------------------
 
-The brush, the eraser and the *Union* and *Subtract* commands change ROIs pixel by pixel, with the same rule that decides
-which pixels an ROI contains (see below). The result is again one polygon ROI whose outline follows the pixel edges.
+The brush, the eraser and the commands of this section change ROIs pixel by pixel, with the same rule that decides which
+pixels an ROI contains (see below). The result is again one polygon ROI whose outline follows the pixel edges.
 
 - **Brush** (:kbd:`B`): with one ROI selected, press and drag over the image to add the stroke to that ROI. With no ROI
   selected, the stroke becomes a new ROI in the ROI Manager, which is then selected, so further strokes add to it. The
@@ -149,12 +149,56 @@ which pixels an ROI contains (see below). The result is again one polygon ROI wh
   colour of the ROI you selected first; the others are removed.
 - **Subtract** (*ROI ▸ Subtract*, or the ROI Manager's menu): removes the pixels of the other selected ROIs from the ROI
   you selected first. The other ROIs stay.
+- **Intersect** (*ROI ▸ Intersect*, or the ROI Manager's menu): keeps the pixels that all selected ROIs have in common,
+  for example the part of a lesion that lies inside an organ. Like *Union*, the result takes the place of the ROI you
+  selected first, and the others are removed. When the ROIs share no pixel, nothing changes.
+- **XOR** (*ROI ▸ XOR*, or the ROI Manager's menu): keeps the pixels that only one of two selected ROIs covers (with more
+  ROIs, the pixels an odd number of them cover), merged like *Union*.
 
 .. figure:: images/roi-editing.png
    :alt: A selected rectangle ROI with an elliptical hole, made by subtracting an ellipse; the tinted fill leaves the hole clear.
    :width: 45%
 
    A rectangle with an ellipse subtracted: one ROI with a hole.
+
+Enlarging, shrinking and bands
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+*ROI ▸ Enlarge or Shrink…* and *ROI ▸ Make Band…* (also in the ROI Manager's menu) open one dialog for the selected ROIs:
+
+.. figure:: images/make-band.png
+   :alt: The Enlarge, Shrink or Band dialog with Band chosen, a distance of 12 and millimetres as the unit.
+   :align: center
+
+   A 12 mm band around the selected ROI.
+
+- **Enlarge** adds every pixel within the distance of the ROI.
+- **Shrink** keeps the pixels of the ROI that are farther than the distance from every pixel outside it. The edge of the
+  image counts as outside, so an ROI that touches the edge shrinks away from it too. An ROI that would lose all its
+  pixels is left unchanged, and a notification says so.
+- **Band** adds a new ROI around each selected ROI, named after it (*Lesion band 5 mm*): the pixels Enlarge would add.
+  The ROI itself stays, so the region and its surroundings — for example a tumour and the tissue around it — can be
+  measured side by side. A band around an ROI with a hole also fills in the edge of the hole.
+
+.. figure:: images/roi-band.png
+   :alt: A rectangle ROI with an elliptical hole, and a band ROI around it that follows its outer edge with rounded
+         corners and also lines the inside of the hole.
+   :width: 45%
+
+   A band of 12 mm around a rectangle with a hole.
+
+Distances are measured **between pixel centres**, and a pixel counts when it is not farther than the distance: enlarging
+by 1 pixel adds the four pixels next to each edge pixel, but not the diagonal ones, which are √2 away. The distance is
+in pixels, or in millimetres when the image has a pixel spacing (see :ref:`pixel-spacing`). Millimetres are exact also
+for pixels that are not square: 2 mm on 0.5 × 1 mm pixels reaches four columns but only two rows. Corners become rounded,
+since the pixels at a corner are farther away diagonally.
+
+.. note::
+
+   ImageJ's *Enlarge* and *Make Band* differ in details. Both round the distance to whole pixels, converting millimetres
+   with the pixel width only. *Enlarge* keeps rectangles and ovals as larger or smaller rectangles and ovals instead of
+   rounding their corners, and when shrinking other shapes also removes the pixels whose distance lies between the given
+   distance and one pixel more.
 
 Each stroke and each command is one undo step. The canvas shows the stroke while it is drawn, and the ROI changes a
 moment later.

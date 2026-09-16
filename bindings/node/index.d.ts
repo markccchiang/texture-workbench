@@ -261,8 +261,26 @@ export interface NativeRoiShapeResult {
   boundingBox: { x: number; y: number; width: number; height: number } | null;
 }
 
-/** Union of the ROIs' pixels, or the first ROI's pixels without those of the others (glcm::CombineShapes) */
-export function combineRois(roisJson: string, operation: 'union' | 'subtract', width: number, height: number): Promise<NativeRoiShapeResult>;
+/**
+ * The pixels of any ROI (union), of the first ROI without those of the others (subtract), of every ROI (intersect), or of an
+ * odd number of ROIs (xor) (glcm::CombineShapes)
+ */
+export function combineRois(roisJson: string, operation: 'union' | 'subtract' | 'intersect' | 'xor', width: number, height: number): Promise<NativeRoiShapeResult>;
+
+/**
+ * The one ROI in roisJson enlarged (pixels within the distance of it), shrunk (its pixels farther than the distance from every
+ * pixel outside it, also beyond the image) or as a band (enlarged without the ROI). Distances between pixel centres use
+ * spacingX between columns and spacingY between rows: 1, 1 for pixels, or the pixel spacing in mm (glcm::GrowShape).
+ */
+export function growRoi(
+  roisJson: string,
+  operation: 'enlarge' | 'shrink' | 'band',
+  distance: number,
+  spacingX: number,
+  spacingY: number,
+  width: number,
+  height: number,
+): Promise<NativeRoiShapeResult>;
 
 /**
  * A brush stroke of the given radius along path ([x0, y0, x1, y1, ...]) added to, or with erase removed from, the ROI in
@@ -371,6 +389,7 @@ declare const native: {
   selectWandRegion: typeof selectWandRegion;
   combineRois: typeof combineRois;
   brushRoi: typeof brushRoi;
+  growRoi: typeof growRoi;
   gradientStatistics: typeof gradientStatistics;
   renderEdgeMap: typeof renderEdgeMap;
   livewirePath: typeof livewirePath;

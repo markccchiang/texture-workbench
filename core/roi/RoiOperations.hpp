@@ -11,8 +11,16 @@
 namespace glcm {
 
 enum class RoiOperation {
-    Union,   // the pixels of any shape
-    Subtract // the pixels of the first shape that no other shape covers
+    Union,     // the pixels of any shape
+    Subtract,  // the pixels of the first shape that no other shape covers
+    Intersect, // the pixels every shape covers
+    Xor        // the pixels an odd number of shapes cover (for two shapes: covered by exactly one)
+};
+
+enum class GrowOperation {
+    Enlarge, // the image pixels within the distance of a pixel of the shape
+    Shrink,  // the pixels of the shape farther than the distance from every pixel outside it
+    Band     // the pixels Enlarge adds: within the distance of the shape, but not in it
 };
 
 // A shape computed on the pixel grid, as one polygon ROI
@@ -30,9 +38,18 @@ struct OperationResult {
 // CV_8UC1.
 std::vector<std::array<double, 2>> MaskOutline(const cv::Mat& mask, cv::Point offset = cv::Point());
 
-// Union or subtraction of shapes rasterized on an image of the given size (shapes are clipped to the image). Throws
-// std::invalid_argument for an empty list or an invalid shape.
+// Union, subtraction, intersection or exclusive or of shapes rasterized on an image of the given size (shapes are clipped to the
+// image). Throws std::invalid_argument for an empty list or an invalid shape.
 OperationResult CombineShapes(const std::vector<RoiShape>& shapes, RoiOperation operation, cv::Size image_size);
+
+// A shape enlarged, shrunk or turned into a band around it, on the pixel grid of an image of the given size. Distances are
+// measured between pixel centres, with `spacing.x` between neighbouring columns and `spacing.y` between neighbouring rows (1, 1
+// for pixels, or the pixel spacing for millimetres); a pixel is within the distance when it is not farther, so enlarging a
+// single pixel by 1 adds its four edge neighbours but not the diagonal ones. Shrinking is the exact counterpart: a pixel stays
+// when enlarging the outside of the shape by the same distance would not reach it. Pixels outside the image count as outside
+// the shape, so shrinking also works in from the image border. Throws std::invalid_argument for a distance or spacing that
+// is not positive and finite, or an invalid shape.
+OperationResult GrowShape(const RoiShape& shape, GrowOperation operation, double distance, cv::Point2d spacing, cv::Size image_size);
 
 // A brush stroke: the pixels whose centres lie within `radius` of the polyline `path` (a single point paints a disc),
 // added to `shape`, or removed from it when `erase` is set. Without a shape, painting gives the stroke alone and erasing

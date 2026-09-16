@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <opencv2/imgproc.hpp>
 #include <stdexcept>
 #include <tuple>
@@ -47,6 +48,94 @@ OperationResult FromMask(const cv::Mat& mask, cv::Point offset) {
     result.box = box + offset;
     result.polygon.points = MaskOutline(mask(box), offset + box.tl());
     return result;
+}
+
+// The pixels of a mask of the size of `features` whose centres lie within `distance` of the centre of a non-zero pixel of
+// `features`, with steps of spacing.x between columns and spacing.y between rows. Exact: the squared Euclidean distance
+// transform of Felzenszwalb and Huttenlocher (2012), done column by column (distances in rows, kept as integers) and then row
+// by row as the lower envelope of parabolas. Memory is one int per pixel.
+cv::Mat WithinDistance(const cv::Mat& features, double distance, cv::Point2d spacing) {
+    const int rows = features.rows;
+    const int cols = features.cols;
+    const int none = std::numeric_limits<int>::max();
+
+    // Rows to the nearest feature in the same column
+    cv::Mat vertical(rows, cols, CV_32SC1, cv::Scalar(none));
+    for (int col = 0; col < cols; ++col) {
+        int last = -1;
+        for (int row = 0; row < rows; ++row) {
+            if (features.at<uchar>(row, col) != 0) {
+                last = row;
+            }
+            if (last >= 0) {
+                vertical.at<int>(row, col) = row - last;
+            }
+        }
+        last = -1;
+        for (int row = rows - 1; row >= 0; --row) {
+            if (features.at<uchar>(row, col) != 0) {
+                last = row;
+            }
+            if (last >= 0) {
+                vertical.at<int>(row, col) = std::min(vertical.at<int>(row, col), last - row);
+            }
+        }
+    }
+
+    const double limit = distance * distance;
+    const double sx2 = spacing.x * spacing.x;
+    cv::Mat within = cv::Mat::zeros(rows, cols, CV_8UC1);
+    std::vector<double> height(static_cast<size_t>(cols));
+    std::vector<int> apex(static_cast<size_t>(cols));
+    std::vector<double> boundary(static_cast<size_t>(cols) + 1);
+    for (int row = 0; row < rows; ++row) {
+        const int* line = vertical.ptr<int>(row);
+        // Parabola q: sx2 * (c - q)^2 + height[q], where height is the squared distance within the column
+        int count = 0;
+        const auto crossing = [&](int q, int p) {
+            return ((height[static_cast<size_t>(q)] + sx2 * q * q) - (height[static_cast<size_t>(p)] + sx2 * p * p)) /
+                   (2.0 * sx2 * (q - p));
+        };
+        for (int q = 0; q < cols; ++q) {
+            if (line[q] == none) {
+                continue;
+            }
+            const double step = line[q] * spacing.y;
+            height[static_cast<size_t>(q)] = step * step;
+            if (count == 0) {
+                apex[0] = q;
+                boundary[0] = -std::numeric_limits<double>::infinity();
+                boundary[1] = std::numeric_limits<double>::infinity();
+                count = 1;
+                continue;
+            }
+            double s = crossing(q, apex[static_cast<size_t>(count - 1)]);
+            while (count > 1 && s <= boundary[static_cast<size_t>(count - 1)]) {
+                --count;
+                s = crossing(q, apex[static_cast<size_t>(count - 1)]);
+            }
+            apex[static_cast<size_t>(count)] = q;
+            boundary[static_cast<size_t>(count)] = s;
+            boundary[static_cast<size_t>(count) + 1] = std::numeric_limits<double>::infinity();
+            ++count;
+        }
+        if (count == 0) {
+            continue;
+        }
+        uchar* out = within.ptr<uchar>(row);
+        int k = 0;
+        for (int col = 0; col < cols; ++col) {
+            while (boundary[static_cast<size_t>(k) + 1] < col) {
+                ++k;
+            }
+            const int q = apex[static_cast<size_t>(k)];
+            const double value = sx2 * (col - q) * (col - q) + height[static_cast<size_t>(q)];
+            if (value <= limit) {
+                out[col] = INSIDE;
+            }
+        }
+    }
+    return within;
 }
 
 void RequireRadius(double radius) {
@@ -166,12 +255,17 @@ OperationResult CombineShapes(const std::vector<RoiShape>& shapes, RoiOperation 
         masks.push_back(RasterizeCroppedMask(shape, image_size));
     }
 
+    // The pixels the result can have: all boxes for union and exclusive or, the first box for subtraction, their overlap
+    // for intersection
     cv::Rect area = masks[0].box;
-    if (operation == RoiOperation::Union) {
-        for (const CroppedMask& cropped : masks) {
-            if (cropped.box.area() > 0) {
-                area = area.area() > 0 ? (area | cropped.box) : cropped.box;
+    for (size_t i = 1; i < masks.size(); ++i) {
+        const cv::Rect box = masks[i].box;
+        if (operation == RoiOperation::Union || operation == RoiOperation::Xor) {
+            if (box.area() > 0) {
+                area = area.area() > 0 ? (area | box) : box;
             }
+        } else if (operation == RoiOperation::Intersect) {
+            area &= box;
         }
     }
     if (area.area() == 0) {
@@ -179,21 +273,78 @@ OperationResult CombineShapes(const std::vector<RoiShape>& shapes, RoiOperation 
     }
 
     cv::Mat result = cv::Mat::zeros(area.size(), CV_8UC1);
-    if (operation == RoiOperation::Union) {
-        for (const CroppedMask& cropped : masks) {
-            if (cropped.box.area() > 0) {
-                cv::Mat target = result(cropped.box - area.tl());
-                cv::bitwise_or(target, cropped.mask, target);
+    switch (operation) {
+        case RoiOperation::Union:
+        case RoiOperation::Xor:
+            for (const CroppedMask& cropped : masks) {
+                if (cropped.box.area() > 0) {
+                    cv::Mat target = result(cropped.box - area.tl());
+                    if (operation == RoiOperation::Union) {
+                        cv::bitwise_or(target, cropped.mask, target);
+                    } else {
+                        cv::bitwise_xor(target, cropped.mask, target);
+                    }
+                }
             }
-        }
-    } else {
-        masks[0].mask.copyTo(result);
-        for (size_t i = 1; i < masks.size(); ++i) {
-            const cv::Rect overlap = masks[i].box & area;
-            if (overlap.area() > 0) {
-                result(overlap - area.tl()).setTo(cv::Scalar(0), masks[i].mask(overlap - masks[i].box.tl()));
+            break;
+        case RoiOperation::Intersect:
+            result.setTo(cv::Scalar(INSIDE));
+            for (const CroppedMask& cropped : masks) {
+                cv::bitwise_and(result, cropped.mask(area - cropped.box.tl()), result);
             }
-        }
+            break;
+        case RoiOperation::Subtract:
+            masks[0].mask.copyTo(result);
+            for (size_t i = 1; i < masks.size(); ++i) {
+                const cv::Rect overlap = masks[i].box & area;
+                if (overlap.area() > 0) {
+                    result(overlap - area.tl()).setTo(cv::Scalar(0), masks[i].mask(overlap - masks[i].box.tl()));
+                }
+            }
+            break;
+    }
+    return FromMask(result, area.tl());
+}
+
+OperationResult GrowShape(const RoiShape& shape, GrowOperation operation, double distance, cv::Point2d spacing, cv::Size image_size) {
+    if (!std::isfinite(distance) || distance <= 0.0) {
+        throw std::invalid_argument("The distance must be a positive number");
+    }
+    if (!std::isfinite(spacing.x) || !std::isfinite(spacing.y) || spacing.x <= 0.0 || spacing.y <= 0.0) {
+        throw std::invalid_argument("The pixel spacing must be positive");
+    }
+    const CroppedMask base = RasterizeCroppedMask(shape, image_size);
+    if (base.box.area() == 0) {
+        return {};
+    }
+
+    if (operation == GrowOperation::Shrink) {
+        // The outside of the shape, with a ring of outside pixels around its box: every pixel outside the shape, also beyond
+        // the image, is at least as far from a pixel of the shape as the nearest pixel of that ring or of the box
+        const cv::Rect area(base.box.x - 1, base.box.y - 1, base.box.width + 2, base.box.height + 2);
+        cv::Mat outside(area.size(), CV_8UC1, cv::Scalar(INSIDE));
+        outside(cv::Rect(1, 1, base.box.width, base.box.height)).setTo(cv::Scalar(0), base.mask);
+        cv::Mat result = cv::Mat::zeros(area.size(), CV_8UC1);
+        base.mask.copyTo(result(cv::Rect(1, 1, base.box.width, base.box.height)));
+        result.setTo(cv::Scalar(0), WithinDistance(outside, distance, spacing));
+        return FromMask(result, area.tl());
+    }
+
+    // Columns and rows farther than the distance cannot be reached
+    const auto reach = [distance](double step) { return std::min(std::floor(distance / step), 1.0e9); };
+    const auto clamp_index = [](double value, int size) { return static_cast<int>(std::clamp(value, 0.0, static_cast<double>(size))); };
+    const double columns = reach(spacing.x);
+    const double rows = reach(spacing.y);
+    const int first_col = clamp_index(base.box.x - columns, image_size.width);
+    const int end_col = clamp_index(base.box.x + base.box.width + columns, image_size.width);
+    const int first_row = clamp_index(base.box.y - rows, image_size.height);
+    const int end_row = clamp_index(base.box.y + base.box.height + rows, image_size.height);
+    const cv::Rect area(first_col, first_row, end_col - first_col, end_row - first_row);
+    cv::Mat shape_mask = cv::Mat::zeros(area.size(), CV_8UC1);
+    base.mask.copyTo(shape_mask(base.box - area.tl()));
+    cv::Mat result = WithinDistance(shape_mask, distance, spacing);
+    if (operation == GrowOperation::Band) {
+        result.setTo(cv::Scalar(0), shape_mask);
     }
     return FromMask(result, area.tl());
 }

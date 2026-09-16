@@ -24,6 +24,7 @@ export const {
   selectWandRegion,
   combineRois,
   brushRoi,
+  growRoi,
   gradientStatistics,
   renderEdgeMap,
   livewirePath,

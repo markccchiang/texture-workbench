@@ -87,9 +87,15 @@ Endpoints
      - ``{from: {x, y}, to: {x, y}, sigma}`` → ``{points}``: the livewire path between two pixels along strong edges,
        as the pixel centres where it turns; ``400`` for points outside the image or more than 1024 pixels apart
    * - ``POST /images/{id}/combine-rois``
-     - ``{operation: "union"|"subtract", shapes}`` → ``{shape, pixelCount, boundingBox}``: the shapes rasterized on the
-       image grid and combined; ``shape`` is one polygon along the pixel edges whose parts and holes are joined by
-       zero-width cuts (even-odd rule), ``null`` when no pixel is left
+     - ``{operation: "union"|"subtract"|"intersect"|"xor", shapes}`` → ``{shape, pixelCount, boundingBox}``: the shapes
+       rasterized on the image grid and combined (``xor``: the pixels an odd number of shapes cover); ``shape`` is one
+       polygon along the pixel edges whose parts and holes are joined by zero-width cuts (even-odd rule), ``null`` when
+       no pixel is left
+   * - ``POST /images/{id}/grow-roi``
+     - ``{shape, operation: "enlarge"|"shrink"|"band", distance, pixelSpacing?}`` → the same result: the pixels within
+       ``distance`` of the shape, the shape's pixels farther than ``distance`` from every pixel outside it (pixels beyond
+       the image count as outside), or the pixels enlarging adds. Distances run between pixel centres, in pixels, or in
+       millimetres with ``pixelSpacing`` (exact for non-square pixels)
    * - ``POST /images/{id}/brush-roi``
      - ``{shape, path, radius, erase}`` → the same result: the pixels whose centres lie within ``radius`` of ``path``,
        added to ``shape`` (a new shape when ``null``) or removed from it

@@ -1,4 +1,5 @@
-// End-to-end test of Union, Subtract, the brush and the eraser: the ROIs equal the addon's results for the same shapes
+// End-to-end test of Union, Subtract, Intersect, XOR, Enlarge, Shrink, Make Band, the brush and the eraser: the ROIs equal
+// the addon's results for the same shapes
 
 import path from 'node:path';
 import type { RoiShape } from '@glcm/api';
@@ -66,6 +67,76 @@ test('Union merges the selected ROIs and Subtract cuts the others out of the fir
   expect(subtract.pixelCount).toBe(100 * 80 - 40 * 30);
   expect(await storedRois(page)).toHaveLength(3);
   await expect(page.getByTestId('roi-manager')).toContainText('6,800 px');
+});
+
+test('Intersect and XOR combine the selected ROIs into the first one', async ({ page }) => {
+  await openSample(page);
+  const ellipse: RoiShape = { type: 'ellipse', cx: 210, cy: 170, rx: 50, ry: 30 };
+  await addAndSelect(page, [rectangle, ellipse]);
+  await chooseMenuItem(page, 'ROI', 'Intersect');
+  const intersect = await native.combineRois(roisJson(rectangle, ellipse), 'intersect', IMAGE_SIZE, IMAGE_SIZE);
+  await expect.poll(async () => (await storedRois(page)).map((roi) => roi.shape)).toEqual([{ type: 'polygon', points: intersect.points }]);
+
+  const other: RoiShape = { type: 'rectangle', x: 300, y: 300, width: 60, height: 40 };
+  const crossing: RoiShape = { type: 'rectangle', x: 330, y: 320, width: 60, height: 40 };
+  await addAndSelect(page, [other, crossing]);
+  await chooseMenuItem(page, 'ROI', 'XOR');
+  const xor = await native.combineRois(roisJson(other, crossing), 'xor', IMAGE_SIZE, IMAGE_SIZE);
+  await expect.poll(async () => (await storedRois(page)).map((roi) => roi.shape)).toEqual([
+    { type: 'polygon', points: intersect.points },
+    { type: 'polygon', points: xor.points },
+  ]);
+  expect(xor.pixelCount).toBe(2 * (2400 - 30 * 20));
+
+  // Nothing in common: the ROIs stay as they are
+  await addAndSelect(page, [{ type: 'rectangle', x: 10, y: 10, width: 5, height: 5 }, { type: 'rectangle', x: 40, y: 40, width: 5, height: 5 }]);
+  await chooseMenuItem(page, 'ROI', 'Intersect');
+  await expect(page.getByText('Nothing in common')).toBeVisible();
+  expect(await storedRois(page)).toHaveLength(4);
+});
+
+test('Enlarge, Shrink and Make Band change the selected ROIs by a distance in pixels or millimetres', async ({ page }) => {
+  await openSample(page);
+  const ellipse: RoiShape = { type: 'ellipse', cx: 200, cy: 200, rx: 40, ry: 25, angle: 20 };
+  await addAndSelect(page, [ellipse]);
+  const grow = async (operation: 'enlarge' | 'shrink' | 'band', distance: number, spacingX = 1, spacingY = 1) =>
+    native.growRoi(roisJson(ellipse), operation, distance, spacingX, spacingY, IMAGE_SIZE, IMAGE_SIZE);
+
+  await chooseMenuItem(page, 'ROI', 'Make Band…');
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('radio', { name: 'Band' })).toBeChecked();
+  await expect(dialog.getByRole('radio', { name: 'mm' })).toBeDisabled();
+  await dialog.getByLabel('Distance').fill('6');
+  await dialog.getByRole('button', { name: 'Add bands to 1 ROI by 6 px' }).click();
+  const band = await grow('band', 6);
+  await expect.poll(async () => (await storedRois(page)).map((roi) => [roi.name, roi.shape])).toEqual([
+    ['Shape 1', ellipse],
+    ['Shape 1 band 6 px', { type: 'polygon', points: band.points }],
+  ]);
+
+  // Enlarge the ellipse itself, then shrink it back by more: one undo step each
+  const [first] = await storedRois(page);
+  await page.evaluate((id) => (window as unknown as EditingHooks).__glcm.rois.getState().select([id]), first.id);
+  await chooseMenuItem(page, 'ROI', 'Enlarge or Shrink…');
+  await dialog.getByLabel('Distance').fill('3.5');
+  await dialog.getByRole('button', { name: 'Enlarge 1 ROI by 3.5 px' }).click();
+  const enlarged = await grow('enlarge', 3.5);
+  await expect.poll(async () => (await storedRois(page))[0].shape).toEqual({ type: 'polygon', points: enlarged.points });
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(async () => (await storedRois(page))[0].shape).toEqual(ellipse);
+
+  // Millimetres with non-square pixels
+  await page.evaluate(() => (window as unknown as { __glcm: { viewer: { getState(): { setPixelSpacing(spacing: { x: number; y: number }): void } } } }).__glcm.viewer.getState().setPixelSpacing({ x: 0.5, y: 0.8 }));
+  await chooseMenuItem(page, 'ROI', 'Enlarge or Shrink…');
+  // Segmented controls are chosen by their labels; the radio inputs are hidden
+  await dialog.getByText('Shrink', { exact: true }).click();
+  await dialog.getByText('mm', { exact: true }).click();
+  await expect(dialog.getByRole('radio', { name: 'mm' })).toBeChecked();
+  await dialog.getByLabel('Distance').fill('4');
+  await dialog.getByRole('button', { name: 'Shrink 1 ROI by 4 mm' }).click();
+  const shrunk = await grow('shrink', 4, 0.5, 0.8);
+  await expect.poll(async () => (await storedRois(page))[0].shape).toEqual({ type: 'polygon', points: shrunk.points });
+  expect(shrunk.pixelCount).toBeLessThan(await pixelCount(ellipse));
 });
 
 test('the brush paints a new ROI and the eraser removes a stroke from it', async ({ page }) => {

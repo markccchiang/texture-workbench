@@ -6,6 +6,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "roi/Roi.hpp"
@@ -64,6 +65,30 @@ cv::Mat ReferenceStroke(const std::vector<std::array<double, 2>>& path, double r
         }
     }
     return mask;
+}
+
+// Pixels within the distance of a pixel of `from`, by comparing every pair of pixels; pixels beyond the image count as part of
+// `from` when `outside_counts` is set (the outside of a shape reaches in from the image border)
+cv::Mat ReferenceWithin(const cv::Mat& from, double distance, cv::Point2d spacing, bool outside_counts) {
+    const int margin = outside_counts ? 1 : 0;
+    cv::Mat within = cv::Mat::zeros(from.size(), CV_8UC1);
+    for (int y = 0; y < from.rows; ++y) {
+        for (int x = 0; x < from.cols; ++x) {
+            bool found = false;
+            for (int v = -margin; v < from.rows + margin && !found; ++v) {
+                for (int u = -margin; u < from.cols + margin && !found; ++u) {
+                    const bool beyond = u < 0 || v < 0 || u >= from.cols || v >= from.rows;
+                    if (beyond ? outside_counts : from.at<uchar>(v, u) != 0) {
+                        const double dx = (x - u) * spacing.x;
+                        const double dy = (y - v) * spacing.y;
+                        found = dx * dx + dy * dy <= distance * distance;
+                    }
+                }
+            }
+            within.at<uchar>(y, x) = found ? 255 : 0;
+        }
+    }
+    return within;
 }
 
 } // namespace
@@ -144,6 +169,80 @@ TEST(RoiOperationsTest, UnionAndSubtractMatchTheRasterizedShapes) {
     EXPECT_TRUE(nothing.polygon.points.empty());
     EXPECT_EQ(CombineShapes({Rectangle(-10, -10, 5, 5), Rectangle(50, 50, 5, 5)}, RoiOperation::Union, size).pixel_count, 0);
     EXPECT_THROW(CombineShapes({}, RoiOperation::Union, size), std::invalid_argument);
+}
+
+TEST(RoiOperationsTest, IntersectAndXorMatchTheRasterizedShapes) {
+    const cv::Size size(40, 30);
+    const RoiShape a = Rectangle(2, 3, 20, 15);
+    const RoiShape b = EllipseRoi{20, 15, 9, 6, 30};
+    const RoiShape c = Rectangle(15, 0, 4, 30);
+    const cv::Mat ma = RasterizeMask(a, size);
+    const cv::Mat mb = RasterizeMask(b, size);
+    const cv::Mat mc = RasterizeMask(c, size);
+
+    const auto check = [&size](const OperationResult& result, const cv::Mat& expected, const char* label) {
+        EXPECT_EQ(result.pixel_count, cv::countNonZero(expected)) << label;
+        EXPECT_EQ(Differences(Rasterize(result.polygon.points, size), expected), 0) << label;
+        EXPECT_EQ(result.box, MaskBoundingBox(expected)) << label;
+    };
+    check(CombineShapes({a, b}, RoiOperation::Intersect, size), ma & mb, "intersect two");
+    check(CombineShapes({a, b, c}, RoiOperation::Intersect, size), ma & mb & mc, "intersect three");
+    check(CombineShapes({a, b}, RoiOperation::Xor, size), ma ^ mb, "xor two");
+    // Three shapes: the pixels covered once or three times
+    check(CombineShapes({a, b, c}, RoiOperation::Xor, size), ma ^ mb ^ mc, "xor three");
+
+    EXPECT_EQ(CombineShapes({a, Rectangle(30, 22, 5, 5)}, RoiOperation::Intersect, size).pixel_count, 0);
+    EXPECT_EQ(CombineShapes({a, a}, RoiOperation::Xor, size).pixel_count, 0);
+    EXPECT_EQ(CombineShapes({a, Rectangle(-10, -10, 5, 5)}, RoiOperation::Intersect, size).pixel_count, 0);
+}
+
+TEST(RoiOperationsTest, EnlargeShrinkAndBandMatchDistancesBetweenPixelCentres) {
+    const cv::Size size(36, 28);
+    // An ellipse, a rotated ellipse near the border, a ring with a hole and a thin diagonal, which exercise corners, the image
+    // border, holes that close when enlarging and parts that vanish when shrinking
+    const std::vector<RoiShape> shapes = {
+        EllipseRoi{15, 12, 7, 4.5, 0},
+        EllipseRoi{4, 20, 6, 3, 35},
+        PolygonRoi{{{8, 4}, {26, 4}, {26, 22}, {8, 22}, {8, 4}, {13, 9}, {13, 17}, {21, 17}, {21, 9}, {13, 9}}},
+        PolygonRoi{{{3, 2}, {4.2, 2}, {30.2, 26}, {29, 26}}},
+    };
+    const std::vector<cv::Point2d> spacings = {{1, 1}, {0.7, 1.3}, {0.46875, 0.46875}};
+    const std::vector<double> distances = {0.5, 1, std::sqrt(2.0), 2, 3.3, 4.6875};
+    for (size_t s = 0; s < shapes.size(); ++s) {
+        const cv::Mat shape = RasterizeMask(shapes[s], size);
+        for (const cv::Point2d spacing : spacings) {
+            for (double distance : distances) {
+                const std::string label = "shape " + std::to_string(s) + ", spacing " + std::to_string(spacing.x) + "×" +
+                                          std::to_string(spacing.y) + ", distance " + std::to_string(distance);
+                const cv::Mat enlarged = ReferenceWithin(shape, distance, spacing, false);
+                const cv::Mat shrunk = shape & ~ReferenceWithin(~shape, distance, spacing, true);
+                const cv::Mat band = enlarged & ~shape;
+                for (const auto& [operation, expected, name] : {std::tuple{GrowOperation::Enlarge, enlarged, "enlarge"},
+                         std::tuple{GrowOperation::Shrink, shrunk, "shrink"}, std::tuple{GrowOperation::Band, band, "band"}}) {
+                    const OperationResult result = GrowShape(shapes[s], operation, distance, spacing, size);
+                    EXPECT_EQ(result.pixel_count, cv::countNonZero(expected)) << name << ", " << label;
+                    EXPECT_EQ(Differences(Rasterize(result.polygon.points, size), expected), 0) << name << ", " << label;
+                }
+            }
+        }
+    }
+
+    // A single pixel enlarged by 1 gains its edge neighbours only; by the diagonal it gains the corners too
+    const RoiShape pixel = Rectangle(10, 10, 1, 1);
+    EXPECT_EQ(GrowShape(pixel, GrowOperation::Enlarge, 1, {1, 1}, size).pixel_count, 5);
+    EXPECT_EQ(GrowShape(pixel, GrowOperation::Enlarge, std::sqrt(2.0), {1, 1}, size).pixel_count, 9);
+    EXPECT_EQ(GrowShape(pixel, GrowOperation::Band, 1, {1, 1}, size).pixel_count, 4);
+    // Shrinking works in from the image border, and a shape can vanish
+    EXPECT_EQ(GrowShape(Rectangle(0, 0, 6, 6), GrowOperation::Shrink, 1, {1, 1}, size).pixel_count, 16);
+    EXPECT_EQ(GrowShape(Rectangle(4, 4, 3, 3), GrowOperation::Shrink, 2, {1, 1}, size).pixel_count, 0);
+    // Enlarging stops at the image border
+    EXPECT_EQ(GrowShape(Rectangle(0, 0, 36, 28), GrowOperation::Enlarge, 50, {1, 1}, size).pixel_count, 36 * 28);
+    EXPECT_EQ(GrowShape(Rectangle(-9, -9, 2, 2), GrowOperation::Enlarge, 3, {1, 1}, size).pixel_count, 0);
+
+    EXPECT_THROW(GrowShape(pixel, GrowOperation::Enlarge, 0, {1, 1}, size), std::invalid_argument);
+    EXPECT_THROW(GrowShape(pixel, GrowOperation::Enlarge, NAN, {1, 1}, size), std::invalid_argument);
+    EXPECT_THROW(GrowShape(pixel, GrowOperation::Shrink, 1, {0, 1}, size), std::invalid_argument);
+    EXPECT_THROW(GrowShape(pixel, GrowOperation::Band, 1, {1, INFINITY}, size), std::invalid_argument);
 }
 
 TEST(RoiOperationsTest, BrushStrokesPaintAndEraseTheCoveredPixels) {

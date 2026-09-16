@@ -459,6 +459,36 @@ async function main(): Promise<void> {
     const topLeft = await toPage(page, 270, 300);
     const bottomRight = await toPage(page, 480, 480);
     await shot(page, 'roi-editing', { x: topLeft.x, y: topLeft.y, width: bottomRight.x - topLeft.x, height: bottomRight.y - topLeft.y });
+
+    // A band of 12 mm around the ring, with a pixel spacing so the dialog offers millimetres
+    await page.evaluate(() => {
+      const hooks = (
+        window as unknown as {
+          __glcm: {
+            viewer: { getState(): { setPixelSpacing(spacing: { x: number; y: number }): void } };
+            rois: { getState(): { rois: Array<{ id: string; name: string }>; select(ids: string[]): void } };
+          };
+        }
+      ).__glcm;
+      hooks.viewer.getState().setPixelSpacing({ x: 0.5, y: 0.5 });
+      const rois = hooks.rois.getState();
+      rois.select(rois.rois.filter((roi) => roi.name === 'Ring').map((roi) => roi.id));
+    });
+    await chooseMenuItem(page, 'ROI', 'Make Band…');
+    const bandDialog = page.getByRole('dialog', { name: 'Enlarge, Shrink or Band' });
+    await bandDialog.getByText('mm', { exact: true }).click();
+    await bandDialog.getByLabel('Distance').fill('12');
+    await dialogShot(page, 'make-band', bandDialog);
+    await bandDialog.getByRole('button', { name: 'Add bands to 1 ROI by 12 mm' }).click();
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
+    await page.waitForFunction(() =>
+      (window as unknown as { __glcm: { rois: { getState(): { rois: Array<{ name: string }> } } } }).__glcm.rois.getState().rois.some((roi) => roi.name.startsWith('Ring band')),
+    );
+    await page.mouse.move(5, VIEWPORT.height - 5);
+    await page.waitForTimeout(400);
+    const bandTopLeft = await toPage(page, 250, 280);
+    const bandBottomRight = await toPage(page, 500, 500);
+    await shot(page, 'roi-band', { x: bandTopLeft.x, y: bandTopLeft.y, width: bandBottomRight.x - bandTopLeft.x, height: bandBottomRight.y - bandTopLeft.y });
     await context.close();
 
     // Access token prompt of a server that requires a token

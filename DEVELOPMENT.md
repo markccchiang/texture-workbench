@@ -152,7 +152,8 @@ Endpoints (full details in `packages/api/openapi.json` and the Developer guide):
 | `POST /api/v1/images/{id}/threshold-rois` | ROIs of the connected regions in an intensity range (Threshold ROI) |
 | `POST /api/v1/images/{id}/livewire` | Livewire path between two pixels along strong edges |
 | `POST /api/v1/images/{id}/wand-roi` | ROI of the connected region around a pixel within a tolerance (magic wand) |
-| `POST /api/v1/images/{id}/combine-rois` | Union or subtraction of ROIs, as one polygon |
+| `POST /api/v1/images/{id}/combine-rois` | Union, subtraction, intersection or XOR of ROIs, as one polygon |
+| `POST /api/v1/images/{id}/grow-roi` | An ROI enlarged, shrunk or turned into a band around it, in pixels or millimetres |
 | `POST /api/v1/images/{id}/brush-roi` | A brush or eraser stroke applied to an ROI |
 | `POST /api/v1/analyses` | Start an analysis (image id, ROIs, settings); returns `202` |
 | `GET`, `DELETE /api/v1/analyses/{id}` | Status; cancel (queued jobs are dropped) |

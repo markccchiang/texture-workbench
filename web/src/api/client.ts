@@ -7,6 +7,7 @@ import {
   type AnalysisRequest,
   type AnalysisResults,
   type BrushRoiRequest,
+  type GrowRoiRequest,
   type CombineRoisRequest,
   type EdgeMapQuery,
   type GradientStatsResponse,
@@ -275,6 +276,11 @@ export function combineRois(imageId: string, request: CombineRoisRequest): Promi
 /** A brush stroke painted into (or erased from) a shape, computed on the pixel grid */
 export function brushRoi(imageId: string, request: BrushRoiRequest): Promise<RoiShapeResult> {
   return sendJson('POST', `${API_PREFIX}/images/${imageId}/brush-roi`, request);
+}
+
+/** A shape enlarged, shrunk or turned into a band around it, computed on the pixel grid */
+export function growRoi(imageId: string, request: GrowRoiRequest): Promise<RoiShapeResult> {
+  return sendJson('POST', `${API_PREFIX}/images/${imageId}/grow-roi`, request);
 }
 
 /** The 8-bit edge map PNG of an image */

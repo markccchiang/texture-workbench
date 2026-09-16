@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstring>
 #include <initializer_list>
+#include <map>
 #include <memory>
 #include <opencv2/imgcodecs.hpp>
 #include <optional>
@@ -1243,15 +1244,17 @@ private:
 };
 
 // combineRois(roisJson, operation, width, height): Promise<{points, pixelCount, boundingBox}> (glcm::CombineShapes);
-// operation is "union" or "subtract"
+// operation is "union", "subtract", "intersect" or "xor"
 Napi::Value CombineRois(const Napi::CallbackInfo& info) {
     const std::string rois_json = StringArgument(info, 0, "roisJson");
-    const std::string operation = StringArgument(info, 1, "operation");
-    if (operation != "union" && operation != "subtract") {
-        throw Napi::TypeError::New(info.Env(), "operation must be \"union\" or \"subtract\"");
+    const std::string name = StringArgument(info, 1, "operation");
+    const std::map<std::string, glcm::RoiOperation> operations = {{"union", glcm::RoiOperation::Union},
+        {"subtract", glcm::RoiOperation::Subtract}, {"intersect", glcm::RoiOperation::Intersect}, {"xor", glcm::RoiOperation::Xor}};
+    const auto operation = operations.find(name);
+    if (operation == operations.end()) {
+        throw Napi::TypeError::New(info.Env(), "operation must be \"union\", \"subtract\", \"intersect\" or \"xor\"");
     }
-    auto* worker = new CombineRoisWorker(info.Env(), rois_json,
-        operation == "union" ? glcm::RoiOperation::Union : glcm::RoiOperation::Subtract, ImageSizeArguments(info, 2));
+    auto* worker = new CombineRoisWorker(info.Env(), rois_json, operation->second, ImageSizeArguments(info, 2));
     const Napi::Promise promise = worker->Promise();
     worker->Queue();
     return promise;
@@ -1284,6 +1287,44 @@ Napi::Value BrushRoi(const Napi::CallbackInfo& info) {
     return promise;
 }
 
+class GrowRoiWorker : public PromiseWorker {
+public:
+    GrowRoiWorker(
+        Napi::Env env, std::string rois_json, glcm::GrowOperation operation, double distance, cv::Point2d spacing, cv::Size image_size)
+        : PromiseWorker(env),
+          _rois_json(std::move(rois_json)),
+          _operation(operation),
+          _distance(distance),
+          _spacing(spacing),
+          _image_size(image_size) {}
+
+    void Execute() override {
+        try {
+            const std::vector<glcm::Roi> rois = ParseRois(_rois_json);
+            if (rois.size() != 1) {
+                throw std::invalid_argument("Enlarging, shrinking and bands take exactly one ROI");
+            }
+            _result = glcm::GrowShape(rois[0].shape, _operation, _distance, _spacing, _image_size);
+        } catch (const std::invalid_argument& error) {
+            Fail(CODE_INVALID_ARGUMENT, error.what());
+        } catch (const std::exception& error) {
+            Fail(CODE_INTERNAL, error.what());
+        }
+    }
+
+    void OnOK() override {
+        Resolve(OperationResultToJs(Env(), _result));
+    }
+
+private:
+    std::string _rois_json;
+    glcm::GrowOperation _operation;
+    double _distance;
+    cv::Point2d _spacing;
+    cv::Size _image_size;
+    glcm::OperationResult _result;
+};
+
 double NumberArgument(const Napi::CallbackInfo& info, size_t index, const char* name) {
     if (info.Length() <= index || !info[index].IsNumber()) {
         throw Napi::TypeError::New(info.Env(), std::string(name) + " must be a number");
@@ -1293,6 +1334,25 @@ double NumberArgument(const Napi::CallbackInfo& info, size_t index, const char* 
         throw Napi::TypeError::New(info.Env(), std::string(name) + " must be a finite number");
     }
     return value;
+}
+
+// growRoi(roisJson, operation, distance, spacingX, spacingY, width, height): Promise<{points, pixelCount, boundingBox}>
+// (glcm::GrowShape); roisJson holds one ROI, operation is "enlarge", "shrink" or "band"
+Napi::Value GrowRoi(const Napi::CallbackInfo& info) {
+    const std::string rois_json = StringArgument(info, 0, "roisJson");
+    const std::string name = StringArgument(info, 1, "operation");
+    const std::map<std::string, glcm::GrowOperation> operations = {
+        {"enlarge", glcm::GrowOperation::Enlarge}, {"shrink", glcm::GrowOperation::Shrink}, {"band", glcm::GrowOperation::Band}};
+    const auto operation = operations.find(name);
+    if (operation == operations.end()) {
+        throw Napi::TypeError::New(info.Env(), "operation must be \"enlarge\", \"shrink\" or \"band\"");
+    }
+    const double distance = NumberArgument(info, 2, "distance");
+    const cv::Point2d spacing(NumberArgument(info, 3, "spacingX"), NumberArgument(info, 4, "spacingY"));
+    auto* worker = new GrowRoiWorker(info.Env(), rois_json, operation->second, distance, spacing, ImageSizeArguments(info, 5));
+    const Napi::Promise promise = worker->Promise();
+    worker->Queue();
+    return promise;
 }
 
 class GradientStatisticsWorker : public PixelWorker {
@@ -1450,6 +1510,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("selectWandRegion", Napi::Function::New(env, SelectWandRegion, "selectWandRegion"));
     exports.Set("combineRois", Napi::Function::New(env, CombineRois, "combineRois"));
     exports.Set("brushRoi", Napi::Function::New(env, BrushRoi, "brushRoi"));
+    exports.Set("growRoi", Napi::Function::New(env, GrowRoi, "growRoi"));
     exports.Set("gradientStatistics", Napi::Function::New(env, GradientStatistics, "gradientStatistics"));
     exports.Set("renderEdgeMap", Napi::Function::New(env, RenderEdgeMap, "renderEdgeMap"));
     exports.Set("livewirePath", Napi::Function::New(env, LivewirePath, "livewirePath"));

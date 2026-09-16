@@ -123,10 +123,10 @@ export const WandRoiResponse = Type.Object({
 export type WandRoiResponse = Static<typeof WandRoiResponse>;
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Editing ROIs on the pixel grid (brush, eraser, union and subtract)
+// Editing ROIs on the pixel grid (brush, eraser, union, subtract, intersect, xor, enlarge, shrink and band)
 // ---------------------------------------------------------------------------------------------------------------------
 
-export const RoiOperation = Type.Union([Type.Literal('union'), Type.Literal('subtract')]);
+export const RoiOperation = Type.Union([Type.Literal('union'), Type.Literal('subtract'), Type.Literal('intersect'), Type.Literal('xor')]);
 export type RoiOperation = Static<typeof RoiOperation>;
 
 export const CombineRoisRequest = Type.Object({
@@ -134,10 +134,26 @@ export const CombineRoisRequest = Type.Object({
   shapes: Type.Array(RoiShape, {
     minItems: 2,
     maxItems: MAX_ROIS_PER_REQUEST,
-    description: 'union: the pixels of any shape; subtract: the pixels of the first shape that no other shape covers',
+    description:
+      'union: the pixels of any shape; subtract: the pixels of the first shape that no other shape covers; intersect: the pixels every shape covers; xor: the pixels an odd number of shapes cover',
   }),
 });
 export type CombineRoisRequest = Static<typeof CombineRoisRequest>;
+
+export const GrowOperation = Type.Union([Type.Literal('enlarge'), Type.Literal('shrink'), Type.Literal('band')]);
+export type GrowOperation = Static<typeof GrowOperation>;
+
+export const GrowRoiRequest = Type.Object({
+  shape: RoiShape,
+  operation: GrowOperation,
+  distance: Type.Number({
+    exclusiveMinimum: 0,
+    maximum: 100000,
+    description: 'Between pixel centres: in pixels, or in millimetres when pixelSpacing is given',
+  }),
+  pixelSpacing: Type.Optional(PixelSpacing),
+});
+export type GrowRoiRequest = Static<typeof GrowRoiRequest>;
 
 export const BrushRoiRequest = Type.Object({
   shape: Type.Union([RoiShape, Type.Null()], { description: 'The ROI to paint into or erase from; null paints a new shape' }),

@@ -12,6 +12,7 @@ import { useRois, type ManagedRoi } from './roiStore';
 import { roiProblem, useRoiStatistics } from './useRoiStatistics';
 import { areaMm2, formatArea } from '../image/spacing';
 import { combineSelectedRois } from './editActions';
+import { openGrowDialog } from './GrowDialog';
 
 function RoiRow({ roi, pixelCount, problem }: { roi: ManagedRoi; pixelCount: number | undefined; problem: string | null }) {
   const pixelSpacing = useViewer((state) => state.pixelSpacing);
@@ -200,6 +201,18 @@ export function RoiManager() {
             </Menu.Item>
             <Menu.Item disabled={selectedCount < 2} onClick={() => void combineSelectedRois('subtract')}>
               Subtract
+            </Menu.Item>
+            <Menu.Item disabled={selectedCount < 2} onClick={() => void combineSelectedRois('intersect')}>
+              Intersect
+            </Menu.Item>
+            <Menu.Item disabled={selectedCount < 2} onClick={() => void combineSelectedRois('xor')}>
+              XOR
+            </Menu.Item>
+            <Menu.Item disabled={selectedCount === 0} onClick={() => openGrowDialog('enlarge')}>
+              Enlarge or Shrink…
+            </Menu.Item>
+            <Menu.Item disabled={selectedCount === 0} onClick={() => openGrowDialog('band')}>
+              Make Band…
             </Menu.Item>
             <Menu.Divider />
             <Menu.Item disabled={!hasImage} onClick={() => useUi.getState().requestFile('roiSet')}>

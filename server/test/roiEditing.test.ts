@@ -41,6 +41,35 @@ describe('editing ROIs on the pixel grid', () => {
     expect((await post('combine-rois', { operation: 'subtract', shapes: [INNER, OUTER] })).json()).toEqual({ shape: null, pixelCount: 0, boundingBox: null });
   });
 
+  it('intersects and xors ROIs', async () => {
+    const crossing = { type: 'rectangle', x: 10, y: 10, width: 20, height: 10 };
+    const both = (await post('combine-rois', { operation: 'intersect', shapes: [OUTER, crossing] })).json<RoiShapeResult>();
+    expect(both).toMatchObject({ pixelCount: 96, boundingBox: { x: 10, y: 10, width: 12, height: 8 } });
+    expect(await pixelsOf(both.shape)).toBe(96);
+    const either = (await post('combine-rois', { operation: 'xor', shapes: [OUTER, crossing] })).json<RoiShapeResult>();
+    expect(either.pixelCount).toBe(300 + 200 - 2 * 96);
+    expect(await pixelsOf(either.shape)).toBe(either.pixelCount);
+    expect((await post('combine-rois', { operation: 'intersect', shapes: [INNER, { type: 'rectangle', x: 30, y: 20, width: 5, height: 5 }] })).json()).toEqual({
+      shape: null,
+      pixelCount: 0,
+      boundingBox: null,
+    });
+  });
+
+  it('enlarges, shrinks and makes bands, in pixels or millimetres', async () => {
+    const enlarged = (await post('grow-roi', { shape: INNER, operation: 'enlarge', distance: 2 })).json<RoiShapeResult>();
+    // Distance 2 reaches two pixels out along the edges, and the corner pixels one step out diagonally (√2), not (2, 1) (√5)
+    expect(enlarged.pixelCount).toBe(10 * 9 - 4 * 3);
+    expect(await pixelsOf(enlarged.shape)).toBe(enlarged.pixelCount);
+    const band = (await post('grow-roi', { shape: INNER, operation: 'band', distance: 2 })).json<RoiShapeResult>();
+    expect(band.pixelCount).toBe(enlarged.pixelCount - 30);
+    expect((await post('grow-roi', { shape: OUTER, operation: 'shrink', distance: 1 })).json()).toMatchObject({ pixelCount: 18 * 13 });
+    // With 0.5 mm pixels, 1 mm is two pixels
+    const millimetres = (await post('grow-roi', { shape: INNER, operation: 'enlarge', distance: 1, pixelSpacing: { x: 0.5, y: 0.5 } })).json<RoiShapeResult>();
+    expect(millimetres).toEqual(enlarged);
+    expect((await post('grow-roi', { shape: INNER, operation: 'shrink', distance: 3 })).json()).toEqual({ shape: null, pixelCount: 0, boundingBox: null });
+  });
+
   it('paints and erases brush strokes', async () => {
     const painted = (await post('brush-roi', { shape: null, path: [[5.5, 5.5]], radius: 0.6, erase: false })).json<RoiShapeResult>();
     expect(painted.shape).toEqual({ type: 'polygon', points: [[5, 5], [6, 5], [6, 6], [5, 6]] });
@@ -53,7 +82,10 @@ describe('editing ROIs on the pixel grid', () => {
 
   it('validates requests', async () => {
     expect((await post('combine-rois', { operation: 'union', shapes: [OUTER] })).statusCode).toBe(400);
-    expect((await post('combine-rois', { operation: 'xor', shapes: [OUTER, INNER] })).statusCode).toBe(400);
+    expect((await post('combine-rois', { operation: 'and', shapes: [OUTER, INNER] })).statusCode).toBe(400);
+    expect((await post('grow-roi', { shape: OUTER, operation: 'enlarge', distance: 0 })).statusCode).toBe(400);
+    expect((await post('grow-roi', { shape: OUTER, operation: 'grow', distance: 1 })).statusCode).toBe(400);
+    expect((await post('grow-roi', { shape: OUTER, operation: 'band', distance: 1, pixelSpacing: { x: 0, y: 1 } })).statusCode).toBe(400);
     expect((await post('brush-roi', { shape: null, path: [], radius: 2, erase: false })).statusCode).toBe(400);
     expect((await post('brush-roi', { shape: null, path: [[1, 1]], radius: 0, erase: false })).statusCode).toBe(400);
     expect((await post('combine-rois', { operation: 'union', shapes: [OUTER, INNER] }, `img_${'0'.repeat(32)}`)).statusCode).toBe(404);
