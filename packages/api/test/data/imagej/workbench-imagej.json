@@ -1,0 +1,23 @@
+{
+  "imagej": "1.54p",
+  "width": 256,
+  "height": 256,
+  "rois": [
+    {"entry": "rectangle.roi", "name": "rectangle", "type": "Rectangle", "pixels": {"count": 1000, "sum": 5661500, "sumSquares": 35460587500}},
+    {"entry": "rectangle sub-pixel.roi", "name": "rectangle sub-pixel", "type": "Rectangle", "pixels": {"count": 620, "sum": 33426060, "sumSquares": 1803450247020}},
+    {"entry": "rectangle drawn leftwards.roi", "name": "rectangle drawn leftwards", "type": "Rectangle", "pixels": {"count": 600, "sum": 4593900, "sumSquares": 36480683500}},
+    {"entry": "ellipse on whole pixels.roi", "name": "ellipse on whole pixels", "type": "Oval", "color": "#2F9E44", "pixels": {"count": 780, "sum": 15921360, "sumSquares": 326819467268}},
+    {"entry": "ellipse.roi", "name": "ellipse", "type": "Traced", "pixels": {"count": 551, "sum": 8569634, "sumSquares": 134114780624}},
+    {"entry": "rotated ellipse.roi", "name": "rotated ellipse", "type": "Traced", "pixels": {"count": 1132, "sum": 58039338, "sumSquares": 2981982744294}},
+    {"entry": "ellipse turned 90 degrees.roi", "name": "ellipse turned 90 degrees", "type": "Oval", "pixels": {"count": 332, "sum": 3430058, "sumSquares": 36656290278}},
+    {"entry": "polygon.roi", "name": "polygon", "type": "Traced", "pixels": {"count": 3455, "sum": 126735240, "sumSquares": 4708040925600}},
+    {"entry": "livewire through pixel centres.roi", "name": "livewire through pixel centres", "type": "Traced", "pixels": {"count": 2355, "sum": 81442460, "sumSquares": 2854364952850}},
+    {"entry": "freehand.roi", "name": "freehand", "type": "Freehand", "pixels": {"count": 1424, "sum": 43818616, "sumSquares": 1355914253328}},
+    {"entry": "square with a hole.roi", "name": "square with a hole", "type": "Composite", "pixels": {"count": 800, "sum": 46216400, "sumSquares": 2674279809200}},
+    {"entry": "polygon over the edge.roi", "name": "polygon over the edge", "type": "Traced", "pixels": {"count": 820, "sum": 50526887, "sumSquares": 3117208120021}},
+    {"entry": "thin diagonal.roi", "name": "thin diagonal", "type": "Traced", "pixels": {"count": 80, "sum": 4501760, "sumSquares": 254027121080}},
+    {"entry": "L\u00e4sion \u03b1.roi", "name": "L\u00e4sion \u03b1", "type": "Rectangle", "color": "#E64B35", "pixels": {"count": 144, "sum": 5754744, "sumSquares": 230092173336}},
+    {"entry": "L\u00e4sion \u03b1-2.roi", "name": "L\u00e4sion \u03b1", "type": "Rectangle", "pixels": {"count": 144, "sum": 5757624, "sumSquares": 230322420696}}
+  ]
+}
+

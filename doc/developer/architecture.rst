@@ -49,7 +49,8 @@ Repository layout
      - ``@glcm/native``: ``src/addon.cpp``, ``index.js``, ``index.d.ts``, tests; built with cmake-js
    * - ``packages/api/``
      - ``@glcm/api``: ``src/schemas.ts`` (system, images), ``src/analysis.ts`` (ROIs, settings, results),
-       ``src/exports.ts`` (exports, file formats), ``src/windowLevel.ts``, generated ``openapi.json``
+       ``src/exports.ts`` (exports, file formats), ``src/windowLevel.ts``, ``src/imagejRoi.ts`` and
+       ``src/roiPixels.ts`` (ImageJ ROI files), generated ``openapi.json``
    * - ``packages/client/``
      - ``@glcm/client``: the API as a library — ``src/http.ts`` (transport) and ``src/operations.ts`` (open an image,
        build settings, measure, select regions, feature maps). Depends only on ``@glcm/api`` and ``fetch``
@@ -387,6 +388,16 @@ without it every image is uploaded.
 - **ROI sets and projects** are written and read entirely in the browser (``files/roiSet.ts``, ``files/project.ts``) and
   validated with the shared schemas. Opening a project finds its image with ``GET /images?sha256=``, re-uploads an
   embedded copy, or asks for the image file.
+- **ImageJ ROI files** (``.roi``, ``RoiSet.zip``) are read and written by ``@glcm/api`` (``imagejRoi.ts``), so the web
+  app, the command line and the MCP server share one implementation, with no server call. Reading turns every ImageJ
+  area ROI into an ROI set covering exactly the pixels of ImageJ's own mask: rectangles and ovals on their integer
+  bounds; polygons, splines (ImageJ's ``SplineFitter`` in its float32 arithmetic) and composite ROIs (curves flattened
+  as ``ShapeRoi`` flattens them, loops chained with zero-width cuts) as polygons moved by +1e-8 in x, and vertices on a
+  pixel-centre row by +1e-10 in y, which turns this application's tie rule for centres exactly on an edge into
+  ImageJ's. Writing compares each ROI's pixels here (``roiPixels.ts``, a port of ``RasterizeMask`` as runs per row)
+  with what ImageJ's ``PolygonFiller`` fills for the written shape, and falls back to the outline of the pixels (a
+  traced or composite ROI) when they differ. ``scripts/imagej-roi/`` has ImageJ write and measure the reference files
+  the tests compare with.
 
 .. rubric:: The command line and the agent server
 

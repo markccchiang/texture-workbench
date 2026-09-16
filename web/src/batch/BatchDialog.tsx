@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { CATALOG_QUERY } from '../api/queryClient';
 import { useAnalysisSettings } from '../analysis/settingsStore';
 import { IMAGE_FILE_TYPES } from '../files/fileTypes';
-import { buildRoiSet, parseRoiSet } from '../files/roiSet';
+import { buildRoiSet, readRoiSetFile, ROI_SET_FILE_TYPES } from '../files/roiSet';
 import { useRois } from '../rois/roiStore';
 import { useViewer } from '../stores/viewerStore';
 import { useBatch } from './batchStore';
@@ -64,7 +64,15 @@ export function BatchContent({ onClose }: { onClose(): void }) {
     }
     let roiSet: RoiSetDocument;
     try {
-      roiSet = source === 'manager' ? buildRoiSet(image!.info, useRois.getState().rois, useRois.getState().classes) : parseRoiSet(await roiFile!.text());
+      if (source === 'manager') {
+        roiSet = buildRoiSet(image!.info, useRois.getState().rois, useRois.getState().classes);
+      } else {
+        const read = await readRoiSetFile(roiFile!);
+        roiSet = read.document;
+        if (read.warnings.length > 0) {
+          notifications.show({ color: 'yellow', title: `Reading ${roiFile!.name}`, message: read.warnings.join(' '), autoClose: 10000 });
+        }
+      }
     } catch (error) {
       notifications.show({ color: 'red', title: 'Could not read the ROI set', message: (error as Error).message });
       return;
@@ -111,8 +119,8 @@ export function BatchContent({ onClose }: { onClose(): void }) {
           <FileInput
             size="sm"
             disabled={running}
-            accept=".json,application/json"
-            placeholder="Choose an ROI set (.roi.json)"
+            accept={ROI_SET_FILE_TYPES}
+            placeholder="Choose an ROI set (.roi.json, or ImageJ .roi / RoiSet.zip)"
             aria-label="ROI set file"
             clearable
             value={roiFile}

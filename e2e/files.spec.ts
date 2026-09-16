@@ -4,6 +4,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { expect, test, type Download, type Page } from '@playwright/test';
+import { readImageJRois } from '@glcm/api';
 import * as native from '@glcm/native';
 import { unzipSync } from 'fflate';
 import {
@@ -102,6 +103,33 @@ test('exports and imports an ROI set without loss', async ({ page }) => {
   // Importing is one undoable step
   await page.keyboard.press('ControlOrMeta+z');
   await expect(page.getByTestId('roi-row')).toHaveCount(0);
+});
+
+test('exports ROIs for ImageJ and imports ImageJ ROI sets on the same pixels', async ({ page }) => {
+  await drawThreeRois(page);
+  const drawn = await storedRois(page);
+  const counts = async (shapes: unknown[]) =>
+    (await native.roiStats(camera.pixels, camera.width, camera.height, camera.bitDepth, JSON.stringify(shapes.map((shape, i) => ({ id: `r${i}`, shape }))))).map(
+      (stats) => stats.pixelCount,
+    );
+
+  const exported = await download(page, () => chooseMenuItem(page, 'ROI', 'Export ROIs for ImageJ…'));
+  expect(exported.file.suggestedFilename()).toBe('camera-RoiSet.zip');
+  await expect(page.getByText('Saved 3 ROIs for ImageJ')).toBeVisible();
+  const written = readImageJRois(new Uint8Array(await fs.readFile(exported.path)), 'camera-RoiSet.zip').document.rois;
+  expect(written.map((roi) => roi.name)).toEqual(drawn.map((roi) => roi.name));
+  expect(await counts(written.map((roi) => roi.shape))).toEqual(await counts(drawn.map((roi) => roi.shape)));
+
+  // ROIs saved by ImageJ, with the pixel counts ImageJ gives them; the lines and points in the archive are left out
+  const data = path.join(ROOT, 'packages', 'api', 'test', 'data', 'imagej');
+  const reference = JSON.parse(await fs.readFile(path.join(data, 'imagej-rois.json'), 'utf8')) as { rois: Array<{ name: string; pixels?: { count: number } }> };
+  const withArea = reference.rois.filter((entry) => entry.pixels);
+  await chooseFile(page, () => chooseMenuItem(page, 'ROI', 'Import ROI Set…'), path.join(data, 'imagej-rois.zip'));
+  await expect(page.getByTestId('roi-row')).toHaveCount(3 + withArea.length);
+  await expect(page.getByText(/Skipped 4 selections without an area/)).toBeVisible();
+  const imported = (await storedRois(page)).slice(3);
+  expect(imported.map((roi) => roi.name)).toEqual(withArea.map((entry) => entry.name));
+  expect(await counts(imported.map((roi) => roi.shape))).toEqual(withArea.map((entry) => entry.pixels!.count));
 });
 
 test('saves and opens projects, re-uploading an embedded image', async ({ page }) => {

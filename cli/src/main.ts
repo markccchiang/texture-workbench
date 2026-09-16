@@ -7,7 +7,7 @@ import { parseArgs } from 'node:util';
 import { combineResultsCsv, encodeFloat32Tiff, type AnalysisSettings, type Direction, type ImageInfo, type Roi } from '@glcm/api';
 import { ApiError, createClient, type ApiClient } from './client.js';
 import * as operations from '@glcm/client';
-import { openImageTarget, readRois, readSettings } from './files.js';
+import { openImageTarget, readRois, readSettings, writeRoiSet } from './files.js';
 import { bytes, number, pairs, table } from './output.js';
 import { VERSION } from './version.js';
 
@@ -221,7 +221,7 @@ const COMMANDS: Record<string, Command> = {
     usage: 'glcm measure <image...> [--rois <file>] [--preset <id>] [--out <file>]',
     details: [
       'Without --rois the whole image is measured as one ROI.',
-      '--rois takes an ROI set (.roi.json), a project (.glcmproj) or an array of ROIs.',
+      '--rois takes an ROI set (.roi.json), a project (.glcmproj), an array of ROIs, or ImageJ ROIs (.roi or RoiSet.zip).',
       'Settings come from the defaults, then --settings <file>, then --preset, then the single options.',
       'Several images are measured in turn and their rows merged into one file when their settings match.',
     ],
@@ -246,7 +246,7 @@ const COMMANDS: Record<string, Command> = {
       }
       const client = await context.client();
       const catalog = await operations.getCatalog(client);
-      const rois = text(context, 'rois') ? await readRois(text(context, 'rois')!) : null;
+      const rois = text(context, 'rois') ? await readRois(text(context, 'rois')!, (message) => context.io.err(`warning: ${message}`)) : null;
       const overrides = await settingsOverrides(context);
 
       const csvTexts: string[] = [];
@@ -309,6 +309,7 @@ const COMMANDS: Record<string, Command> = {
       'Without --at, the regions are the connected areas whose intensities lie between --min and --max.',
       'With --at they are the one region around that pixel, as the magic wand gives it.',
       'The ROI set can then be measured: glcm measure <image> --rois <file>',
+      'An --out name ending in .zip writes a RoiSet.zip for ImageJ instead of an ROI set.',
     ],
     options: {
       min: { type: 'string' },
@@ -358,7 +359,8 @@ const COMMANDS: Record<string, Command> = {
         return EXIT_OK;
       }
       if (out) {
-        await fs.writeFile(out, `${JSON.stringify(document, null, 2)}\n`);
+        const notes = await writeRoiSet(out, document, info);
+        notes.forEach((note) => context.io.err(`note: ${note}`));
         context.io.err(`Wrote ${out}`);
       }
       if (!context.json) {

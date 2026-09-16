@@ -1,6 +1,6 @@
 // ROI set files (*.roi.json, doc/ui-design-plan.md, sections 6.4 and 8.4).
 
-import { RoiSetDocument, type ImageInfo, type RoiSetImage, type RoiShape } from '@glcm/api';
+import { isImageJRoiFileName, readImageJRois, RoiSetDocument, type ImageInfo, type RoiSetImage, type RoiShape } from '@glcm/api';
 import type { ManagedRoi, RoiClass } from '../rois/roiStore';
 import type { Size } from '../viewer/viewport';
 import { fileStem } from './download';
@@ -22,6 +22,17 @@ export function roiSetFileName(imageName: string): string {
 
 export function parseRoiSet(text: string): RoiSetDocument {
   return parseAppFile<RoiSetDocument>(text, RoiSetDocument, 'glcm-roi-set', 'ROI set file');
+}
+
+/** File types the ROI set choosers accept: this application's ROI sets, and ImageJ's .roi files and RoiSet.zip archives */
+export const ROI_SET_FILE_TYPES = '.json,.roi,.zip,application/json,application/zip';
+
+/** An ROI set file, or ImageJ ROIs as an ROI set with notes on what was left out */
+export async function readRoiSetFile(file: File): Promise<{ document: RoiSetDocument; warnings: string[] }> {
+  if (isImageJRoiFileName(file.name)) {
+    return readImageJRois(new Uint8Array(await file.arrayBuffer()), file.name);
+  }
+  return { document: parseRoiSet(await file.text()), warnings: [] };
 }
 
 /** Why the ROI set may not belong to this image */

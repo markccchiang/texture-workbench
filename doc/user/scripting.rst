@@ -109,6 +109,15 @@ Regions can also be found by intensity, without drawing anything:
 The ROI set is an ordinary file of the application: *ROI ▸ Import ROI Set…* opens it in the browser to look at what was
 measured.
 
+ImageJ's ROI files work the same way: ``--rois`` also takes a ``.roi`` file or a ``RoiSet.zip`` saved by ImageJ's ROI
+Manager, measured on the pixels ImageJ measures (see :ref:`imagej-rois`), and an ``--out`` name ending in ``.zip``
+writes the regions as a ``RoiSet.zip`` for ImageJ:
+
+.. code-block:: bash
+
+   glcm measure ct-chest.png --rois RoiSet.zip --preset haralick --out lungs.csv
+   glcm regions ct-chest.png --min 0 --max 700 --min-pixels 4000 --out lungs-RoiSet.zip
+
 Every command also has a ``--json`` form, which is what a script should read; ``--help`` after any command explains its
 options.
 

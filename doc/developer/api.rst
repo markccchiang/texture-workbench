@@ -366,9 +366,11 @@ script.
      - Size, bit depth, display window, pixel spacing, value conversion and checksum
    * - ``glcm measure <image...> [--rois <file>]``
      - Measures the ROIs (the whole image without ``--rois``) and writes CSV or JSON; several images with equal
-       settings are merged into one table
+       settings are merged into one table. ``--rois`` takes an ROI set, a project, an array of ROIs, or ImageJ's
+       ``.roi`` and ``RoiSet.zip``
    * - ``glcm regions <image> [--min --max | --at x,y]``
-     - Regions by intensity or around a pixel, written as an ROI set the application also reads
+     - Regions by intensity or around a pixel, written as an ROI set the application also reads, or with an
+       ``--out`` name ending in ``.zip`` as a ``RoiSet.zip`` for ImageJ
    * - ``glcm feature-map <image> --feature <id>``
      - One feature over the whole image, written as a 32-bit floating point TIFF
    * - ``glcm mcp``
@@ -624,6 +626,11 @@ Every JSON file has ``format`` and an integer ``version``; readers reject other 
      - ``image`` (name, size, bit depth, sha256, optional base64 ``data``), optional ``classes``, ``rois`` (with
        visibility and class), ``settings``
        and ``results`` (finished analyses with their settings)
+   * - ImageJ ROI
+     - ``*.roi``, ``RoiSet.zip``
+     - ImageJ's binary format (``ij/io/RoiDecoder.java``, version 228), not JSON: read into ``glcm-roi-set`` documents
+       and written from ROIs by ``readImageJRois`` and ``writeImageJRois`` in ``@glcm/api``, covering the same pixels as
+       in ImageJ 1.54p. Names and stroke colours are kept; classes, positions in stacks and groups are not
 
 Example ROI set:
 

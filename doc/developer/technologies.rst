@@ -115,8 +115,8 @@ API server
      - Schemas shared by server and web app (``packages/api``); ``typebox/value`` validates files in the browser
    * - ``fflate``
      - 0.8.3
-     - ZIP archives of exports (server), of batch results with several groups of settings (web app), and reading
-       them in tests
+     - ZIP archives of exports (server), of batch results with several groups of settings (web app), ImageJ's
+       ``RoiSet.zip`` (``packages/api``), and reading them in tests
    * - ``tsx``
      - 4.23.13
      - Runs the TypeScript server without a separate compile step (also in the Docker image)

@@ -1,6 +1,6 @@
 // Save, import and export actions of the menus and panels (doc/ui-design-plan.md, section 6.4).
 
-import type { ExportFormat, ImageInfo, ProjectDocument, ResultsDocument } from '@glcm/api';
+import { writeImageJRois, type ExportFormat, type ImageInfo, type ProjectDocument, type ResultsDocument } from '@glcm/api';
 import { notifications } from '@mantine/notifications';
 import { downloadOriginal, exportResults, exportRoiImages, findImagesBySha256, getCoreVersion } from '../api/client';
 import { adaptToImage } from '@glcm/api';
@@ -10,9 +10,9 @@ import { useRois } from '../rois/roiStore';
 import { openImageFile, openStoredImage } from '../stores/imageLoader';
 import { useUi } from '../stores/uiStore';
 import { useViewer } from '../stores/viewerStore';
-import { downloadBlob, downloadText } from './download';
+import { downloadBlob, downloadText, fileStem } from './download';
 import { base64ToBytes, buildProject, parseProject, projectFileName, runsFromProject } from './project';
-import { buildRoiSet, parseRoiSet, prepareRoiImport, roiSetFileName } from './roiSet';
+import { buildRoiSet, prepareRoiImport, readRoiSetFile, roiSetFileName } from './roiSet';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -72,7 +72,10 @@ export async function importRoiSetFile(file: File): Promise<void> {
     return;
   }
   try {
-    const { rois, classes, warnings } = prepareRoiImport(parseRoiSet(await file.text()), image.info);
+    const read = await readRoiSetFile(file);
+    const prepared = prepareRoiImport(read.document, image.info);
+    const { rois, classes } = prepared;
+    const warnings = [...read.warnings, ...prepared.warnings];
     if (rois.length === 0) {
       notifications.show({ color: 'yellow', title: 'No ROIs imported', message: warnings.join(' ') || `${file.name} contains no ROIs.` });
       return;
@@ -88,6 +91,41 @@ export async function importRoiSetFile(file: File): Promise<void> {
   } catch (error) {
     fail(`Could not import ${file.name}`, error);
   }
+}
+
+/** The ROIs as a RoiSet.zip for ImageJ's ROI Manager, covering the pixels measured here */
+export function exportImageJRoisFile(): void {
+  const image = useViewer.getState().image;
+  const { rois } = useRois.getState();
+  if (!image || rois.length === 0) {
+    inform('Nothing to export', 'Add ROIs to the ROI Manager first.');
+    return;
+  }
+  const { bytes, outlined, empty } = writeImageJRois(
+    rois.map(({ id, name, color, shape }) => ({ id, name, color, shape })),
+    image.info,
+  );
+  const written = rois.length - empty.length;
+  if (written === 0) {
+    inform('Nothing to export', 'None of the ROIs covers a pixel of the image.');
+    return;
+  }
+  downloadBlob(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/zip' }), `${fileStem(image.info.name)}-RoiSet.zip`);
+  const notes: string[] = [];
+  if (outlined.length > 0) {
+    notes.push(
+      `${plural(outlined.length, 'ROI')} ${outlined.length === 1 ? 'was' : 'were'} saved as the outline of ${outlined.length === 1 ? 'its' : 'their'} pixels, so that ImageJ measures the same pixels: ${outlined.join(', ')}.`,
+    );
+  }
+  if (empty.length > 0) {
+    notes.push(`Left out ${plural(empty.length, 'ROI')} with no pixel on the image: ${empty.join(', ')}.`);
+  }
+  notifications.show({
+    color: empty.length > 0 ? 'yellow' : 'green',
+    title: `Saved ${plural(written, 'ROI')} for ImageJ`,
+    message: notes.join(' ') || 'Open the file in ImageJ’s ROI Manager.',
+    autoClose: notes.length > 0 ? 10000 : 4000,
+  });
 }
 
 export interface RoiImagesOptions {

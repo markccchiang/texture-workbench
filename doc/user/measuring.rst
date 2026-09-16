@@ -105,7 +105,7 @@ Measuring many images
 *Analyze ▸ Batch Measure…* measures the same ROIs on several images with the current analysis settings:
 
 1. Choose where the ROIs come from: the **ROI Manager** (the ROIs of the open image) or an **ROI set file**
-   (``.roi.json``, see :doc:`files`).
+   (``.roi.json``, or ImageJ's ``.roi`` and ``RoiSet.zip``; see :doc:`files`).
 2. Choose the **Images** (PNG, JPEG, BMP, TIFF, DICOM or 2D NIfTI; several at once).
 3. Click **Measure N images**.
 

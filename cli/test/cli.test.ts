@@ -86,6 +86,33 @@ describe('glcm', () => {
     expect(Object.keys(results.results[0].values).sort()).toEqual(['Contrast', 'Entropy']);
   });
 
+  it('writes regions for ImageJ and measures ImageJ ROI files the same way', async () => {
+    const json = path.join(dataDir, 'imagej-regions.roi.json');
+    const zip = path.join(dataDir, 'RoiSet.zip');
+    const options = ['--min', '0', '--max', '110', '--min-pixels', '400', '--max-regions', '3'];
+    expect((await glcm('regions', SAMPLE, ...options, '--out', json)).code).toBe(0);
+    const written = await glcm('regions', SAMPLE, ...options, '--out', zip);
+    expect(written.code).toBe(0);
+    expect(written.err).toContain(`Wrote ${zip}`);
+    expect((await fs.readFile(zip)).subarray(0, 2).toString()).toBe('PK');
+
+    // The same pixels from either file
+    const measure = async (file: string) => JSON.parse((await glcm('measure', SAMPLE, '--rois', file, '--features', 'Contrast', '--aggregation', 'meanOnly', '--json')).out) as ResultsDocument;
+    const [fromJson, fromZip] = await Promise.all([measure(json), measure(zip)]);
+    expect(fromZip.results.map((result) => [result.roiName, result.pixelCount])).toEqual(fromJson.results.map((result) => [result.roiName, result.pixelCount]));
+
+    // ImageJ's own archive, with lines and points it leaves out
+    const imagej = path.join(REPOSITORY, 'packages', 'api', 'test', 'data', 'imagej', 'imagej-rois.zip');
+    const fromImageJ = await glcm('measure', SAMPLE, '--rois', imagej, '--features', 'Contrast', '--aggregation', 'meanOnly', '--json');
+    expect(fromImageJ.code).toBe(0);
+    expect(fromImageJ.err).toContain('warning: Skipped 4 selections without an area');
+    expect((JSON.parse(fromImageJ.out) as ResultsDocument).results.find((result) => result.roiName === 'rectangle')?.pixelCount).toBe(41 * 17);
+
+    const refused = await glcm('regions', SAMPLE, ...options, '--out', path.join(dataDir, 'one.roi'));
+    expect(refused.code).toBe(2);
+    expect(refused.err).toContain('written as a RoiSet.zip archive');
+  });
+
   it('writes a feature map as a 32-bit TIFF', async () => {
     const file = path.join(dataDir, 'map.tif');
     const result = await glcm('feature-map', SAMPLE, '--feature', 'Contrast', '--window', '15', '--step', '16', '--out', file);

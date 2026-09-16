@@ -220,4 +220,4 @@ range. The selection and the highlighted ROI are the same on the canvas and in t
 
 The buttons below the list add the active ROI, duplicate the selected ROIs (the copies are moved by 10 pixels) and
 delete the selected ROIs. The menu at the top right shows or hides all ROIs, and imports and exports ROI sets (see
-:ref:`roi-sets`).
+:ref:`roi-sets`), also from and for ImageJ (see :ref:`imagej-rois`).

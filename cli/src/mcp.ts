@@ -9,7 +9,7 @@ import { z } from 'zod';
 import type { ImageInfo, Roi } from '@glcm/api';
 import { ApiError, createClient, requireOk, type ApiClient, type ConnectionOptions } from './client.js';
 import * as operations from '@glcm/client';
-import { openImageTarget, readRois } from './files.js';
+import { openImageTarget, readRois, writeRoiSet } from './files.js';
 import { number, table } from './output.js';
 import { VERSION } from './version.js';
 
@@ -63,7 +63,12 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
   const regionSets = new Map<string, { rois: Roi[]; imageId: string }>();
   let nextRegionSet = 1;
 
-  const resolveRois = async (image: ImageInfo, rois: string | undefined, rectangles: z.infer<typeof RECTANGLE>[] | undefined): Promise<Roi[]> => {
+  const resolveRois = async (
+    image: ImageInfo,
+    rois: string | undefined,
+    rectangles: z.infer<typeof RECTANGLE>[] | undefined,
+    warn: (message: string) => void,
+  ): Promise<Roi[]> => {
     if (rectangles && rectangles.length > 0) {
       return rectangles.map((rectangle, index) => ({
         id: `rect${index + 1}`,
@@ -76,7 +81,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
       if (stored) {
         return stored.rois;
       }
-      return readRois(rois);
+      return readRois(rois, warn);
     }
     return [operations.wholeImageRoi(image)];
   };
@@ -195,7 +200,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         maxRegions: z.number().optional().describe('Largest regions to keep (default 10)'),
         at: z.object({ x: z.number(), y: z.number() }).optional().describe('Select the one region around this pixel instead'),
         tolerance: z.number().optional().describe('How far a value may differ from the pixel at "at" (default 5 % of the window)'),
-        saveTo: z.string().optional().describe('Write the regions as an ROI set file as well'),
+        saveTo: z.string().optional().describe('Write the regions as an ROI set file as well; a name ending in .zip writes a RoiSet.zip for ImageJ'),
       },
     },
     async ({ image, min, max, minPixels, maxRegions, at, tolerance, saveTo }) => {
@@ -221,7 +226,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         const id = `regions_${nextRegionSet++}`;
         regionSets.set(id, { rois: document.rois as Roi[], imageId: info.imageId });
         if (saveTo) {
-          await fs.writeFile(saveTo, `${JSON.stringify(document, null, 2)}\n`);
+          await writeRoiSet(saveTo, document, info);
         }
         const rows = regions.map((region, index) => [
           document.rois[index].name,
@@ -245,7 +250,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         'Measures the texture of regions in an image. Without regions the whole image is measured. The table is shortened for reading; saveTo writes all of it as CSV.',
       inputSchema: {
         image: z.string(),
-        rois: z.string().optional().describe('A region set id from select_regions, or the path of an ROI set file'),
+        rois: z.string().optional().describe('A region set id from select_regions, or the path of an ROI set file (also ImageJ .roi or RoiSet.zip)'),
         rectangles: z.array(RECTANGLE).optional().describe('Regions given as rectangles in pixels'),
         preset: z.string().optional().describe('A preset id from list_features({presets: true})'),
         features: z.array(z.string()).optional().describe('Feature ids; overrides the preset'),
@@ -272,7 +277,9 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         if (issues.errors.length > 0) {
           return asText(`These settings cannot be used: ${issues.errors.join(' ')}`);
         }
-        const measurement = await operations.measure(client, { imageId: info.imageId, rois: await resolveRois(info, rois, rectangles), settings });
+        const fileWarnings: string[] = [];
+        const roiList = await resolveRois(info, rois, rectangles, (message) => fileWarnings.push(message));
+        const measurement = await operations.measure(client, { imageId: info.imageId, rois: roiList, settings });
         if (saveTo) {
           await fs.writeFile(saveTo, measurement.csv);
         }
@@ -294,7 +301,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
             table(['ROI', 'd', 'Pixels', ...featureIds], rows, [false, true, true, ...featureIds.map(() => true)]),
             ...(results.length > shown.length ? ['', `${results.length - shown.length} more rows are not shown; pass saveTo to write them all.`] : []),
             ...(saveTo ? ['', `Written to ${saveTo}`] : []),
-            ...(issues.warnings.length > 0 ? ['', `Note: ${issues.warnings.join(' ')}`] : []),
+            ...(issues.warnings.length > 0 || fileWarnings.length > 0 ? ['', `Note: ${[...fileWarnings, ...issues.warnings].join(' ')}`] : []),
           ].join('\n'),
         );
       } catch (error) {

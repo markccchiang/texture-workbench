@@ -10,7 +10,7 @@ import { applyPreset, matchingPreset } from '@glcm/api';
 import { useAnalysisSettings } from '../analysis/settingsStore';
 import { renameSelectedRoi } from '../app/actions';
 import { combineSelectedRois } from '../rois/editActions';
-import { exportResultsFile, exportRoiSetFile } from '../files/actions';
+import { exportImageJRoisFile, exportResultsFile, exportRoiSetFile } from '../files/actions';
 import { clearStoredLayouts } from '../layout/layoutStorage';
 import { useResults } from '../results/resultsStore';
 import { useRois } from '../rois/roiStore';
@@ -239,6 +239,9 @@ export function MenuBar() {
         </Menu.Item>
         <Menu.Item disabled={!hasRois} onClick={exportRoiSetFile}>
           Export ROI Set…
+        </Menu.Item>
+        <Menu.Item disabled={!hasRois} onClick={exportImageJRoisFile}>
+          Export ROIs for ImageJ…
         </Menu.Item>
         <Menu.Item disabled={!hasRois} onClick={() => ui().setModal('exportRoiImages')}>
           Export ROI Images…

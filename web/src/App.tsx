@@ -12,6 +12,7 @@ import { StatusBar } from './components/StatusBar';
 import { Toolbar } from './components/Toolbar';
 import { continueProjectWithImage, importRoiSetFile, openProjectFile } from './files/actions';
 import { IMAGE_FILE_TYPES } from './files/fileTypes';
+import { ROI_SET_FILE_TYPES } from './files/roiSet';
 import { layoutStorage } from './layout/layoutStorage';
 import { ResultsPanel } from './results/ResultsPanel';
 import { RoiManager } from './rois/RoiManager';
@@ -26,7 +27,7 @@ const ACCEPTED_TYPES: Record<FileKind, string> = {
   image: IMAGE_FILE_TYPES,
   projectImage: IMAGE_FILE_TYPES,
   project: '.glcmproj,.json,application/json',
-  roiSet: '.json,application/json',
+  roiSet: ROI_SET_FILE_TYPES,
 };
 
 function openChosenFile(file: File, kind: FileKind): void {
@@ -45,12 +46,12 @@ function openChosenFile(file: File, kind: FileKind): void {
   }
 }
 
-/** Dropped files: projects and ROI sets by extension, anything else as an image */
+/** Dropped files: projects and ROI sets (also ImageJ's .roi and RoiSet.zip) by extension, anything else as an image */
 function kindOfDroppedFile(file: File): FileKind {
   if (/\.glcmproj$/i.test(file.name)) {
     return 'project';
   }
-  return /\.json$/i.test(file.name) ? 'roiSet' : 'image';
+  return /\.(json|roi|zip)$/i.test(file.name) ? 'roiSet' : 'image';
 }
 
 function hasFiles(event: DragEvent): boolean {
@@ -196,7 +197,7 @@ export function App() {
       <TokenPrompt />
       {dragging && (
         <div className="drop-overlay">
-          <div>Drop an image (also DICOM or NIfTI), a project (.glcmproj) or an ROI set (.roi.json)</div>
+          <div>Drop an image (also DICOM or NIfTI), a project (.glcmproj) or ROIs (.roi.json, or ImageJ .roi and RoiSet.zip)</div>
         </div>
       )}
     </div>

@@ -100,6 +100,19 @@ describe('the MCP server', () => {
     expect(csv).toContain('Region 1');
   });
 
+  it('saves regions for ImageJ and measures an ImageJ archive', async () => {
+    const zip = path.join(dataDir, 'regions-RoiSet.zip');
+    await call('select_regions', { image: SAMPLE, min: 0, max: 110, minPixels: 400, maxRegions: 2, saveTo: zip });
+    const measured = await call('measure', { image: SAMPLE, rois: zip, preset: 'basic' });
+    expect(measured.isError).toBeFalsy();
+    expect(textOf(measured)).toContain('Region 2');
+
+    const imagej = path.resolve(import.meta.dirname, '..', '..', 'packages', 'api', 'test', 'data', 'imagej', 'imagej-rois.zip');
+    const fromImageJ = textOf(await call('measure', { image: SAMPLE, rois: imagej, preset: 'basic', maxRows: 3 }));
+    expect(fromImageJ).toContain('rectangle');
+    expect(fromImageJ).toContain('Note: Skipped 4 selections without an area');
+  });
+
   it('shortens a long table and says so', async () => {
     const rectangles = Array.from({ length: 8 }, (_, index) => ({ name: `R${index}`, x: index * 40, y: 0, width: 40, height: 40 }));
     const result = await call('measure', { image: SAMPLE, rectangles, features: ['Contrast'], maxRows: 3 });

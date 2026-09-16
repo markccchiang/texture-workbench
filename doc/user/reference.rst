@@ -109,7 +109,7 @@ Menus
        Image Info
    * - ROI
      - Rectangle, Ellipse, Polygon, Freehand, Livewire, Magic Wand, Brush, Eraser, Threshold ROI…, Union, Subtract, Add to Manager, Duplicate, Rename, ROI Classes…, Import ROI Set…, Export ROI Set…,
-       Export ROI Images…
+       Export ROIs for ImageJ…, Export ROI Images…
    * - Analyze
      - Measure Selected, Measure All, Batch Measure…, Feature Map…, Presets (the feature presets of the Analysis Settings panel), Clear Results
    * - View

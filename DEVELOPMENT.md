@@ -180,6 +180,8 @@ npm run cli -- info sample:textures/brick.png            # size, bit depth, wind
 npm run cli -- measure image.png --preset haralick --out results.csv
 npm run cli -- measure *.png --rois rois.roi.json --out batch.csv   # merged when the settings match
 npm run cli -- regions ct.png --min 1200 --max 1600 --out lungs.roi.json
+npm run cli -- measure ct.png --rois RoiSet.zip --out lungs.csv    # ImageJ's .roi or RoiSet.zip, on ImageJ's pixels
+npm run cli -- regions ct.png --min 1200 --max 1600 --out lungs-RoiSet.zip   # .zip: a RoiSet.zip for ImageJ
 npm run cli -- feature-map brick.png --feature Contrast --out contrast.tif
 npm run cli -- measure image.png --server http://127.0.0.1:8080 --token "$GLCM_API_TOKEN"
 ```
@@ -191,7 +193,7 @@ opened in the browser can be measured from a script and the other way round.
 `glcm mcp` serves the same operations to an AI agent over [MCP](https://modelcontextprotocol.io) on standard input and
 output: `list_features`, `list_samples`, `open_image`, `view_image` (the rendering or the edge map, as a picture the
 model can look at), `select_regions` (by intensity or around a pixel), `measure` (ROIs as rectangles, as a region set
-from `select_regions`, or from an ROI set file) and `feature_map`. Tables are shortened for reading and written in full
+from `select_regions`, or from an ROI set or ImageJ ROI file) and `feature_map`. Tables are shortened for reading and written in full
 with `saveTo`. To use it from an MCP client:
 
 ```json

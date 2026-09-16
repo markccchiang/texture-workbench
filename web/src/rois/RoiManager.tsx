@@ -4,7 +4,7 @@ import { ActionIcon, Button, Menu, Text, TextInput, Tooltip } from '@mantine/cor
 import { IconAlertTriangle, IconCopy, IconDots, IconEye, IconEyeOff, IconPlus, IconTrash } from '@tabler/icons-react';
 import type { MouseEvent } from 'react';
 import { PanelSection } from '../components/PanelSection';
-import { exportRoiSetFile } from '../files/actions';
+import { exportImageJRoisFile, exportRoiSetFile } from '../files/actions';
 import { useUi } from '../stores/uiStore';
 import { useViewer } from '../stores/viewerStore';
 import { ROI_COLORS, SHAPE_LABELS, shapeBounds, shapeKind } from './geometry';
@@ -207,6 +207,9 @@ export function RoiManager() {
             </Menu.Item>
             <Menu.Item disabled={rois.length === 0} onClick={exportRoiSetFile}>
               Export ROI Set…
+            </Menu.Item>
+            <Menu.Item disabled={rois.length === 0} onClick={exportImageJRoisFile}>
+              Export ROIs for ImageJ…
             </Menu.Item>
             <Menu.Item disabled={rois.length === 0} onClick={() => useUi.getState().setModal('exportRoiImages')}>
               Export ROI Images…

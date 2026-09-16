@@ -23,6 +23,9 @@ Saving, importing and exporting
    * - The ROIs, to use them again
      - *ROI ▸ Export ROI Set…*
      - ``<image>.roi.json``
+   * - The ROIs, to open them in ImageJ or Fiji
+     - *ROI ▸ Export ROIs for ImageJ…*
+     - ``<image>-RoiSet.zip``
    * - The pixels inside the ROIs
      - *ROI ▸ Export ROI Images…*
      - ``<image>-rois.zip``
@@ -87,6 +90,33 @@ the open image:
 - The import is one step that :kbd:`⌘Z` / :kbd:`Ctrl+Z` undoes.
 
 This way the same regions can be measured on several images of the same size, or again later with other settings.
+
+.. _imagej-rois:
+
+ROIs from and for ImageJ
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+*ROI ▸ Import ROI Set…* also opens the ROI files of `ImageJ <https://imagej.net>`_ and Fiji: a single ``.roi`` file,
+or a ``RoiSet.zip`` saved by ImageJ's ROI Manager (*More ▸ Save…*). ROIs drawn there can be measured here without
+drawing them again, and each ROI covers **exactly the pixels ImageJ measures** for it, so an ImageJ area or mean and the
+pixel count and mean here agree:
+
+- Rectangles, ovals, polygons, freehand and traced (wand) outlines, spline-fitted outlines, rotated rectangles and
+  ellipses, rectangles with rounded corners and composite ROIs (with holes or several parts) are imported. Rectangles
+  and ovals stay rectangles and ellipses; the others become polygons.
+- ImageJ's names and outline colours are kept. Lines, points, angles and text have no area to measure and are left out;
+  the notification lists them.
+- ImageJ counts a pixel whose centre lies exactly on an edge differently from this application. Imported polygons are
+  moved by a hundred-millionth of a pixel so that such pixels are counted as in ImageJ; the shift disappears when the
+  ROIs are written back for ImageJ.
+
+*ROI ▸ Export ROIs for ImageJ…* (also in the ROI Manager's menu) saves the ROIs as a ``RoiSet.zip`` that ImageJ's ROI
+Manager opens, covering **the same pixels in ImageJ as here**. Rectangles, ellipses and polygons stay rectangles, ovals
+and polygons when ImageJ fills the same pixels for them. An ROI that would cover different pixels in ImageJ — an
+ellipse that is rotated or not on whole pixels, a polygon with an edge exactly through pixel centres (livewire outlines
+often have them) — and an ROI with holes or several parts is saved as the outline of its pixels instead: a traced ROI,
+or a composite ROI. The notification lists those ROIs. Classes are not saved, since ImageJ's ROI files have no place
+for them.
 
 Exporting ROI images
 --------------------
@@ -184,8 +214,8 @@ their classes and the class list, the analysis settings and all finished results
   uploaded again; otherwise the application asks you to choose the image file. The ROIs, settings and results table of
   the project, and its class list, replace the current ones.
 
-Project and ROI set files can also be dragged onto the window. Files ending in ``.glcmproj`` are opened as projects,
-other ``.json`` files are imported as ROI sets.
+Project and ROI set files can also be dragged onto the window. Files ending in ``.glcmproj`` are opened as projects;
+other ``.json`` files, and ImageJ's ``.roi`` and ``.zip`` files, are imported as ROI sets.
 
 .. note::
 
