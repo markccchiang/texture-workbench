@@ -32,6 +32,10 @@
     "./config": {
       "types": "./src/config.ts",
       "default": "./src/config.ts"
+    },
+    "./lockFile": {
+      "types": "./src/lockFile.ts",
+      "default": "./src/lockFile.ts"
     }
   }
 }

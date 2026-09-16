@@ -202,7 +202,15 @@ with `saveTo`. To use it from an MCP client:
 }
 ```
 
-Both need the built native addon (`npm run build:native`), so they run from a clone of this repository.
+While the server runs it marks its data directory with `server.lock`, and a command refuses to build a second server on
+the same folder — that would empty `uploads/` and `volumes/` under it. Send the command to the server instead:
+`--server http://127.0.0.1:8080 --token "$GLCM_API_TOKEN"`.
+
+The Docker image ships the `glcm` command as well (`docker exec <container> glcm measure … --server http://127.0.0.1:8080
+--token …`). Its build removes the MCP SDK and zod by name, about 17 MB of packages a server image is better without, and
+`glcm mcp` then says so instead of failing obscurely. It cannot use `npm ci --omit=optional` for that: esbuild ships its
+platform binary as an optional dependency, and without it `tsx` cannot run the server.
+Everything else needs the built native addon (`npm run build:native`), so it runs from a clone of this repository.
 
 ## Documentation
 

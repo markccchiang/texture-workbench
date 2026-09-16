@@ -125,6 +125,31 @@ describe('glcm', () => {
   });
 });
 
+describe('glcm and a data directory in use', () => {
+  it('refuses to build a second server on it, and says where to send the command', async () => {
+    const busy = await fs.mkdtemp(path.join(os.tmpdir(), 'glcm-cli-busy-'));
+    try {
+      // What the server writes while it runs; this process is alive, so the lock counts
+      await fs.writeFile(
+        path.join(busy, 'server.lock'),
+        JSON.stringify({ pid: process.pid, host: '0.0.0.0', port: 8080, startedAt: new Date().toISOString() }),
+      );
+      const err: string[] = [];
+      const code = await run(['features', '--data-dir', busy], { out: () => undefined, err: (text) => err.push(text) });
+      expect(code).toBe(1);
+      expect(err.join('\n')).toContain('--server http://127.0.0.1:8080');
+
+      // A lock left behind by a process that is gone says nothing
+      await fs.writeFile(path.join(busy, 'server.lock'), JSON.stringify({ pid: 0x7ffffffe, host: '127.0.0.1', port: 8080, startedAt: '' }));
+      const stale: string[] = [];
+      expect(await run(['features', '--data-dir', busy], { out: (text) => stale.push(text), err: () => undefined })).toBe(0);
+      expect(stale.join('\n')).toContain('Contrast');
+    } finally {
+      await fs.rm(busy, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('glcm against a running server', () => {
   // A token of the length the server insists on
   const TOKEN = 'p'.repeat(43);

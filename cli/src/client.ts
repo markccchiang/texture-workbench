@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { buildApp, type App } from '@glcm/server/app';
 import { loadConfig, type ServerConfig } from '@glcm/server/config';
+import { readServerLock } from '@glcm/server/lockFile';
 
 export type HttpMethod = 'GET' | 'POST' | 'DELETE';
 
@@ -107,9 +108,21 @@ export function requireOk(result: ApiResponse, what: string): ApiResponse {
   return result;
 }
 
-/** The API in this process: the same routes the server runs, without a port */
+/**
+ * The API in this process: the same routes the server runs, without a port. Refused while a server is using the same
+ * data directory, because starting a second one there empties its `uploads/` and `volumes/` folders.
+ */
 export async function localClient(overrides: Partial<ServerConfig> = {}): Promise<ApiClient> {
   const config: ServerConfig = { ...loadConfig(), logLevel: 'silent', webDir: null, docsDir: null, apiToken: null, rateLimitPerMinute: 0, ...overrides };
+  const running = await readServerLock(config.dataDir);
+  if (running) {
+    const host = running.host === '0.0.0.0' || running.host === '::' ? '127.0.0.1' : running.host;
+    throw new ApiError(
+      0,
+      'DataDirectoryInUse',
+      `A server (pid ${running.pid}) is using ${config.dataDir}. Send the command to it instead: --server http://${host}:${running.port} --token <token>`,
+    );
+  }
   const app: App = await buildApp(config, { logger: false });
   return {
     description: `this computer (${config.dataDir})`,

@@ -380,6 +380,11 @@ then ``--preset``, then single options such as ``--features``, ``--gray-levels``
 ``--quantization``; they are checked with the same rules as the Analysis Settings panel, and a command that would be
 refused exits with code 2 and the reason.
 
+While the server runs it writes ``server.lock`` into its data directory (process id, address and start time), and a
+command refuses to run the API in its own process on that folder, naming the address to use instead. Starting a second
+server there would empty its ``uploads/`` and ``volumes/`` folders, which the stores clear when they start. A lock left
+behind by a process that no longer exists is ignored.
+
 **MCP.** ``glcm mcp`` speaks the Model Context Protocol on standard input and output. An agent cannot draw an ROI, so
 regions come from numbers (``rectangles``), from ``select_regions`` (which keeps them under an id such as
 ``regions_1``) or from an ROI set file. ``view_image`` answers with the rendered image or its edge map as a picture, so
@@ -406,6 +411,9 @@ when a tool is given ``saveTo``.
      - ``image``, ``rois``, ``rectangles``, ``preset``, ``features``, ``grayLevels``, ``distances``, ``maxRows``, ``saveTo``
    * - ``feature_map``
      - ``image``, ``feature``, ``window``, ``saveTo``
+
+The packages MCP needs are optional dependencies, so an installation can leave them out: the Docker image carries the
+command line but not the MCP server, and ``glcm mcp`` says so there rather than failing obscurely.
 
 .. _api-addon:
 

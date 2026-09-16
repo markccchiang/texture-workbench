@@ -466,9 +466,18 @@ export async function run(argv: readonly string[], io: Io = { out: (t) => consol
     return EXIT_OK;
   }
   if (name === 'mcp') {
-    const { serveMcp } = await import('./mcp.js');
-    await serveMcp(rest);
-    return EXIT_OK;
+    try {
+      const { serveMcp } = await import('./mcp.js');
+      await serveMcp(rest);
+      return EXIT_OK;
+    } catch (error) {
+      // The packages MCP needs are optional, so an installation can leave them out (the Docker image does)
+      if ((error as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND') {
+        io.err('MCP support is not installed here. Install @modelcontextprotocol/sdk and zod, or use a clone of the repository.');
+        return EXIT_FAILED;
+      }
+      throw error;
+    }
   }
   const command = COMMANDS[name];
   if (!command) {

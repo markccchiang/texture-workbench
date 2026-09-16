@@ -3,6 +3,9 @@
 #   docker build -t texture-workbench .
 #   docker run -p 8080:8080 -v glcm-data:/data -e GLCM_API_TOKEN="$(openssl rand -base64 32)" texture-workbench
 #
+# The image also carries the `glcm` command:
+#   docker exec <container> glcm measure /data/image.png --server http://127.0.0.1:8080 --token "$GLCM_API_TOKEN"
+#
 # The container listens on 0.0.0.0, which is server mode: GLCM_API_TOKEN is required. Put a reverse proxy with HTTPS
 # in front of it (see doc/deployment.md).
 
@@ -23,6 +26,7 @@ COPY packages/api/package.json packages/api/
 COPY bindings/node/package.json bindings/node/
 COPY server/package.json server/
 COPY web/package.json web/
+COPY cli/package.json cli/
 RUN npm ci
 
 COPY core core
@@ -30,7 +34,12 @@ COPY bindings/node bindings/node
 COPY packages/api packages/api
 COPY server server
 COPY web web
+COPY cli cli
+# The MCP SDK and zod are removed by name, with the packages only they need (about 17 MB a server image and its
+# vulnerability scans are better without); an agent runs `glcm mcp` next to itself, from a clone. Not `--omit=optional`:
+# that would also drop esbuild's platform binary, which tsx needs to run the server.
 RUN npm run build:native && npm run build:web \
+    && npm uninstall @modelcontextprotocol/sdk zod --workspace @glcm/cli --omit=dev \
     && npm prune --omit=dev
 
 # ---- Runtime ---------------------------------------------------------------------------------------------------------
@@ -40,7 +49,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libopencv-core406 libopencv-imgproc406 libopencv-imgcodecs406 \
     && rm -rf /var/lib/apt/lists/*
 
-ENV NODE_ENV=production \
+# node_modules/.bin holds the `glcm` command of the cli workspace
+ENV PATH="/app/node_modules/.bin:${PATH}" \
+    NODE_ENV=production \
     GLCM_HOST=0.0.0.0 \
     GLCM_PORT=8080 \
     GLCM_DATA_DIR=/data \
@@ -61,6 +72,10 @@ COPY --from=build /app/server/package.json server/
 COPY --from=build /app/server/src server/src
 COPY --from=build /app/web/package.json web/
 COPY --from=build /app/web/dist web/dist
+# The `glcm` command: docker exec <container> glcm measure /data/image.png --server http://127.0.0.1:8080 --token ...
+COPY --from=build /app/cli/package.json cli/
+COPY --from=build /app/cli/bin cli/bin
+COPY --from=build /app/cli/src cli/src
 COPY samples samples
 
 RUN mkdir -p /data && chown node:node /data

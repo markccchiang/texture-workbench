@@ -42,6 +42,22 @@ The image is built in two stages from base images pinned by digest (Dependabot p
 - `results/` holds finished analyses, so they survive restarts (on `SIGTERM` the server finishes writing them before it exits);
 - `cache/` holds rendered display images.
 
+The image also carries the `glcm` command, so a container is enough to measure from a script, with no clone of the
+repository:
+
+```bash
+docker exec -e GLCM_API_TOKEN glcm glcm measure sample:medical/ct-chest.png \
+    --server http://127.0.0.1:8080 --token "$GLCM_API_TOKEN" --features Contrast,Entropy
+docker exec glcm glcm --help
+```
+
+Always give the command `--server`, so that it goes through the running server. Without it the command would build a
+second server on `/data`, which empties the `uploads/` and `volumes/` folders as it starts and would disturb an upload
+or an import in progress; while the server runs it marks the folder with `server.lock` and the command refuses that
+mode, naming the address to use instead. The MCP server (`glcm mcp`) is **not** in the image: its packages are removed
+when the image is built, because an agent runs it next to itself from a clone of the repository and speaks to the server
+with `--server`.
+
 Back up the volume to keep images and results. A health check calls `GET /api/v1/health` on `GLCM_PORT`, so it keeps working when the port is changed.
 
 Share the token with users over a secure channel. The web app asks for it once and keeps it in the browser tab's session storage, so closing the tab forgets it. To rotate the token, restart the container with a new `GLCM_API_TOKEN`; users are asked for the new token on their next request.
