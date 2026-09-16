@@ -2,8 +2,12 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { ResultsDocument, RoiSetDocument } from '@glcm/api';
+import { buildApp, type App } from '@glcm/server/app';
+import { DEFAULT_CONFIG } from '@glcm/server/config';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { run } from '../src/main.js';
+
+const REPOSITORY = path.resolve(import.meta.dirname, '..', '..');
 
 let dataDir: string;
 
@@ -118,5 +122,77 @@ describe('glcm', () => {
     const command = await glcm('measure', '--help');
     expect(command.out).toContain('Usage: glcm measure');
     expect(command.out).toContain('Without --rois the whole image is measured');
+  });
+});
+
+describe('glcm against a running server', () => {
+  // A token of the length the server insists on
+  const TOKEN = 'p'.repeat(43);
+  let app: App;
+  let serverDataDir: string;
+  let baseUrl: string;
+
+  beforeAll(async () => {
+    serverDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'glcm-cli-server-'));
+    app = await buildApp(
+      {
+        ...DEFAULT_CONFIG,
+        dataDir: serverDataDir,
+        samplesDir: path.join(REPOSITORY, 'samples'),
+        webDir: null,
+        docsDir: null,
+        apiToken: TOKEN,
+        logLevel: 'silent',
+      },
+      { logger: false },
+    );
+    await app.listen({ host: '127.0.0.1', port: 0 });
+    const address = app.server.address();
+    baseUrl = typeof address === 'object' && address ? `http://127.0.0.1:${address.port}` : '';
+  });
+
+  afterAll(async () => {
+    await app.close();
+    await fs.rm(serverDataDir, { recursive: true, force: true });
+  });
+
+  /** The same commands, but over HTTP instead of in this process */
+  async function remote(...args: string[]): Promise<{ code: number; out: string; err: string }> {
+    const out: string[] = [];
+    const err: string[] = [];
+    const code = await run([...args, '--server', baseUrl, '--token', TOKEN], { out: (text) => out.push(text), err: (text) => err.push(text) });
+    return { code, out: out.join('\n'), err: err.join('\n') };
+  }
+
+  it('measures over HTTP, and the image lands in the server\'s own store', async () => {
+    const features = await remote('features', '--json');
+    expect(features.code).toBe(0);
+    expect(JSON.parse(features.out).length).toBeGreaterThan(50);
+
+    const measured = await remote('measure', SAMPLE, '--features', 'Contrast', '--aggregation', 'meanOnly', '--json');
+    expect(measured.code).toBe(0);
+    const results = JSON.parse(measured.out) as ResultsDocument;
+    expect(results.results).toHaveLength(1);
+    expect(results.results[0].values.Contrast.mean).toBeGreaterThan(0);
+
+    // The upload went to the server that is listening, not to the local folder
+    const stored = await app.inject({ method: 'GET', url: '/api/v1/images', headers: { authorization: `Bearer ${TOKEN}` } });
+    expect(stored.json<{ images: unknown[] }>().images).toHaveLength(1);
+  });
+
+  it('says what is wrong when the token is missing or wrong', async () => {
+    const out: string[] = [];
+    const err: string[] = [];
+    const code = await run(['features', '--server', baseUrl, '--token', 'wrong'], { out: (t) => out.push(t), err: (t) => err.push(t) });
+    expect(code).toBe(1);
+    expect(err.join('\n')).toContain('the server needs an access token. Pass --token');
+  });
+
+  it('says so when no server answers', async () => {
+    const err: string[] = [];
+    // Port 1 is never open to us
+    const code = await run(['features', '--server', 'http://127.0.0.1:1'], { out: () => undefined, err: (text) => err.push(text) });
+    expect(code).toBe(1);
+    expect(err.join('\n')).toContain('could not be reached');
   });
 });

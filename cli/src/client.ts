@@ -88,6 +88,10 @@ function multipartBody(file: UploadFile): { payload: Buffer; contentType: string
 
 /** Fails with the server's own error message when a request was refused */
 export function requireOk(result: ApiResponse, what: string): ApiResponse {
+  // The server answers "Authentication required", which does not say what to do about it here
+  if (result.status === 401) {
+    throw new ApiError(401, 'Unauthorized', `${what}: the server needs an access token. Pass --token, or set GLCM_API_TOKEN.`);
+  }
   if (result.status >= 400) {
     let code = 'HttpError';
     let message = result.text().slice(0, 300);
