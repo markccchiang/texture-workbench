@@ -126,6 +126,45 @@ those on the object, using the pixel width and height.
 There is one ruler at a time: drawing again replaces it, and :kbd:`Esc`, a click without dragging, choosing another tool
 or opening another image removes it. Rulers are not saved in projects or exported.
 
+.. _profile-histogram:
+
+Line profile and histogram
+--------------------------
+
+*Analyze ▸ Plot Profile* (:kbd:`⌘K` / :kbd:`Ctrl+K`) plots the values along the ruler line, as ImageJ's *Plot Profile*
+does:
+
+.. figure:: images/plot-profile.png
+   :alt: The Plot Profile dialog with a line chart of the values along the ruler line against the distance in pixels, a summary of the samples, minimum and maximum, and the buttons Copy Values, Save CSV and Save SVG.
+   :width: 80%
+
+   The values along a ruler line.
+
+- The line is sampled about once per pixel: a line of length *L* pixels gives round(*L*) + 1 samples evenly spaced from
+  its start to its end. Each sample is interpolated between the four nearest pixel centres; samples beyond the image
+  have no value and leave a gap in the line.
+- The horizontal axis is the distance from the start of the line, in millimetres when the image has a pixel spacing.
+- On a stack, the profile is that of the slice shown.
+
+*Analyze ▸ Histogram* counts the pixel values of the selected ROI (or of the ROI just drawn; without either, of the whole
+image or the slice shown):
+
+.. figure:: images/histogram.png
+   :alt: The Histogram dialog with a bar chart of pixel counts against the value, a choice of the number of bins, and the pixel count, minimum, maximum, mean, standard deviation, mode and bin width.
+   :width: 80%
+
+   The histogram of an ROI.
+
+- The pixels are those the ROI measures (see :ref:`roi-pixels`).
+- The bins cover the smallest to the largest value in the ROI. Each bin holds whole values and has the same width, the
+  smallest that needs at most the chosen number of bins (≤ 256 by default): an 8-bit ROI with values from 20 to 200 has one
+  bin per value, a 16-bit ROI from 1000 to 4000 bins of 12 values.
+- The pixel count, minimum, maximum, mean, sample standard deviation and **mode** (the most frequent value) are listed
+  below the chart.
+
+Both dialogs copy the values as tab-separated text (**Copy Values**), for a spreadsheet, or save them as CSV (distance
+and value; first and last value of each bin and its count) and the chart as SVG.
+
 .. _window-level:
 
 Display window (window/level)

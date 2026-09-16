@@ -185,6 +185,10 @@ Namespace ``glcm``; include paths are relative to ``core/``.
        and writes an uncompressed copy. ``ExtractNiftiSlice`` reads one plane of one volume and lays it out in RAS
        orientation. ``ExtractNiftiStack`` reads one volume once, in file order, and lays out every slice of one orientation
        as ``ExtractNiftiSlice`` would.
+   * - ``imaging/IntensityPlots``
+     - ``ComputeLineProfile``: round(L) + 1 samples along a line, bilinear between pixel centres, NaN outside the image;
+       ``ComputeRoiHistogram``: the ROI's pixels (``RasterizeCroppedMask``) in bins of whole width over min–max, with mean,
+       sample standard deviation and mode. ``IntensityPlotsTest``.
    * - ``imaging/ValueConversion``
      - ``ChooseStorage``: identity for integers within 0–65 535, + 1024 for integers with a negative minimum, linear
        min–max otherwise; ``value = stored × scale + offset``.

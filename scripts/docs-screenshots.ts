@@ -430,6 +430,38 @@ async function main(): Promise<void> {
     await edgeCard.getByRole('button', { name: 'Hide edge map' }).click();
     await edgeCard.waitFor({ state: 'hidden' });
 
+    // Plot Profile along a ruler line across the coat, and the histogram of the first ROI
+    await page.mouse.move(5, VIEWPORT.height - 5);
+    await page.getByTestId('status-bar').click();
+    await page.keyboard.press('l');
+    await drag(page, [120, 250], [420, 250]);
+    await chooseMenuItem(page, 'Analyze', 'Plot Profile');
+    const profileDialog = page.getByRole('dialog', { name: 'Plot Profile' });
+    await profileDialog.getByTestId('profile-line').first().waitFor();
+    await dialogShot(page, 'plot-profile', profileDialog);
+    await page.keyboard.press('Escape');
+    await profileDialog.waitFor({ state: 'hidden' });
+    await page.evaluate(() => {
+      const glcm = (
+        window as unknown as {
+          __glcm: {
+            viewer: { getState(): { setRuler(ruler: null): void; setTool(tool: string): void } };
+            rois: { getState(): { rois: Array<{ id: string }>; select(ids: string[]): void } };
+          };
+        }
+      ).__glcm;
+      glcm.viewer.getState().setRuler(null);
+      glcm.viewer.getState().setTool('pointer');
+      const rois = glcm.rois.getState();
+      rois.select([rois.rois[0].id]);
+    });
+    await chooseMenuItem(page, 'Analyze', 'Histogram');
+    const histogramDialog = page.getByRole('dialog', { name: 'Histogram' });
+    await histogramDialog.getByTestId('histogram-bar').first().waitFor();
+    await dialogShot(page, 'histogram', histogramDialog);
+    await page.keyboard.press('Escape');
+    await histogramDialog.waitFor({ state: 'hidden' });
+
     // An ROI with a hole, made with Subtract
     const cutId = await page.evaluate(() => {
       const rois = (

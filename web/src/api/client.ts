@@ -34,6 +34,10 @@ import {
   type SamplesResponse,
   type VolumeInfo,
   type VolumePreviewQuery,
+  type LineProfileRequest,
+  type LineProfileResponse,
+  type RoiHistogramRequest,
+  type RoiHistogramResponse,
   type VolumeSliceRequest,
   type VolumeStackRequest,
 } from '@glcm/api';
@@ -325,6 +329,16 @@ export async function fetchEdgeMap(imageId: string, query: EdgeMapQuery, signal?
 
 export function getGradientStats(imageId: string, sigma: number, signal?: AbortSignal, slice = 1): Promise<GradientStatsResponse> {
   return getJson(`${API_PREFIX}/images/${imageId}/gradient-stats?sigma=${sigma}${slice > 1 ? `&slice=${slice}` : ''}`, signal);
+}
+
+/** The intensities along a line (Analyze ▸ Plot Profile) */
+export function getLineProfile(imageId: string, request: LineProfileRequest, signal?: AbortSignal): Promise<LineProfileResponse> {
+  return sendJson('POST', `${API_PREFIX}/images/${imageId}/line-profile`, request, signal);
+}
+
+/** The histogram of an ROI (Analyze ▸ Histogram) */
+export function getRoiHistogram(imageId: string, request: RoiHistogramRequest, signal?: AbortSignal): Promise<RoiHistogramResponse> {
+  return sendJson('POST', `${API_PREFIX}/images/${imageId}/roi-histogram`, request, signal);
 }
 
 /** Livewire path between two pixels along strong edges */

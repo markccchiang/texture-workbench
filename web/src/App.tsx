@@ -141,6 +141,7 @@ export function App() {
     ['mod+O', () => useUi.getState().requestFile('image')],
     ['mod+S', withImage(() => useUi.getState().setModal('saveProject'))],
     ['mod+comma', () => useUi.getState().setModal('preferences')],
+    ['mod+K', withImage(() => useViewer.getState().ruler && useUi.getState().setModal('profile'))],
     ['mod+Z', withImage(() => useRois.getState().undo())],
     ['mod+shift+Z', withImage(() => useRois.getState().redo())],
     ['mod+A', withImage(() => useRois.getState().selectAll())],

@@ -26,6 +26,7 @@
 #include "imaging/DisplayRenderer.hpp"
 #include "imaging/EdgeDetection.hpp"
 #include "imaging/ImageLoader.hpp"
+#include "imaging/IntensityPlots.hpp"
 #include "imaging/NiftiReader.hpp"
 #include "imaging/PngEncoder.hpp"
 #include "io/Identifiers.hpp"
@@ -1650,6 +1651,105 @@ Napi::Value LivewirePath(const Napi::CallbackInfo& info) {
     return promise;
 }
 
+class LineProfileWorker : public PixelWorker {
+public:
+    LineProfileWorker(Napi::Env env, const PixelArguments& arguments, cv::Point2d from, cv::Point2d to)
+        : PixelWorker(env, arguments), _from(from), _to(to) {}
+
+    void Execute() override {
+        try {
+            _profile = glcm::ComputeLineProfile(Gray(), _from, _to);
+        } catch (const std::invalid_argument& error) {
+            Fail(CODE_INVALID_ARGUMENT, error.what());
+        } catch (const std::exception& error) {
+            Fail(CODE_INTERNAL, error.what());
+        }
+    }
+
+    void OnOK() override {
+        Napi::Env env = Env();
+        Napi::Object result = Napi::Object::New(env);
+        Napi::Array values = Napi::Array::New(env, _profile.values.size());
+        for (size_t i = 0; i < _profile.values.size(); ++i) {
+            values.Set(static_cast<uint32_t>(i), NumberOrNull(env, _profile.values[i]));
+        }
+        result.Set("values", values);
+        result.Set("length", Napi::Number::New(env, _profile.length));
+        result.Set("step", Napi::Number::New(env, _profile.step));
+        Resolve(result);
+    }
+
+private:
+    cv::Point2d _from;
+    cv::Point2d _to;
+    glcm::LineProfile _profile;
+};
+
+// lineProfile(pixels, width, height, bitDepth, fromX, fromY, toX, toY): Promise<{values, length, step}> (glcm::ComputeLineProfile)
+Napi::Value LineProfile(const Napi::CallbackInfo& info) {
+    const PixelArguments pixels = ReadPixelArguments(info, 0);
+    const cv::Point2d from(NumberArgument(info, 4, "fromX"), NumberArgument(info, 5, "fromY"));
+    const cv::Point2d to(NumberArgument(info, 6, "toX"), NumberArgument(info, 7, "toY"));
+    auto* worker = new LineProfileWorker(info.Env(), pixels, from, to);
+    const Napi::Promise promise = worker->Promise();
+    worker->Queue();
+    return promise;
+}
+
+class RoiHistogramWorker : public PixelWorker {
+public:
+    RoiHistogramWorker(Napi::Env env, const PixelArguments& arguments, std::string rois_json, int bins)
+        : PixelWorker(env, arguments), _rois_json(std::move(rois_json)), _bins(bins) {}
+
+    void Execute() override {
+        try {
+            const std::vector<glcm::Roi> rois = ParseRois(_rois_json);
+            if (rois.size() != 1) {
+                throw std::invalid_argument("A histogram needs exactly one ROI");
+            }
+            _histogram = glcm::ComputeRoiHistogram(Gray(), rois[0].shape, _bins);
+        } catch (const std::invalid_argument& error) {
+            Fail(CODE_INVALID_ARGUMENT, error.what());
+        } catch (const std::exception& error) {
+            Fail(CODE_INTERNAL, error.what());
+        }
+    }
+
+    void OnOK() override {
+        Napi::Env env = Env();
+        Napi::Object result = Napi::Object::New(env);
+        const bool empty = _histogram.pixel_count == 0;
+        result.Set("pixelCount", Napi::Number::New(env, _histogram.pixel_count));
+        result.Set("min", empty ? env.Null() : Napi::Number::New(env, _histogram.min));
+        result.Set("max", empty ? env.Null() : Napi::Number::New(env, _histogram.max));
+        result.Set("mean", empty ? env.Null() : Napi::Number::New(env, _histogram.mean));
+        result.Set("std", empty ? env.Null() : Napi::Number::New(env, _histogram.std));
+        result.Set("mode", empty ? env.Null() : Napi::Number::New(env, _histogram.mode));
+        result.Set("binStart", Napi::Number::New(env, _histogram.bin_start));
+        result.Set("binWidth", Napi::Number::New(env, _histogram.bin_width));
+        Napi::Array counts = Napi::Array::New(env, _histogram.counts.size());
+        for (size_t i = 0; i < _histogram.counts.size(); ++i) {
+            counts.Set(static_cast<uint32_t>(i), Napi::Number::New(env, static_cast<double>(_histogram.counts[i])));
+        }
+        result.Set("counts", counts);
+        Resolve(result);
+    }
+
+private:
+    std::string _rois_json;
+    int _bins;
+    glcm::RoiHistogram _histogram;
+};
+
+// roiHistogram(pixels, width, height, bitDepth, roisJson (one ROI), bins): Promise<NativeRoiHistogram> (glcm::ComputeRoiHistogram)
+Napi::Value RoiHistogram(const Napi::CallbackInfo& info) {
+    const PixelArguments pixels = ReadPixelArguments(info, 0);
+    auto* worker = new RoiHistogramWorker(info.Env(), pixels, StringArgument(info, 4, "roisJson"), IntegerArgument(info, 5, "bins"));
+    const Napi::Promise promise = worker->Promise();
+    worker->Queue();
+    return promise;
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("coreVersion", Napi::Function::New(env, CoreVersion, "coreVersion"));
     exports.Set("catalog", Napi::Function::New(env, Catalog, "catalog"));
@@ -1660,6 +1760,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("decodeDicomSeries", Napi::Function::New(env, DecodeDicomSeries, "decodeDicomSeries"));
     exports.Set("renderDisplay", Napi::Function::New(env, RenderDisplay, "renderDisplay"));
     exports.Set("roiStats", Napi::Function::New(env, RoiStats, "roiStats"));
+    exports.Set("roiHistogram", Napi::Function::New(env, RoiHistogram, "roiHistogram"));
+    exports.Set("lineProfile", Napi::Function::New(env, LineProfile, "lineProfile"));
     exports.Set("validateAnalysis", Napi::Function::New(env, ValidateAnalysis, "validateAnalysis"));
     exports.Set("runAnalysis", Napi::Function::New(env, RunAnalysis, "runAnalysis"));
     exports.Set("formatResults", Napi::Function::New(env, FormatResults, "formatResults"));

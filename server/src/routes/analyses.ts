@@ -9,8 +9,12 @@ import {
   BrushRoiRequest,
   CombineRoisRequest,
   GrowRoiRequest,
+  LineProfileRequest,
+  LineProfileResponse,
   LivewireRequest,
   LivewireResponse,
+  RoiHistogramRequest,
+  RoiHistogramResponse,
   RoiShapeResult,
   ErrorResponse,
   ImageIdParams,
@@ -246,6 +250,50 @@ export const analysisRoutes: FastifyPluginAsyncTypebox<AnalysisRoutesOptions> = 
       const { from, to, sigma } = request.body;
       const pixels = await store.pixels(info, requireSlice(info, request.body.slice));
       return { points: await native.livewirePath(pixels, info.width, info.height, info.bitDepth, from.x, from.y, to.x, to.y, sigma).catch(nativeError) };
+    },
+  );
+
+  app.post(
+    '/images/:id/line-profile',
+    {
+      schema: {
+        summary: 'Intensities along a line',
+        description:
+          'The values of round(length) + 1 samples evenly spaced from `from` to `to` (about one per pixel), each interpolated bilinearly between the four nearest pixel centres, with the nearest centre between the outermost centres and the image edge; null for samples outside the image. `from` and `to` are image coordinates; the line may be at most 100 000 pixels long.',
+        tags: ['rois'],
+        params: ImageIdParams,
+        body: LineProfileRequest,
+        response: { 200: LineProfileResponse, 400: ErrorResponse, 404: ErrorResponse },
+      },
+    },
+    async (request) => {
+      const info = await requireImage(request.params.id);
+      const { from, to } = request.body;
+      const pixels = await store.pixels(info, requireSlice(info, request.body.slice));
+      return native.lineProfile(pixels, info.width, info.height, info.bitDepth, from.x, from.y, to.x, to.y).catch(nativeError);
+    },
+  );
+
+  app.post(
+    '/images/:id/roi-histogram',
+    {
+      schema: {
+        summary: 'Histogram of an ROI',
+        description:
+          'The pixels whose centres lie inside the shape (as for roi-stats), counted in bins of whole width that cover their minimum to maximum, at most `bins` (default 256) of them, with the count, minimum, maximum, mean, sample standard deviation and most frequent value.',
+        tags: ['rois'],
+        params: ImageIdParams,
+        body: RoiHistogramRequest,
+        response: { 200: RoiHistogramResponse, 400: ErrorResponse, 404: ErrorResponse },
+      },
+    },
+    async (request) => {
+      const info = await requireImage(request.params.id);
+      const { shape, bins = 256 } = request.body;
+      const pixels = await store.pixels(info, requireSlice(info, request.body.slice));
+      return native
+        .roiHistogram(pixels, info.width, info.height, info.bitDepth, JSON.stringify([{ id: 'roi', name: 'roi', shape }]), bins)
+        .catch(nativeError);
     },
   );
 

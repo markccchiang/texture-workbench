@@ -418,7 +418,7 @@ def pixel_spacing() -> str:
     # Enters the box right of the row label
     d.arrow([(430, 285), (430, 330), (columns[0] + 60, 330), (columns[0] + 60, 376)])
 
-    d.add(text(24, 468, 'Features are always computed in pixels: the spacing only annotates the results, and each run keeps the spacing it was measured with.',
+    d.add(text(24, 468, 'Texture features stay in pixels; shape features use the spacing, and each run keeps the spacing it was measured with.',
                11, None, MUTED))
     return d.svg(488)
 

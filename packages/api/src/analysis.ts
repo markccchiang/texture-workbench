@@ -196,6 +196,50 @@ export const LivewireRequest = Type.Object({
 });
 export type LivewireRequest = Static<typeof LivewireRequest>;
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Line profile and ROI histogram
+// ---------------------------------------------------------------------------------------------------------------------
+
+export const MAX_PROFILE_LENGTH = 100_000;
+export const MAX_HISTOGRAM_BINS = 65_536;
+
+export const LineProfileRequest = Type.Object({
+  slice: Type.Optional(Slice),
+  from: Type.Object({ x: Coordinate, y: Coordinate }),
+  to: Type.Object({ x: Coordinate, y: Coordinate }),
+});
+export type LineProfileRequest = Static<typeof LineProfileRequest>;
+
+export const LineProfileResponse = Type.Object({
+  values: Type.Array(Type.Union([Type.Number(), Type.Null()]), {
+    description:
+      'round(length) + 1 samples evenly spaced from `from` to `to`, each interpolated bilinearly between the nearest pixel centres; null outside the image',
+  }),
+  length: Type.Number({ description: 'Length of the line in pixels' }),
+  step: Type.Number({ description: 'Distance between samples in pixels (0 for a single sample)' }),
+});
+export type LineProfileResponse = Static<typeof LineProfileResponse>;
+
+export const RoiHistogramRequest = Type.Object({
+  slice: Type.Optional(Slice),
+  shape: RoiShape,
+  bins: Type.Optional(Type.Integer({ minimum: 1, maximum: MAX_HISTOGRAM_BINS, description: 'Most bins; default 256' })),
+});
+export type RoiHistogramRequest = Static<typeof RoiHistogramRequest>;
+
+export const RoiHistogramResponse = Type.Object({
+  pixelCount: Type.Integer(),
+  min: NullableNumber,
+  max: NullableNumber,
+  mean: NullableNumber,
+  std: Type.Union([Type.Number(), Type.Null()], { description: 'Sample standard deviation' }),
+  mode: Type.Union([Type.Number(), Type.Null()], { description: 'The most frequent value (the lowest of equally frequent ones)' }),
+  binStart: Type.Integer(),
+  binWidth: Type.Integer({ description: 'The smallest whole width that covers min–max in at most `bins` bins' }),
+  counts: Type.Array(Type.Integer(), { description: 'counts[i]: pixels with binStart + i × binWidth ≤ value < binStart + (i + 1) × binWidth' }),
+});
+export type RoiHistogramResponse = Static<typeof RoiHistogramResponse>;
+
 export const LivewireResponse = Type.Object({
   points: Type.Array(Type.Tuple([Coordinate, Coordinate]), {
     description: 'Pixel centres of the path from `from` to `to`, where it changes direction, both ends included',

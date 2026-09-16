@@ -211,6 +211,8 @@ zero-width cuts join them into one. The cuts cover no pixels and are not drawn, 
 exactly the painted pixels. Such an ROI has no vertex handles; change it with the brush and the eraser, or move it as a
 whole.
 
+.. _roi-pixels:
+
 Which pixels belong to an ROI
 -----------------------------
 

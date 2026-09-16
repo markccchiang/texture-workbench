@@ -9,6 +9,7 @@ import { FeatureMapContent } from '../featureMaps/FeatureMapDialog';
 import { ThresholdRoiContent } from '../rois/ThresholdDialog';
 import { GrowRoiContent } from '../rois/GrowDialog';
 import { RoiClassesContent } from '../rois/ClassesDialog';
+import { HistogramContent, ProfileContent } from '../plots/IntensityPlotDialogs';
 import { ReportContent } from '../report/ReportDialog';
 import { CATALOG_QUERY } from '../api/queryClient';
 import { useAnalysisSettings } from '../analysis/settingsStore';
@@ -98,7 +99,7 @@ function PixelSpacingEditor({ info }: { info: ImageInfo }) {
       <Text size="xs" c="dimmed" data-testid="pixel-spacing-status">
         {spacing ? `${formatSpacing(spacing)} per pixel (${source}). ` : 'No pixel spacing: sizes are given in pixels only. '}
         {spacing && isAnisotropic(spacing) ? 'The pixels are not square. ' : ''}
-        The spacing adds a scale bar and ROI areas in mm², and is remembered for this image. Features are always computed in pixels.
+        The spacing adds a scale bar and ROI areas in mm², and is remembered for this image. Texture features are computed in pixels; shape features are in millimetres with a spacing.
       </Text>
     </Stack>
   );
@@ -184,6 +185,8 @@ const SHORTCUTS: [string, string][] = [
   ['L', 'Ruler: drag to measure a distance (Shift: 45° steps)'],
   ['T', 'Add the drawn ROI to the ROI Manager'],
   ['M / ⇧M', 'Measure selected / all ROIs'],
+  [`${MOD_KEY}K`, 'Plot the profile along the ruler line'],
+  ['. / ,', 'Next / previous slice of a stack'],
   [`${MOD_KEY}Z / ${MOD_KEY}⇧Z`, 'Undo / redo ROI edits'],
   ['Z', 'Zoom to the selected ROIs'],
   ['⌫', 'Delete the selected ROIs'],
@@ -473,6 +476,8 @@ function ExportRoiImagesContent({ onClose }: { onClose(): void }) {
 }
 
 const TITLES: Record<ModalName, string> = {
+  profile: 'Plot Profile',
+  histogram: 'Histogram',
   imageInfo: 'Image Info',
   preferences: 'Preferences',
   shortcuts: 'Keyboard Shortcuts',
@@ -493,7 +498,7 @@ export function AppModals() {
   const modal = useUi((state) => state.modal);
   const close = () => useUi.getState().setModal(null);
   return (
-    <Modal opened={modal !== null} onClose={close} title={modal ? TITLES[modal] : ''} size={modal === 'imageInfo' || modal === 'equations' || modal === 'batch' ? 'lg' : 'md'}>
+    <Modal opened={modal !== null} onClose={close} title={modal ? TITLES[modal] : ''} size={modal === 'imageInfo' || modal === 'equations' || modal === 'batch' || modal === 'profile' || modal === 'histogram' ? 'lg' : 'md'}>
       {modal === 'imageInfo' && <ImageInfoContent />}
       {modal === 'preferences' && <PreferencesContent />}
       {modal === 'shortcuts' && <ShortcutsContent />}
@@ -507,6 +512,8 @@ export function AppModals() {
       {modal === 'samples' && <SamplesContent onClose={close} />}
       {modal === 'saveProject' && <SaveProjectContent onClose={close} />}
       {modal === 'report' && <ReportContent onClose={close} />}
+      {modal === 'profile' && <ProfileContent />}
+      {modal === 'histogram' && <HistogramContent />}
       {modal === 'exportRoiImages' && <ExportRoiImagesContent onClose={close} />}
     </Modal>
   );

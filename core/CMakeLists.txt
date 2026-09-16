@@ -23,6 +23,7 @@ add_library(glcm_core STATIC
         imaging/DisplayRenderer.cpp
         imaging/EdgeDetection.cpp
         imaging/ImageFilters.cpp
+        imaging/IntensityPlots.cpp
         imaging/ImageHeader.cpp
         imaging/ImageLoader.cpp
         imaging/NiftiReader.cpp
@@ -70,6 +71,7 @@ if (GLCM_BUILD_TESTS)
                 tests/ShapeTest.cpp
                 tests/ResamplingTest.cpp
                 tests/ImageFiltersTest.cpp
+                tests/IntensityPlotsTest.cpp
                 tests/RunLengthTest.cpp
                 tests/SizeZoneTest.cpp
                 tests/TextureAnalysisTest.cpp

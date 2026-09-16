@@ -153,6 +153,8 @@ Endpoints (full details in `packages/api/openapi.json` and the Developer guide):
 | `GET /api/v1/images/{id}/edges.png?method&sigma&low&high&maxSize&slice` | Sobel or Canny edge map as an 8-bit PNG |
 | `GET /api/v1/images/{id}/gradient-stats?sigma&slice` | Percentiles of the gradient magnitude, for choosing edge map limits |
 | `POST /api/v1/images/{id}/roi-stats` | Pixel count, bounding box, min/max/mean/STD of ROIs |
+| `POST /api/v1/images/{id}/line-profile` | Values along a line (Plot Profile) |
+| `POST /api/v1/images/{id}/roi-histogram` | Histogram of an ROI, with mean, standard deviation and mode |
 | `POST /api/v1/images/{id}/threshold-rois` | ROIs of the connected regions in an intensity range (Threshold ROI) |
 | `POST /api/v1/images/{id}/livewire` | Livewire path between two pixels along strong edges |
 | `POST /api/v1/images/{id}/wand-roi` | ROI of the connected region around a pixel within a tolerance (magic wand) |

@@ -193,6 +193,37 @@ export function extractNiftiStack(path: string, request: StackRequest): Promise<
  */
 export function decodeDicomSeries(paths: string[], options?: DecodeOptions): Promise<DecodedStack>;
 
+export interface NativeLineProfile {
+  /** round(length) + 1 samples evenly spaced from the start to the end, bilinearly interpolated; null outside the image */
+  values: Array<number | null>;
+  /** Length of the line in pixels */
+  length: number;
+  /** Distance between samples in pixels (0 for a single sample) */
+  step: number;
+}
+
+/** The intensities along a straight line (glcm::ComputeLineProfile); points in image coordinates */
+export function lineProfile(pixels: Uint8Array, width: number, height: number, bitDepth: 8 | 16, fromX: number, fromY: number, toX: number, toY: number): Promise<NativeLineProfile>;
+
+export interface NativeRoiHistogram {
+  pixelCount: number;
+  /** null for an ROI without pixels */
+  min: number | null;
+  max: number | null;
+  mean: number | null;
+  /** Sample standard deviation */
+  std: number | null;
+  /** The most frequent value (the lowest of equally frequent ones) */
+  mode: number | null;
+  /** counts[i]: pixels with binStart + i × binWidth <= value < binStart + (i + 1) × binWidth */
+  binStart: number;
+  binWidth: number;
+  counts: number[];
+}
+
+/** Histogram of the pixels of one ROI over its min–max in at most `bins` bins of whole width (glcm::ComputeRoiHistogram) */
+export function roiHistogram(pixels: Uint8Array, width: number, height: number, bitDepth: 8 | 16, roisJson: string, bins: number): Promise<NativeRoiHistogram>;
+
 /** 8-bit PNG of the pixels with the window/level mapping, downscaled so the long side is at most maxSize (0 = no limit). */
 export function renderDisplay(
   pixels: Uint8Array,

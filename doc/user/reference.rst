@@ -54,6 +54,8 @@ Keyboard
      - Zoom to 100 % / fit the image
    * - :kbd:`Z`
      - Zoom to the selected ROIs
+   * - :kbd:`⌘K`
+     - Plot the values along the ruler line (*Analyze ▸ Plot Profile*)
    * - :kbd:`N`
      - Show or hide the navigator
    * - :kbd:`.` / :kbd:`,`
@@ -111,7 +113,7 @@ Menus
      - Rectangle, Ellipse, Polygon, Freehand, Livewire, Magic Wand, Brush, Eraser, Threshold ROI…, Union, Subtract, Intersect, XOR, Enlarge or Shrink…, Make Band…, Add to Manager, Duplicate, Copy to All Slices (stacks), Rename, ROI Classes…, Import ROI Set…, Export ROI Set…,
        Export ROIs for ImageJ…, Export ROI Images…
    * - Analyze
-     - Measure Selected, Measure All, Batch Measure…, Feature Map…, Presets (the feature presets of the Analysis Settings panel), Clear Results
+     - Measure Selected, Measure All, Batch Measure…, Feature Map…, Plot Profile, Histogram, Presets (the feature presets of the Analysis Settings panel), Clear Results
    * - View
      - Show / Hide Navigator, Show ROI Labels, Show Scale Bar, Show Edge Map, Reset Layout
    * - Help

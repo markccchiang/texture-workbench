@@ -100,6 +100,14 @@ Endpoints
    * - ``POST /images/{id}/livewire``
      - ``{from: {x, y}, to: {x, y}, sigma, slice?}`` → ``{points}``: the livewire path between two pixels along strong edges,
        as the pixel centres where it turns; ``400`` for points outside the image or more than 1024 pixels apart
+   * - ``POST /images/{id}/line-profile``
+     - ``{from: {x, y}, to: {x, y}, slice?}`` → ``{values, length, step}``: round(``length``) + 1 samples evenly spaced
+       along the line, each interpolated bilinearly between the four nearest pixel centres (the nearest centre between
+       the outermost centres and the image edge), ``null`` outside the image; lines up to 100 000 pixels
+   * - ``POST /images/{id}/roi-histogram``
+     - ``{shape, bins?, slice?}`` → ``{pixelCount, min, max, mean, std, mode, binStart, binWidth, counts}``: the pixels of
+       the shape (as for ``roi-stats``) in bins of the smallest whole width that covers their minimum to maximum in at
+       most ``bins`` (1–65 536, default 256); ``mode`` is the most frequent value
    * - ``POST /images/{id}/combine-rois``
      - ``{operation: "union"|"subtract"|"intersect"|"xor", shapes}`` → ``{shape, pixelCount, boundingBox}``: the shapes
        rasterized on the image grid and combined (``xor``: the pixels an odd number of shapes cover); ``shape`` is one
@@ -499,6 +507,10 @@ functions throw, with an ``Error`` whose ``code`` is ``INVALID_ARGUMENT``, ``UNS
      - PNG with window/level, downscaled to ``maxSize``
    * - ``roiStats(pixels, width, height, bitDepth, roisJson): Promise<NativeRoiStatistics[]>``
      - Pixel count, bounding box and intensity statistics per ROI
+   * - ``roiHistogram(pixels, width, height, bitDepth, roisJson, bins): Promise<NativeRoiHistogram>``
+     - ``glcm::ComputeRoiHistogram`` of one ROI
+   * - ``lineProfile(pixels, width, height, bitDepth, fromX, fromY, toX, toY): Promise<NativeLineProfile>``
+     - ``glcm::ComputeLineProfile``
    * - ``selectThresholdRegions(pixels, width, height, bitDepth, min, max, minPixels, maxRegions, maxPixels?, minSphericity?): Promise<{regions, total}>``
      - ``glcm::SelectThresholdRegions``; each region is ``{points, pixelCount, boundingBox}``; ``maxPixels`` and
        ``minSphericity`` may be ``null``
@@ -577,6 +589,9 @@ paths are relative to ``core/``. The main entry points:
    * - ``roi/RegionSelection.hpp``
      - ``SelectThresholdRegions`` and ``SelectWandRegion``: connected regions of pixel values, with holes filled, as
        polygon outlines along the pixel edges
+   * - ``imaging/IntensityPlots.hpp``
+     - ``ComputeLineProfile`` → ``LineProfile{values, length, step}`` and ``ComputeRoiHistogram`` → ``RoiHistogram``
+       (Plot Profile and Histogram)
    * - ``imaging/EdgeDetection.hpp``
      - ``GradientMagnitude``, ``ComputeGradientStatistics`` and ``RenderEdgeMap`` (Sobel and Canny edge maps)
    * - ``roi/Livewire.hpp``

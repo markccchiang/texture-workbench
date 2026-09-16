@@ -56,6 +56,7 @@ const TOOL_ITEMS: Array<{ tool: Tool; label: string; key: string }> = [
 
 export function MenuBar() {
   const hasImage = useViewer((state) => state.image !== null);
+  const hasRuler = useViewer((state) => state.ruler !== null);
   const slices = useViewer((state) => state.image?.info.slices ?? 1);
   const tool = useViewer((state) => state.tool);
   const navigatorVisible = useViewer(isNavigatorVisible);
@@ -280,6 +281,13 @@ export function MenuBar() {
         </Menu.Item>
         <Menu.Item disabled={!hasImage} onClick={() => ui().setModal('featureMap')}>
           Feature Map…
+        </Menu.Item>
+        <Menu.Divider />
+        <Menu.Item disabled={!hasImage || !hasRuler} rightSection={<Shortcut>{MOD_KEY}K</Shortcut>} onClick={() => ui().setModal('profile')}>
+          Plot Profile
+        </Menu.Item>
+        <Menu.Item disabled={!hasImage} onClick={() => ui().setModal('histogram')}>
+          Histogram
         </Menu.Item>
         <Menu.Divider />
         <Menu.Sub>

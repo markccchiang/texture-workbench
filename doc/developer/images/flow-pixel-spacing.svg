@@ -70,5 +70,5 @@
   <path d="M468.0,405.0 L491.0,405.0" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow)"/>
   <path d="M702.0,405.0 L725.0,405.0" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow)"/>
   <path d="M430.0,285.0 L430.0,330.0 L189.0,330.0 L189.0,376.0" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow)"/>
-  <text x="24.0" y="468.0" font-size="11" fill="#64748b">Features are always computed in pixels: the spacing only annotates the results, and each run keeps the spacing it was measured with.</text>
+  <text x="24.0" y="468.0" font-size="11" fill="#64748b">Texture features stay in pixels; shape features use the spacing, and each run keeps the spacing it was measured with.</text>
 </svg>

@@ -4189,6 +4189,477 @@
         }
       }
     },
+    "/api/v1/images/{id}/line-profile": {
+      "post": {
+        "summary": "Intensities along a line",
+        "tags": [
+          "rois"
+        ],
+        "description": "The values of round(length) + 1 samples evenly spaced from `from` to `to` (about one per pixel), each interpolated bilinearly between the four nearest pixel centres, with the nearest centre between the outermost centres and the image edge; null for samples outside the image. `from` and `to` are image coordinates; the line may be at most 100 000 pixels long.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "from",
+                  "to"
+                ],
+                "properties": {
+                  "slice": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000,
+                    "description": "Slice of a stack, from 1; default 1"
+                  },
+                  "from": {
+                    "type": "object",
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                      },
+                      "y": {
+                        "type": "number",
+                        "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                      }
+                    }
+                  },
+                  "to": {
+                    "type": "object",
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                      },
+                      "y": {
+                        "type": "number",
+                        "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^img_[0-9a-f]{32}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Image id returned by POST /images"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "values",
+                    "length",
+                    "step"
+                  ],
+                  "properties": {
+                    "values": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "description": "round(length) + 1 samples evenly spaced from `from` to `to`, each interpolated bilinearly between the nearest pixel centres; null outside the image"
+                    },
+                    "length": {
+                      "type": "number",
+                      "description": "Length of the line in pixels"
+                    },
+                    "step": {
+                      "type": "number",
+                      "description": "Distance between samples in pixels (0 for a single sample)"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error returned by every endpoint for 4xx and 5xx responses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error code, e.g. \"NotFound\" or \"PayloadTooLarge\""
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description"
+                    }
+                  },
+                  "description": "Error returned by every endpoint for 4xx and 5xx responses"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error returned by every endpoint for 4xx and 5xx responses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error code, e.g. \"NotFound\" or \"PayloadTooLarge\""
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description"
+                    }
+                  },
+                  "description": "Error returned by every endpoint for 4xx and 5xx responses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/images/{id}/roi-histogram": {
+      "post": {
+        "summary": "Histogram of an ROI",
+        "tags": [
+          "rois"
+        ],
+        "description": "The pixels whose centres lie inside the shape (as for roi-stats), counted in bins of whole width that cover their minimum to maximum, at most `bins` (default 256) of them, with the count, minimum, maximum, mean, sample standard deviation and most frequent value.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "shape"
+                ],
+                "properties": {
+                  "slice": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000,
+                    "description": "Slice of a stack, from 1; default 1"
+                  },
+                  "shape": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "type",
+                          "x",
+                          "y",
+                          "width",
+                          "height"
+                        ],
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "rectangle"
+                            ]
+                          },
+                          "x": {
+                            "type": "number",
+                            "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                          },
+                          "width": {
+                            "type": "number"
+                          },
+                          "height": {
+                            "type": "number"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "type",
+                          "cx",
+                          "cy",
+                          "rx",
+                          "ry"
+                        ],
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "ellipse"
+                            ]
+                          },
+                          "cx": {
+                            "type": "number",
+                            "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                          },
+                          "cy": {
+                            "type": "number",
+                            "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                          },
+                          "rx": {
+                            "type": "number",
+                            "description": "Semi-axis along the ellipse x axis"
+                          },
+                          "ry": {
+                            "type": "number",
+                            "description": "Semi-axis along the ellipse y axis"
+                          },
+                          "angle": {
+                            "type": "number",
+                            "description": "Rotation in degrees, clockwise on screen"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "type",
+                          "points"
+                        ],
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "polygon"
+                            ]
+                          },
+                          "points": {
+                            "type": "array",
+                            "items": {
+                              "type": "array",
+                              "additionalItems": false,
+                              "items": [
+                                {
+                                  "type": "number",
+                                  "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                                },
+                                {
+                                  "type": "number",
+                                  "description": "Image pixel coordinate; pixel (c, r) covers [c, c + 1) × [r, r + 1)"
+                                }
+                              ],
+                              "minItems": 2
+                            },
+                            "maxItems": 10000
+                          },
+                          "freehand": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "bins": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65536,
+                    "description": "Most bins; default 256"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^img_[0-9a-f]{32}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Image id returned by POST /images"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "pixelCount",
+                    "min",
+                    "max",
+                    "mean",
+                    "std",
+                    "mode",
+                    "binStart",
+                    "binWidth",
+                    "counts"
+                  ],
+                  "properties": {
+                    "pixelCount": {
+                      "type": "integer"
+                    },
+                    "min": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "max": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "mean": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "std": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Sample standard deviation"
+                    },
+                    "mode": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most frequent value (the lowest of equally frequent ones)"
+                    },
+                    "binStart": {
+                      "type": "integer"
+                    },
+                    "binWidth": {
+                      "type": "integer",
+                      "description": "The smallest whole width that covers min–max in at most `bins` bins"
+                    },
+                    "counts": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      },
+                      "description": "counts[i]: pixels with binStart + i × binWidth ≤ value < binStart + (i + 1) × binWidth"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error returned by every endpoint for 4xx and 5xx responses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error code, e.g. \"NotFound\" or \"PayloadTooLarge\""
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description"
+                    }
+                  },
+                  "description": "Error returned by every endpoint for 4xx and 5xx responses"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error returned by every endpoint for 4xx and 5xx responses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error code, e.g. \"NotFound\" or \"PayloadTooLarge\""
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description"
+                    }
+                  },
+                  "description": "Error returned by every endpoint for 4xx and 5xx responses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/analyses": {
       "post": {
         "summary": "Start an analysis",

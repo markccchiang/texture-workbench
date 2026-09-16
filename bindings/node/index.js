@@ -14,6 +14,8 @@ export const {
   decodeDicomSeries,
   renderDisplay,
   roiStats,
+  roiHistogram,
+  lineProfile,
   validateAnalysis,
   runAnalysis,
   formatResults,
