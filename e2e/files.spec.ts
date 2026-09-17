@@ -139,7 +139,12 @@ test('saves and opens projects, re-uploading an embedded image', async ({ page }
 
   // Embedded image: still opens after the image was deleted from the server
   await chooseMenuItem(page, 'File', /^Save Project…/);
-  await page.getByLabel('Embed the image').check();
+  // A click while the dialog is still opening can be lost (seen in WebKit on a CI runner): check until it holds
+  const embed = page.getByRole('dialog', { name: 'Save Project' }).getByLabel('Embed the image');
+  await expect(async () => {
+    await embed.check({ timeout: 2000 });
+    await expect(embed).toBeChecked({ timeout: 500 });
+  }).toPass();
   const embedded = await download(page, () => page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click());
   expect(embedded.file.suggestedFilename()).toBe('camera.glcmproj');
   expect(JSON.parse(await fs.readFile(embedded.path, 'utf8')).image.data).toEqual(expect.any(String));

@@ -142,8 +142,15 @@ test('opens a folder of DICOM files as one series', async ({ page }) => {
   }
   try {
     await chooseMenuItem(page, 'File', 'Open DICOM Series…');
-    // The menu asks for a folder; the test hands the input its files directly
-    await page.getByTestId('series-input').setInputFiles(folder);
+    // The menu asks for a folder; the test hands the input its files directly. On a slow macOS CI runner WebKit's
+    // setInputFiles for a folder has returned only about a minute after the page had received the files and opened the
+    // series, so the test follows the upload instead of waiting for the call (which ends with the page, if not before)
+    const uploaded = page.waitForResponse((response) => response.url().endsWith('/api/v1/images/series') && response.request().method() === 'POST');
+    void page
+      .getByTestId('series-input')
+      .setInputFiles(folder)
+      .catch(() => undefined);
+    expect((await uploaded).status()).toBe(201);
     await expect(page.getByTestId('status-bar')).toContainText('Head CT 4×4×3 slices');
     const image = await hooks(page, () => (window as unknown as { __glcm: Hooks }).__glcm.viewer.getState().image!.info);
     const values = [];
