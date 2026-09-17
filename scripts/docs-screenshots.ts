@@ -522,6 +522,17 @@ async function main(): Promise<void> {
     const bandBottomRight = await toPage(page, 500, 500);
     await shot(page, 'roi-band', { x: bandTopLeft.x, y: bandTopLeft.y, width: bandBottomRight.x - bandTopLeft.x, height: bandBottomRight.y - bandTopLeft.y });
 
+    // Colour Conversion of the immunohistochemistry sample, with DAB chosen
+    await page.getByTestId('file-input').setInputFiles(path.join(ROOT, 'samples', 'textures', 'ihc.png'));
+    await expect(page.getByTestId('status-bar')).toContainText('ihc.png 512×512 8-bit');
+    await chooseMenuItem(page, 'Image', 'Colour Conversion…');
+    const colourDialog = page.getByRole('dialog', { name: 'Colour Conversion' });
+    await colourDialog.getByRole('radio', { name: 'DAB (H-DAB)' }).check();
+    await colourDialog.getByTestId('colour-preview').and(page.locator('[data-shows="dabHdab"]')).waitFor();
+    await dialogShot(page, 'colour-conversion', colourDialog);
+    await colourDialog.getByRole('button', { name: 'Cancel' }).click();
+    await colourDialog.waitFor({ state: 'hidden' });
+
     // A stack: every axial slice of the head phantom, with an ROI on the slice shown and the slice slider
     await page.getByTestId('file-input').setInputFiles({ name: 'phantom.nii.gz', mimeType: 'application/gzip', buffer: headPhantom() });
     const stackDialog = page.getByRole('dialog', { name: 'Open phantom.nii.gz' });

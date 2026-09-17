@@ -529,7 +529,7 @@ int32_t GraySample(const std::vector<uint8_t>& bytes, const DicomImage& image, u
     return image.is_signed ? -1 - value : image.MaxSample() - value;
 }
 
-cv::Mat RgbFrameToGray(const std::vector<uint8_t>& bytes, const DicomImage& image) {
+ConvertedColour RgbFrameToGray(const std::vector<uint8_t>& bytes, const DicomImage& image, ColourConversion colour) {
     const int depth = image.bits_allocated == 8 ? CV_8U : CV_16U;
     const uint64_t pixel_count = image.PixelCount();
     cv::Mat rgb(static_cast<int>(image.rows), static_cast<int>(image.columns), CV_MAKETYPE(depth, 3));
@@ -546,9 +546,15 @@ cv::Mat RgbFrameToGray(const std::vector<uint8_t>& bytes, const DicomImage& imag
             }
         }
     }
-    cv::Mat gray;
-    cv::cvtColor(rgb, gray, cv::COLOR_RGB2GRAY);
-    return gray;
+    if (colour == ColourConversion::Luminance) {
+        ConvertedColour converted;
+        cv::cvtColor(rgb, converted.gray, cv::COLOR_RGB2GRAY);
+        converted.warning = "Color image converted to grayscale";
+        return converted;
+    }
+    cv::Mat bgr;
+    cv::cvtColor(rgb, bgr, cv::COLOR_RGB2BGR);
+    return ConvertColour(bgr, colour);
 }
 
 // One frame of one file of a stack
@@ -562,7 +568,8 @@ using SourceOpener = std::function<ByteSource&(size_t file)>;
 
 // Decodes frames of one or more DICOM files into a stack. Grayscale values are stored with one storage choice for all
 // frames (ChooseStorage over the range of every frame), so equal values give equal samples on every slice.
-LoadedStack BuildDicomStack(const std::vector<DicomImage>& images, const std::vector<FrameRef>& frames, const SourceOpener& open) {
+LoadedStack BuildDicomStack(
+    const std::vector<DicomImage>& images, const std::vector<FrameRef>& frames, const SourceOpener& open, ColourConversion colour) {
     const DicomImage& first = images[frames.front().file];
     LoadedStack stack;
     stack.slices = static_cast<int>(frames.size());
@@ -573,17 +580,20 @@ LoadedStack BuildDicomStack(const std::vector<DicomImage>& images, const std::ve
     const int height = stack.info.height;
 
     if (first.Rgb()) {
-        stack.pixels = cv::Mat(height * stack.slices, stack.info.width, first.bits_allocated == 8 ? CV_8UC1 : CV_16UC1);
         for (size_t k = 0; k < frames.size(); ++k) {
             const DicomImage& image = images[frames[k].file];
             if (image.bits_allocated != first.bits_allocated) {
                 throw std::invalid_argument("The DICOM files have different bits allocated; they cannot form one stack");
             }
-            RgbFrameToGray(ReadFrame(open(frames[k].file), image, frames[k].frame), image)
-                .copyTo(stack.pixels.rowRange(static_cast<int>(k) * height, static_cast<int>(k + 1) * height));
+            ConvertedColour converted = RgbFrameToGray(ReadFrame(open(frames[k].file), image, frames[k].frame), image, colour);
+            if (k == 0) {
+                stack.pixels = cv::Mat(height * stack.slices, stack.info.width, converted.gray.type());
+                stack.info.value_conversion = converted.value_conversion;
+                stack.warnings.push_back(converted.warning);
+            }
+            converted.gray.copyTo(stack.pixels.rowRange(static_cast<int>(k) * height, static_cast<int>(k + 1) * height));
         }
-        stack.info.bit_depth = first.bits_allocated;
-        stack.warnings.push_back("Color image converted to grayscale");
+        stack.info.bit_depth = stack.pixels.depth() == CV_16U ? 16 : 8;
         return stack;
     }
 
@@ -718,9 +728,9 @@ void CheckStackPixels(int64_t width, int64_t height, int64_t slices, int64_t max
     }
 }
 
-LoadedImage LoadDicom(ByteSource& source, int64_t max_pixels) {
+LoadedImage LoadDicom(ByteSource& source, int64_t max_pixels, ColourConversion colour) {
     const DicomImage image = ParseDicomImage(source, max_pixels);
-    LoadedStack stack = BuildDicomStack({image}, {FrameRef{0, 0}}, [&source](size_t) -> ByteSource& { return source; });
+    LoadedStack stack = BuildDicomStack({image}, {FrameRef{0, 0}}, [&source](size_t) -> ByteSource& { return source; }, colour);
     LoadedImage loaded;
     loaded.gray = stack.pixels;
     loaded.info = stack.info;
@@ -732,14 +742,14 @@ LoadedImage LoadDicom(ByteSource& source, int64_t max_pixels) {
     return loaded;
 }
 
-LoadedStack LoadDicomFrames(ByteSource& source, int64_t max_pixels, int64_t max_stack_pixels) {
+LoadedStack LoadDicomFrames(ByteSource& source, int64_t max_pixels, int64_t max_stack_pixels, ColourConversion colour) {
     const DicomImage image = ParseDicomImage(source, max_pixels);
     CheckStackPixels(image.columns, image.rows, image.present_frames, max_stack_pixels);
     std::vector<FrameRef> frames;
     for (int64_t frame = 0; frame < image.present_frames; ++frame) {
         frames.push_back({0, frame});
     }
-    LoadedStack stack = BuildDicomStack({image}, frames, [&source](size_t) -> ByteSource& { return source; });
+    LoadedStack stack = BuildDicomStack({image}, frames, [&source](size_t) -> ByteSource& { return source; }, colour);
     if (image.present_frames < image.frames) {
         // A truncated file still opens with the frames it has, as the first frame alone did before stacks
         stack.warnings.insert(stack.warnings.begin(), "The DICOM file declares " + FormatValue(image.declared_frames) +
@@ -771,19 +781,19 @@ bool IsDicomBytes(const std::vector<uchar>& bytes) {
     return HasDicomMagic(source);
 }
 
-LoadedImage LoadDicomFile(const std::string& path, int64_t max_pixels) {
+LoadedImage LoadDicomFile(const std::string& path, int64_t max_pixels, ColourConversion colour) {
     FileSource source(path);
-    return LoadDicom(source, max_pixels);
+    return LoadDicom(source, max_pixels, colour);
 }
 
-LoadedImage LoadDicomBytes(const std::vector<uchar>& bytes, int64_t max_pixels) {
+LoadedImage LoadDicomBytes(const std::vector<uchar>& bytes, int64_t max_pixels, ColourConversion colour) {
     MemorySource source(bytes);
-    return LoadDicom(source, max_pixels);
+    return LoadDicom(source, max_pixels, colour);
 }
 
-LoadedStack LoadDicomStackFile(const std::string& path, int64_t max_pixels, int64_t max_stack_pixels) {
+LoadedStack LoadDicomStackFile(const std::string& path, int64_t max_pixels, int64_t max_stack_pixels, ColourConversion colour) {
     FileSource source(path);
-    return LoadDicomFrames(source, max_pixels, max_stack_pixels);
+    return LoadDicomFrames(source, max_pixels, max_stack_pixels, colour);
 }
 
 LoadedStack LoadDicomSeries(const std::vector<std::string>& paths, int64_t max_pixels, int64_t max_stack_pixels) {
@@ -891,7 +901,7 @@ LoadedStack LoadDicomSeries(const std::vector<std::string>& paths, int64_t max_p
         }
         return *current;
     };
-    LoadedStack stack = BuildDicomStack(images, frames, open);
+    LoadedStack stack = BuildDicomStack(images, frames, open, ColourConversion::Luminance);
     const auto differs = std::any_of(order.begin(), order.end(), [&](size_t i) { return !(images[i].spacing == reference.spacing); });
     if (differs) {
         warnings.push_back("The files have different pixel spacings; the first file's is used");

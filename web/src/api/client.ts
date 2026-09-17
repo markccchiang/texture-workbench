@@ -23,6 +23,7 @@ import {
   type WandRoiRequest,
   type WandRoiResponse,
   type CatalogResponse,
+  type ColourConversion,
   type ExportFormat,
   type HealthResponse,
   type ImageListResponse,
@@ -171,6 +172,20 @@ export async function fetchVolumePreview(volumeId: string, query: VolumePreviewQ
     parameters.set('maxSize', String(query.maxSize));
   }
   const response = await apiFetch(`${API_PREFIX}/volumes/${volumeId}/preview.png?${parameters}`, { signal });
+  if (!response.ok) {
+    throw await errorFromResponse(response);
+  }
+  return response.blob();
+}
+
+/** The colour image converted another way, stored as its own image (the colour image itself for luminance) */
+export function convertColourImage(imageId: string, conversion: ColourConversion, signal?: AbortSignal): Promise<ImageInfo> {
+  return sendJson('POST', `${API_PREFIX}/images/${imageId}/colour`, { conversion }, signal);
+}
+
+export async function fetchColourPreview(imageId: string, conversion: ColourConversion, maxSize: number, signal?: AbortSignal): Promise<Blob> {
+  const parameters = new URLSearchParams({ conversion, maxSize: String(maxSize) });
+  const response = await apiFetch(`${API_PREFIX}/images/${imageId}/colour-preview.png?${parameters}`, { signal });
   if (!response.ok) {
     throw await errorFromResponse(response);
   }

@@ -4,7 +4,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { ImageJRoiError, isImageJRoiFileName, readImageJRois, writeImageJRois, type Roi, type RoiSetDocument } from '@glcm/api';
-import { ApiError, IMAGE_ID_PATTERN, openImage, roisFromDocument, type ApiClient, type OpenedImage } from '@glcm/client';
+import { ApiError, convertColour, IMAGE_ID_PATTERN, openImage, roisFromDocument, type ApiClient, type OpenedImage } from '@glcm/client';
 
 const CONTENT_TYPES: Record<string, string> = {
   '.png': 'image/png',
@@ -16,8 +16,16 @@ const CONTENT_TYPES: Record<string, string> = {
   '.dcm': 'application/dicom',
 };
 
-/** An image named as a file, a sample (`sample:textures/brick.png`) or an image id */
-export async function openImageTarget(client: ApiClient, target: string): Promise<OpenedImage> {
+/** An image named as a file, a sample (`sample:textures/brick.png`) or an image id; with `colour`, converted that way */
+export async function openImageTarget(client: ApiClient, target: string, colour?: string): Promise<OpenedImage> {
+  const opened = await openStoredImage(client, target);
+  if (colour === undefined) {
+    return opened;
+  }
+  return { info: await convertColour(client, opened.info.imageId, colour), reused: opened.reused };
+}
+
+async function openStoredImage(client: ApiClient, target: string): Promise<OpenedImage> {
   if (IMAGE_ID_PATTERN.test(target)) {
     return openImage(client, { kind: 'id', imageId: target });
   }

@@ -1,6 +1,6 @@
 import { Anchor, Badge, Button, Checkbox, Group, Kbd, List, Modal, NavLink, NumberInput, ScrollArea, SegmentedControl, Stack, Switch, Table, Text } from '@mantine/core';
 import type { HealthResponse, ImageInfo, SampleInfo } from '@glcm/api';
-import { API_PREFIX } from '@glcm/api';
+import { API_PREFIX, colourConversionOption } from '@glcm/api';
 import { useQuery } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { getSamples } from '../api/client';
@@ -10,6 +10,7 @@ import { ThresholdRoiContent } from '../rois/ThresholdDialog';
 import { GrowRoiContent } from '../rois/GrowDialog';
 import { RoiClassesContent } from '../rois/ClassesDialog';
 import { HistogramContent, ProfileContent } from '../plots/IntensityPlotDialogs';
+import { ColourConversionContent } from '../colour/ColourConversionDialog';
 import { ReportContent } from '../report/ReportDialog';
 import { CATALOG_QUERY } from '../api/queryClient';
 import { useAnalysisSettings } from '../analysis/settingsStore';
@@ -120,7 +121,12 @@ function ImageInfoContent() {
           ['File size', formatBytes(info.sizeBytes)],
           ['Dimensions', `${info.width} × ${info.height} px${info.slices > 1 ? ` × ${info.slices} slices` : ''}`],
           ['Bit depth', `${info.bitDepth}-bit`],
-          ['Channels', info.sourceChannels > 1 ? `${info.sourceChannels} (converted to grayscale)` : '1 (grayscale)'],
+          [
+            'Channels',
+            info.sourceChannels > 1
+              ? `${info.sourceChannels} (converted to gray: ${colourConversionOption(info.colourSource?.conversion ?? 'luminance').label})`
+              : '1 (grayscale)',
+          ],
           ...(info.valueConversion ? [['Values', info.valueConversion.description] as [string, string]] : []),
           ['Default window', `${info.windowMin} – ${info.windowMax}`],
           ['Pixel transfer', info.transfer === 'raw' ? 'Raw samples, rendered in the browser' : 'Server-rendered display.png'],
@@ -478,6 +484,7 @@ function ExportRoiImagesContent({ onClose }: { onClose(): void }) {
 const TITLES: Record<ModalName, string> = {
   profile: 'Plot Profile',
   histogram: 'Histogram',
+  colourConversion: 'Colour Conversion',
   imageInfo: 'Image Info',
   preferences: 'Preferences',
   shortcuts: 'Keyboard Shortcuts',
@@ -498,7 +505,7 @@ export function AppModals() {
   const modal = useUi((state) => state.modal);
   const close = () => useUi.getState().setModal(null);
   return (
-    <Modal opened={modal !== null} onClose={close} title={modal ? TITLES[modal] : ''} size={modal === 'imageInfo' || modal === 'equations' || modal === 'batch' || modal === 'profile' || modal === 'histogram' ? 'lg' : 'md'}>
+    <Modal opened={modal !== null} onClose={close} title={modal ? TITLES[modal] : ''} size={modal === 'imageInfo' || modal === 'equations' || modal === 'batch' || modal === 'profile' || modal === 'histogram' ? 'lg' : modal === 'colourConversion' ? 'xl' : 'md'}>
       {modal === 'imageInfo' && <ImageInfoContent />}
       {modal === 'preferences' && <PreferencesContent />}
       {modal === 'shortcuts' && <ShortcutsContent />}
@@ -514,6 +521,7 @@ export function AppModals() {
       {modal === 'report' && <ReportContent onClose={close} />}
       {modal === 'profile' && <ProfileContent />}
       {modal === 'histogram' && <HistogramContent />}
+      {modal === 'colourConversion' && <ColourConversionContent onClose={close} />}
       {modal === 'exportRoiImages' && <ExportRoiImagesContent onClose={close} />}
     </Modal>
   );

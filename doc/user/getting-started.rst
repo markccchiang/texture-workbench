@@ -52,7 +52,8 @@ There are three ways to open an image:
 Supported files are PNG, JPEG, BMP and TIFF with 8 or 16 bits per pixel, uncompressed DICOM images and NIfTI files
 (see :ref:`medical-files`). The image is uploaded to the server, which decodes it:
 
-- **Color images** are converted to grayscale, and a notification says so.
+- **Colour images** are converted to their luminance, and a notification says so. *Image ▸ Colour Conversion…* measures
+  a channel, an HSB component or a stain instead (see :ref:`colour-images`).
 - **Multi-page TIFF files** open as a **stack**, one slice per page (see :ref:`stacks`). Pages after the first page of
   another size or type are left out, and a notification says so.
 - **16-bit images** keep their full intensity range for measurements; the display uses a window (see
@@ -62,8 +63,46 @@ Supported files are PNG, JPEG, BMP and TIFF with 8 or 16 bits per pixel, uncompr
   (400 000 000 on a shared server). Larger files are rejected with a message.
 
 Opening another image replaces the current one, together with its ROIs; the results table keeps its rows. *File ▸
-Close Image* closes the image. *Image ▸ Image Info* shows the file name, size, bit depth, channels, the value
-conversion of DICOM and NIfTI files, default display window and SHA-256 checksum of the open image.
+Close Image* closes the image. *Image ▸ Image Info* shows the file name, size, bit depth, channels (and how a colour image was
+converted), the value conversion of DICOM, NIfTI and converted colour images, default display window and SHA-256 checksum of the open image.
+
+.. _colour-images:
+
+Colour images
+~~~~~~~~~~~~~
+
+Texture is measured on one value per pixel, so a colour image opens as its **luminance**, 0.299 R + 0.587 G + 0.114 B.
+That mixes the colours of a stained tissue section: a brown DAB stain and a blue hematoxylin stain can end up with the
+same gray value. *Image ▸ Colour Conversion…* (enabled for colour images) chooses another conversion:
+
+.. figure:: images/colour-conversion.png
+   :alt: The Colour Conversion dialog with the conversions in four groups, DAB (H-DAB) chosen, and a preview of the DAB density of the IHC sample.
+   :width: 80%
+
+   Converting the ``textures/ihc.png`` sample to its DAB density.
+
+- **Gray**: *Luminance* (as the image opened) or *Mean of R, G, B*, the unweighted mean.
+- **Channels**: *Red*, *Green* or *Blue*, unchanged.
+- **HSB**: *Hue*, *Saturation* or *Brightness*, as ImageJ's *Image ▸ Type ▸ HSB Stack* computes them.
+- **Stains**: the optical density of one stain, separated by **colour deconvolution** [Ruifrok2001]_ with the stain
+  vectors scikit-image uses: *Hematoxylin* or *Eosin* of an **H&E** stain, or *Hematoxylin* or *DAB* of an **H-DAB**
+  stain (immunohistochemistry). Where there is more of the stain, the value is higher.
+
+The preview shows the first slice converted, with its own display window. **Convert** opens the converted image in
+place of the current one: the ROIs, the zoom and the slice shown stay, so the same regions can be measured on several
+conversions. The converted image is stored as its own image, named like ``ihc.png [DAB H-DAB]`` (``[red]``,
+``[hue]``, …); converting the same way again opens it again, and *Luminance* returns to the image as it was uploaded.
+Channels, the mean and HSB components keep the bit depth of the file; stain densities are stored as 16-bit values.
+
+The conversion is recorded as the image's value conversion, which *Image Info* shows and exported results carry
+(``valueConversion``), for example *Red channel; value = stored value*. Stain densities keep their scale, for example
+*DAB optical density (H-DAB colour deconvolution, scikit-image hdx_from_rgb); OD = stored value × 2.33943e-05*: texture
+features are computed on the stored values, while the value conversion gives the density they stand for. The formulas
+are in :ref:`colour-conversion`.
+
+Only the images that were uploaded as colour files can be converted (for a DICOM series, which is stored as gray
+slices, the colours are gone). A project refers to the converted image by its checksum; when the server no longer has
+it, the project's embedded copy opens as a plain gray image without the conversion.
 
 .. _medical-files:
 

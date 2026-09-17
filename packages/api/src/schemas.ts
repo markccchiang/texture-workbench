@@ -3,6 +3,7 @@
 // derived types.
 
 import { Type, type Static } from 'typebox';
+import { ColourSource } from './colour.js';
 
 export const API_PREFIX = '/api/v1';
 
@@ -135,7 +136,7 @@ export const ValueConversion = Type.Object(
     unit: Type.String({ description: 'HU for CT; empty when the file does not say' }),
     description: Type.String({ description: 'e.g. "Rescale slope 1, intercept -1024; values stored + 1024; HU = stored value - 1024"' }),
   },
-  { description: "DICOM and NIfTI: how the file's values became the stored samples; value = stored sample × scale + offset" },
+  { description: "DICOM, NIfTI and colour conversions: how the file's values became the stored samples; value = stored sample × scale + offset" },
 );
 export type ValueConversion = Static<typeof ValueConversion>;
 
@@ -151,12 +152,15 @@ export const ImageInfo = Type.Object({
     maximum: MAX_SLICES,
     description: 'Slices of a stack (TIFF pages, DICOM frames or series files, NIfTI slices), each width × height; 1 for a single image',
   }),
-  sourceChannels: Type.Integer({ description: 'Channels before grayscale conversion (1 or 3)' }),
+  sourceChannels: Type.Integer({ description: 'Channels before grayscale conversion (1, 3 or 4)' }),
+  colourSource: Type.Optional(ColourSource),
   pixelSpacing: Type.Union([PixelSpacing, Type.Null()], {
     description:
       "From the file's metadata (PNG pHYs, JPEG JFIF, BMP, TIFF resolution, DICOM PixelSpacing or ImagerPixelSpacing, NIfTI voxel size); null when the file has none, or only the 72/96 dpi default of image editors",
   }),
-  valueConversion: Type.Optional(Type.Unsafe<ValueConversion>({ ...ValueConversion, description: 'Absent when the stored samples are the file\'s values' })),
+  valueConversion: Type.Optional(
+    Type.Unsafe<ValueConversion>({ ...ValueConversion, description: "Absent when the stored samples are the file's values (or a colour image's luminance)" }),
+  ),
   sha256: Type.String({
     description: 'SHA-256 of the uploaded file (hex); for a stack made from a NIfTI volume or a DICOM series, of the TIFF that stands for it',
   }),

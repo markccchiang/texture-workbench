@@ -83,7 +83,7 @@ export const imageRoutes: FastifyPluginAsyncTypebox<ImageRoutesOptions> = async 
       schema: {
         summary: 'Upload an image',
         description:
-          'multipart/form-data with one file field. PNG, JPEG, BMP, 8/16-bit TIFF, uncompressed DICOM and 2D NIfTI are decoded on the server; color images are converted to grayscale. The pages of a multi-page TIFF and the frames of a DICOM file become the slices of a stack. Upload NIfTI volumes to POST /volumes and DICOM series to POST /images/series.',
+          'multipart/form-data with one file field. PNG, JPEG, BMP, 8/16-bit TIFF, uncompressed DICOM and 2D NIfTI are decoded on the server; colour images are converted to their luminance (POST /images/{id}/colour converts them another way). The pages of a multi-page TIFF and the frames of a DICOM file become the slices of a stack. Upload NIfTI volumes to POST /volumes and DICOM series to POST /images/series.',
         tags: ['images'],
         consumes: ['multipart/form-data'],
         response: { 201: ImageInfo, 400: ErrorResponse, 413: ErrorResponse, 415: ErrorResponse, 422: ErrorResponse },

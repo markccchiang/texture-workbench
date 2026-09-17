@@ -4,7 +4,8 @@ Texture Feature Equations
 This page lists the equations exactly as they are implemented in the C++ core: ``core/analysis/TextureAnalysis.cpp``
 (the co-occurrence features), ``FirstOrder.cpp``, ``RunLength.cpp``, ``SizeZone.cpp``, ``GrayToneDifference.cpp``,
 ``LocalBinaryPattern.cpp``, ``Shape.cpp`` and ``Score.cpp``, with the quantization of ``core/imaging/Quantizer.cpp`` and the
-preprocessing of ``core/imaging/Resampling.cpp`` and ``ImageFilters.cpp``. Where the implementation differs from the usual literature definition, the difference is
+preprocessing of ``core/imaging/Resampling.cpp`` and ``ImageFilters.cpp``, and the colour conversions of
+``ColourConversion.cpp``. Where the implementation differs from the usual literature definition, the difference is
 noted.
 
 Every feature is returned as a ``glcm::Features`` value with one field per direction: ``H``, ``V``, ``LD`` and ``RD``.
@@ -841,6 +842,63 @@ Gaussian, whose image ITK stores in 32 bits, and 64-bit for the wavelet.
    PyRadiomics filters only the part of a resampled image around the ROI (its bounding box and 5 pixels more), so its
    values near that border differ when resampling and a filter are combined. Here the filter always runs over the whole
    (resampled) image.
+
+.. _colour-conversion:
+
+Colour conversion
+-----------------
+
+A colour image becomes one value per pixel when it is decoded (``core/imaging/ColourConversion``), before anything
+else. Let :math:`R`, :math:`G` and :math:`B` be a pixel's channels and :math:`M` the largest sample of the file's bit
+depth (255 or 65 535). The results carry the conversion as the image's value conversion; all but the luminance write
+one.
+
+**Luminance** (the default): :math:`0.299 R + 0.587 G + 0.114 B`, rounded, as OpenCV's ``COLOR_BGR2GRAY`` computes it
+(in fixed point for 8-bit images).
+
+**Mean**: :math:`\lfloor R/3 + G/3 + B/3 + 0.5 \rfloor`, ImageJ's conversion with unweighted RGB conversions. **Red**,
+**green**, **blue**: the channel unchanged.
+
+**Hue, saturation, brightness** follow ``java.awt.Color.RGBtoHSB``, which ImageJ's HSB stack uses, in single precision.
+With :math:`c_{\max}` and :math:`c_{\min}` the largest and smallest channel,
+
+.. math::
+
+   V = \frac{c_{\max}}{M}, \qquad S = \frac{c_{\max} - c_{\min}}{c_{\max}}, \qquad
+   H = \frac{1}{6} \begin{cases} b - g & R = c_{\max} \\ 2 + r - b & G = c_{\max} \\ 4 + g - r & \text{otherwise} \end{cases}
+
+where :math:`r = (c_{\max} - R)/(c_{\max} - c_{\min})` and likewise :math:`g`, :math:`b`; :math:`S = 0` when
+:math:`c_{\max} = 0`, :math:`H = 0` when :math:`S = 0`, and 1 is added to a negative :math:`H`. The stored sample is
+:math:`\lfloor x M \rfloor` for :math:`x \in \{H, S, V\}`. The core tests compare the mean and the three components of a
+256 × 256 image holding many colours with ImageJ 1.54p (``scripts/imagej-colour``); they are identical. ImageJ has no
+HSB stack of 16-bit colour images; the same formulas with :math:`M = 65\,535` are used for them.
+
+**Stains** are separated by colour deconvolution [Ruifrok2001]_ as scikit-image's ``separate_stains`` does. The
+intensities become optical densities relative to the brightest possible light,
+
+.. math::
+
+   x_c = \frac{\ln \max(c / M,\ 10^{-6})}{\ln 10^{-6}}, \qquad c \in \{R, G, B\},
+
+which run from 0 for white to 1 for black, and the density of stain :math:`s` is
+
+.. math::
+
+   D_s = \max\left(0,\ x_R\, C_{R s} + x_G\, C_{G s} + x_B\, C_{B s}\right),
+
+where :math:`C` is the inverse of the matrix of stain vectors: scikit-image's ``hed_from_rgb`` for H&E (stain 0
+hematoxylin, stain 1 eosin) and ``hdx_from_rgb`` for H-DAB (stain 0 hematoxylin, stain 1 DAB). :math:`D_s` is at most the
+sum :math:`P_s` of the positive entries of column :math:`s`, so it is stored as the 16-bit sample
+:math:`\operatorname{round}(D_s / k)` with :math:`k = P_s / 65\,535`, and the value conversion is
+:math:`D_s = \text{stored} \times k` in the unit ``OD``. The core tests compare the densities of the four stains, on the
+test image and on the ``textures/ihc.png`` sample, with scikit-image 0.26: every stored value lies within
+:math:`k / 2` of scikit-image's.
+
+.. note::
+
+   The stain vectors are fixed, not estimated from the image, so a stain whose colour differs from them (another
+   staining protocol or scanner) leaks into the other densities. ImageJ's *Colour Deconvolution* plugin offers other
+   vector sets and a way to measure them; it is not ported here.
 
 Choosing features and gray levels
 ---------------------------------

@@ -259,6 +259,21 @@ TEST(DicomReaderTest, ConvertsRgbToGrayscale) {
     EXPECT_EQ(image.warnings, std::vector<std::string>{"Color image converted to grayscale"});
 }
 
+TEST(DicomReaderTest, ConvertsRgbWithTheChosenConversion) {
+    std::vector<Element> elements = Monochrome(1, 2, 8, 8, 0, "RGB", {255, 0, 0, 0, 0, 255});
+    elements[0].value = Short(3);
+    const glcm::LoadedImage red = glcm::LoadDicomBytes(Dicom(EXPLICIT_LE, elements), 0, glcm::ColourConversion::Red);
+    EXPECT_EQ(red.gray.at<uchar>(0, 0), 255);
+    EXPECT_EQ(red.gray.at<uchar>(0, 1), 0);
+    const glcm::LoadedImage blue = glcm::LoadDicomBytes(Dicom(EXPLICIT_LE, elements), 0, glcm::ColourConversion::Blue);
+    EXPECT_EQ(blue.gray.at<uchar>(0, 1), 255);
+    EXPECT_EQ(blue.warnings, std::vector<std::string>{"Colour image converted: Blue channel"});
+    const glcm::LoadedImage stain = glcm::LoadDicomBytes(Dicom(EXPLICIT_LE, elements), 0, glcm::ColourConversion::HematoxylinHe);
+    EXPECT_EQ(stain.info.bit_depth, 16);
+    ASSERT_TRUE(stain.info.value_conversion.has_value());
+    EXPECT_EQ(stain.info.value_conversion->unit, "OD");
+}
+
 TEST(DicomReaderTest, RefusesCompressedTruncatedAndOversizedFiles) {
     const std::vector<Element> elements = Monochrome(2, 2, 16, 16, 0, "MONOCHROME2", Words({1, 2, 3, 4}));
     try {

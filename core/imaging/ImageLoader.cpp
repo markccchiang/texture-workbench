@@ -35,7 +35,7 @@ void CheckHeaderSize(const std::optional<ImageSize>& size, int64_t max_pixels) {
     }
 }
 
-LoadedImage ToLoadedImage(const cv::Mat& decoded, int64_t max_pixels) {
+LoadedImage ToLoadedImage(const cv::Mat& decoded, int64_t max_pixels, ColourConversion colour) {
     // The decoder may disagree with the header, e.g. for a multi-image TIFF
     if (max_pixels > 0 && static_cast<int64_t>(decoded.total()) > max_pixels) {
         throw ImageTooLargeError(decoded.cols, decoded.rows, max_pixels);
@@ -50,13 +50,25 @@ LoadedImage ToLoadedImage(const cv::Mat& decoded, int64_t max_pixels) {
         case 1:
             result.gray = decoded;
             break;
-        case 3:
-            cv::cvtColor(decoded, result.gray, cv::COLOR_BGR2GRAY);
-            result.warnings.push_back("Color image converted to grayscale");
+        case 3: {
+            ConvertedColour converted = ConvertColour(decoded, colour);
+            result.gray = converted.gray;
+            result.info.value_conversion = converted.value_conversion;
+            result.warnings.push_back(converted.warning);
             break;
+        }
         case 4:
-            cv::cvtColor(decoded, result.gray, cv::COLOR_BGRA2GRAY);
-            result.warnings.push_back("Color image converted to grayscale; alpha channel ignored");
+            if (colour == ColourConversion::Luminance) {
+                cv::cvtColor(decoded, result.gray, cv::COLOR_BGRA2GRAY);
+                result.warnings.push_back("Color image converted to grayscale; alpha channel ignored");
+            } else {
+                cv::Mat bgr;
+                cv::cvtColor(decoded, bgr, cv::COLOR_BGRA2BGR);
+                ConvertedColour converted = ConvertColour(bgr, colour);
+                result.gray = converted.gray;
+                result.info.value_conversion = converted.value_conversion;
+                result.warnings.push_back(converted.warning + "; alpha channel ignored");
+            }
             break;
         default:
             throw std::invalid_argument("Unsupported number of image channels: " + std::to_string(decoded.channels()));
@@ -105,9 +117,9 @@ StackTooLargeError::StackTooLargeError(int64_t width, int64_t height, int64_t sl
     : std::runtime_error("The stack has " + std::to_string(slices) + " slices of " + std::to_string(width) + " x " +
                          std::to_string(height) + " pixels, more than the limit of " + std::to_string(max_pixels) + " pixels") {}
 
-LoadedImage LoadImageFile(const std::string& path, int64_t max_pixels) {
+LoadedImage LoadImageFile(const std::string& path, int64_t max_pixels, ColourConversion colour) {
     if (IsDicomFile(path)) {
-        return LoadDicomFile(path, max_pixels);
+        return LoadDicomFile(path, max_pixels, colour);
     }
     if (IsNiftiFile(path)) {
         return LoadNiftiFile(path, max_pixels);
@@ -123,7 +135,7 @@ LoadedImage LoadImageFile(const std::string& path, int64_t max_pixels) {
     if (decoded.empty()) {
         throw std::runtime_error("Cannot read the image: " + path);
     }
-    LoadedImage image = ToLoadedImage(decoded, max_pixels);
+    LoadedImage image = ToLoadedImage(decoded, max_pixels, colour);
     AddHeaderMetadata(header, image);
     return image;
 }
@@ -140,7 +152,8 @@ LoadedStack StackOf(LoadedImage image) {
 }
 
 // The pages of a multi-page TIFF, read a few at a time so that only those are held twice
-LoadedStack LoadTiffPages(const std::string& path, const ImageSize& header, int64_t max_pixels, int64_t max_stack_pixels) {
+LoadedStack LoadTiffPages(
+    const std::string& path, const ImageSize& header, int64_t max_pixels, int64_t max_stack_pixels, ColourConversion colour) {
     const auto pages = static_cast<int64_t>(cv::imcount(path, DECODE_FLAGS));
     if (pages > MAX_SLICES) {
         throw std::invalid_argument("The TIFF file has " + std::to_string(pages) + " pages, more than " + std::to_string(MAX_SLICES));
@@ -173,7 +186,7 @@ LoadedStack LoadTiffPages(const std::string& path, const ImageSize& header, int6
                 stop = true;
                 break;
             }
-            LoadedImage image = ToLoadedImage(decoded[i], max_pixels);
+            LoadedImage image = ToLoadedImage(decoded[i], max_pixels, colour);
             if (page == 0) {
                 stack.info = image.info;
                 for (const std::string& warning : image.warnings) {
@@ -193,9 +206,9 @@ LoadedStack LoadTiffPages(const std::string& path, const ImageSize& header, int6
 
 } // namespace
 
-LoadedStack LoadImageStackFile(const std::string& path, int64_t max_pixels, int64_t max_stack_pixels) {
+LoadedStack LoadImageStackFile(const std::string& path, int64_t max_pixels, int64_t max_stack_pixels, ColourConversion colour) {
     if (IsDicomFile(path)) {
-        return LoadDicomStackFile(path, max_pixels, max_stack_pixels);
+        return LoadDicomStackFile(path, max_pixels, max_stack_pixels, colour);
     }
     if (!IsNiftiFile(path)) {
         std::optional<ImageSize> header = OptionalHeader([&] { return ReadImageSize(path); });
@@ -203,7 +216,7 @@ LoadedStack LoadImageStackFile(const std::string& path, int64_t max_pixels, int6
             if (max_pixels > 0) {
                 CheckHeaderSize(header, max_pixels);
             }
-            LoadedStack stack = LoadTiffPages(path, *header, max_pixels, max_stack_pixels);
+            LoadedStack stack = LoadTiffPages(path, *header, max_pixels, max_stack_pixels, colour);
             LoadedImage first;
             first.info = stack.info;
             AddHeaderMetadata(ImageSize{header->width, header->height, false, header->pixel_spacing}, first);
@@ -211,7 +224,7 @@ LoadedStack LoadImageStackFile(const std::string& path, int64_t max_pixels, int6
             return stack;
         }
     }
-    LoadedStack stack = StackOf(LoadImageFile(path, max_pixels));
+    LoadedStack stack = StackOf(LoadImageFile(path, max_pixels, colour));
     if (max_stack_pixels > 0 && static_cast<int64_t>(stack.pixels.total()) > max_stack_pixels) {
         throw StackTooLargeError(stack.info.width, stack.info.height, 1, max_stack_pixels);
     }
@@ -316,12 +329,12 @@ std::vector<uchar> EncodeTiffStack(const LoadedStack& stack) {
     return out;
 }
 
-LoadedImage LoadImageBytes(const std::vector<uchar>& bytes, int64_t max_pixels) {
+LoadedImage LoadImageBytes(const std::vector<uchar>& bytes, int64_t max_pixels, ColourConversion colour) {
     if (bytes.empty()) {
         throw std::runtime_error("Cannot decode an empty image buffer");
     }
     if (IsDicomBytes(bytes)) {
-        return LoadDicomBytes(bytes, max_pixels);
+        return LoadDicomBytes(bytes, max_pixels, colour);
     }
     std::optional<ImageSize> header;
     if (max_pixels > 0) {
@@ -334,7 +347,7 @@ LoadedImage LoadImageBytes(const std::vector<uchar>& bytes, int64_t max_pixels) 
     if (decoded.empty()) {
         throw std::runtime_error("Cannot decode the image data");
     }
-    LoadedImage image = ToLoadedImage(decoded, max_pixels);
+    LoadedImage image = ToLoadedImage(decoded, max_pixels, colour);
     AddHeaderMetadata(header, image);
     return image;
 }

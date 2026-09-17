@@ -32,8 +32,9 @@ These are copied unchanged from [scikit-image 0.25.2, `skimage/data`](https://gi
 | `gravel.png` | 512 × 512 | Gravel | Creative Commons CC0 License | 405 / 712 / 407 / 657 |
 | `camera.png` | 512 × 512 | Gray-level "camera" image | CC0 by the photographer (Lav Varshney) | 237 / 304 / 160 / 313 |
 | `coins.png` | 384 × 303 | Greek coins from Pompeii | No known copyright restrictions | 352 / 525 / 333 / 530 |
+| `ihc.png` | 512 × 512 | Immunohistochemical (IHC) staining of colonic glands: FHL2 protein shown with DAB (brown), hematoxylin counterstain (blue) | No known copyright restrictions | 138 / 229 / 103 / 199 (luminance) |
 
-All five are 8-bit grayscale PNGs. `camera.png` is the default sample: **Open sample image** on the start screen opens it, and the documentation screenshots use it.
+The first five are 8-bit grayscale PNGs. `ihc.png` is an 8-bit RGB PNG for the colour conversions: it opens as its luminance, and *Image ▸ Colour Conversion…* measures one channel, an HSB component or a stain instead, for example the DAB density with the H-DAB stains. `camera.png` is the default sample: **Open sample image** on the start screen opens it, and the documentation screenshots use it.
 
 ## Medical images (`medical/`)
 

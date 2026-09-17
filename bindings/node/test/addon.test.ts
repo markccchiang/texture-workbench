@@ -137,6 +137,26 @@ describe('decodeImageFile', () => {
     expect([...image.pixels]).toEqual([76, 150, 29, 255]);
   });
 
+  it('converts colour images with the chosen conversion and encodes the result as a TIFF', async () => {
+    const rgb = [255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255];
+    const file = await writeFile('rgb-colour.tif', encodeTiff({ width: 4, height: 1, bitsPerSample: 8, samplesPerPixel: 3, data: rgb }));
+
+    const green = await native.decodeImageFile(file, { colour: 'green', encodeTiff: true });
+    expect([...green.pixels]).toEqual([0, 255, 0, 255]);
+    expect(green.warnings).toEqual(['Colour image converted: Green channel']);
+    expect(green.valueConversion).toEqual({ scale: 1, offset: 0, unit: '', description: 'Green channel; value = stored value' });
+    // The TIFF reads back as the converted gray image
+    const again = await native.decodeImageFile(await writeFile('green.tif', green.tiff!));
+    expect(again).toMatchObject({ sourceChannels: 1, bitDepth: 8, warnings: [] });
+    expect([...again.pixels]).toEqual([0, 255, 0, 255]);
+
+    const stain = await native.decodeImageFile(file, { colour: 'hematoxylinHe' });
+    expect(stain.bitDepth).toBe(16);
+    expect(stain.valueConversion?.unit).toBe('OD');
+    expect((await native.decodeImageFile(file)).tiff).toBeUndefined();
+    expect(() => native.decodeImageFile(file, { colour: 'purple' as never })).toThrow('colour conversion');
+  });
+
   it('rejects unsupported and unreadable files with an error code', async () => {
     const float = await writeFile(
       'float.tif',

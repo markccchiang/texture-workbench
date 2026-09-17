@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "imaging/ColourConversion.hpp"
 #include "imaging/ImageHeader.hpp"
 #include "imaging/ValueConversion.hpp"
 
@@ -73,26 +74,28 @@ public:
 };
 
 // Reads an image file (PNG, JPEG, BMP, 8/16-bit TIFF, ...; uncompressed DICOM with imaging/DicomReader.hpp and 2D NIfTI
-// with imaging/NiftiReader.hpp, recognized by their content). The bit depth is kept, color images are converted to
-// grayscale, an alpha channel is ignored and the EXIF orientation is applied.
+// with imaging/NiftiReader.hpp, recognized by their content). The bit depth is kept, colour images are converted to
+// grayscale with `colour` (imaging/ColourConversion.hpp; the value conversion of a conversion other than the luminance is
+// recorded in info.value_conversion), an alpha channel is ignored and the EXIF orientation is applied.
 // Throws std::runtime_error if the file cannot be read or decoded, and std::invalid_argument for bit depths other than
 // 8 and 16.
 // With max_pixels > 0, the size is first read from the header (imaging/ImageHeader.hpp), so an image above the limit
 // throws ImageTooLargeError before the decoder allocates memory for it; files that are not PNG, JPEG, BMP or TIFF then
 // throw std::runtime_error, because their size cannot be checked in advance.
-LoadedImage LoadImageFile(const std::string& path, int64_t max_pixels = 0);
+LoadedImage LoadImageFile(const std::string& path, int64_t max_pixels = 0, ColourConversion colour = ColourConversion::Luminance);
 
 // Reads an image file as a stack: every page of a multi-page TIFF (up to the first page of another size, type or bit
 // depth, with a warning), every frame of a DICOM file, and otherwise the single image LoadImageFile reads. max_pixels
 // limits one slice, max_stack_pixels (> 0) all slices together; both are checked before the pixels are decoded.
-LoadedStack LoadImageStackFile(const std::string& path, int64_t max_pixels = 0, int64_t max_stack_pixels = 0);
+LoadedStack LoadImageStackFile(
+    const std::string& path, int64_t max_pixels = 0, int64_t max_stack_pixels = 0, ColourConversion colour = ColourConversion::Luminance);
 
 // A stack as an uncompressed little-endian TIFF: one 8- or 16-bit grayscale page per slice, with the pixel spacing as the
 // resolution in pixels per centimetre. LoadImageStackFile reads it back with the same samples.
 std::vector<uchar> EncodeTiffStack(const LoadedStack& stack);
 
 // Same as LoadImageFile, for an encoded image held in memory (e.g. an upload)
-LoadedImage LoadImageBytes(const std::vector<uchar>& bytes, int64_t max_pixels = 0);
+LoadedImage LoadImageBytes(const std::vector<uchar>& bytes, int64_t max_pixels = 0, ColourConversion colour = ColourConversion::Luminance);
 
 } // namespace glcm
 

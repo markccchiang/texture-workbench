@@ -22,6 +22,9 @@ const EXIT_USAGE = 2;
 
 type OptionConfig = Record<string, { type: 'string' | 'boolean'; short?: string; multiple?: boolean }>;
 
+const COLOUR_DETAIL =
+  '--colour <conversion> converts a colour image another way than its luminance: mean, red, green, blue, hue, saturation, brightness, hematoxylinHe, eosinHe, hematoxylinHdab or dabHdab.';
+
 const GLOBAL_OPTIONS: OptionConfig = {
   server: { type: 'string' },
   token: { type: 'string' },
@@ -229,14 +232,15 @@ const COMMANDS: Record<string, Command> = {
 
   info: {
     summary: 'Show what the server knows about an image',
-    usage: 'glcm info <image> [--json]',
-    details: ['<image> is a file, sample:<path> from "glcm samples", or an image id.'],
+    usage: 'glcm info <image> [--colour <conversion>] [--json]',
+    details: ['<image> is a file, sample:<path> from "glcm samples", or an image id.', COLOUR_DETAIL],
+    options: { colour: { type: 'string' } },
     async run(context) {
       const [target] = context.positionals;
       if (!target) {
         throw new ApiError(0, 'BadOption', 'Name an image: a file, sample:<path> or an image id');
       }
-      const { info, reused } = await openImageTarget(await context.client(), target);
+      const { info, reused } = await openImageTarget(await context.client(), target, text(context, 'colour'));
       if (context.json) {
         context.io.out(JSON.stringify(info, null, 2));
         return EXIT_OK;
@@ -263,11 +267,13 @@ const COMMANDS: Record<string, Command> = {
       '--resample 0.5,0.5 resamples the image and the ROIs to that pixel spacing (mm) first; the image needs a pixel spacing (or --spacing).',
       '--log-sigma 2 measures the Laplacian of Gaussian (sigma in mm with a pixel spacing), with --quantization fixedBinWidth,25 or roiMinMax.',
       '--wavelet LH measures that sub-band of the Coiflet 1 stationary wavelet transform (L low-pass, H high-pass; x first), with the same quantizations.',
+      COLOUR_DETAIL,
     ],
     options: {
       ...SETTINGS_OPTIONS,
       rois: { type: 'string' },
       slice: { type: 'string' },
+      colour: { type: 'string' },
       spacing: { type: 'string' },
       out: { type: 'string', short: 'o' },
       format: { type: 'string' },
@@ -296,7 +302,7 @@ const COMMANDS: Record<string, Command> = {
       const csvTexts: string[] = [];
       const documents: unknown[] = [];
       for (const target of context.positionals) {
-        const { info } = await openImageTarget(client, target);
+        const { info } = await openImageTarget(client, target, text(context, 'colour'));
         const settings = operations.buildSettings(catalog, info.bitDepth, overrides);
         const issues = operations.validateSettings(
           settings,
@@ -361,6 +367,7 @@ const COMMANDS: Record<string, Command> = {
       'The ROI set can then be measured: glcm measure <image> --rois <file>',
       'An --out name ending in .zip writes a RoiSet.zip for ImageJ instead of an ROI set.',
       'For a stack, --slice <n> (from 1, default 1) chooses the slice; the ROIs are saved on that slice.',
+      COLOUR_DETAIL,
     ],
     options: {
       min: { type: 'string' },
@@ -372,6 +379,7 @@ const COMMANDS: Record<string, Command> = {
       at: { type: 'string' },
       tolerance: { type: 'string' },
       slice: { type: 'string' },
+      colour: { type: 'string' },
       out: { type: 'string', short: 'o' },
     },
     async run(context) {
@@ -380,7 +388,7 @@ const COMMANDS: Record<string, Command> = {
         throw new ApiError(0, 'BadOption', 'Name an image');
       }
       const client = await context.client();
-      const { info } = await openImageTarget(client, target);
+      const { info } = await openImageTarget(client, target, text(context, 'colour'));
       const slice = integer(context, 'slice', 1)!;
       const at = numbers(text(context, 'at'));
       let regions: operations.RegionResult[];
@@ -445,12 +453,14 @@ const COMMANDS: Record<string, Command> = {
   'feature-map': {
     summary: 'Compute one feature across a whole image and save it as a 32-bit TIFF',
     usage: 'glcm feature-map <image> --feature <id> [--window <px>] [--out <file.tif>]',
+    details: [COLOUR_DETAIL],
     options: {
       ...SETTINGS_OPTIONS,
       feature: { type: 'string' },
       window: { type: 'string' },
       step: { type: 'string' },
       slice: { type: 'string' },
+      colour: { type: 'string' },
       out: { type: 'string', short: 'o' },
     },
     async run(context) {
@@ -461,7 +471,7 @@ const COMMANDS: Record<string, Command> = {
       }
       const client = await context.client();
       const catalog = await operations.getCatalog(client);
-      const { info } = await openImageTarget(client, target);
+      const { info } = await openImageTarget(client, target, text(context, 'colour'));
       const settings = operations.buildSettings(catalog, info.bitDepth, await settingsOverrides(context));
       const map = await operations.computeFeatureMap(
         client,

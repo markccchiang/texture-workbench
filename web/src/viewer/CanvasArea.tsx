@@ -11,6 +11,7 @@ import { SliceBar } from './SliceBar';
 const PHASE_LABELS: Record<LoadingState['phase'], string> = {
   downloadingSample: 'Fetching sample',
   openingSlice: 'Opening slice',
+  converting: 'Converting',
   uploading: 'Uploading',
   downloading: 'Loading pixel data',
 };

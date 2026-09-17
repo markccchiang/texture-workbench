@@ -50,7 +50,20 @@ Endpoints
        ``201`` with ``ImageInfo``. The pages of a multi-page TIFF (up to the first page of another size or type) and the
        frames of a DICOM file become the ``slices`` of a stack. ``413`` too large, ``415`` not multipart, ``422``
        ``InvalidImage``, ``UnsupportedImage`` (for example compressed DICOM, or a NIfTI volume: use ``POST /volumes``) or
-       ``ImageTooLarge`` (a slice above ``GLCM_MAX_IMAGE_PIXELS``, or all slices above ``GLCM_MAX_STACK_PIXELS``)
+       ``ImageTooLarge`` (a slice above ``GLCM_MAX_IMAGE_PIXELS``, or all slices above ``GLCM_MAX_STACK_PIXELS``).
+       Colour images are stored as their luminance, with ``sourceChannels`` 3 (or 4)
+   * - ``POST /images/{id}/colour``
+     - ``{conversion}`` → ``ImageInfo``: the colour image decoded again with another conversion (``mean``, ``red``,
+       ``green``, ``blue``, ``hue``, ``saturation``, ``brightness``, ``hematoxylinHe``, ``eosinHe``, ``hematoxylinHdab``,
+       ``dabHdab``; see :ref:`colour-conversion`), stored as a new image named ``<name> [<conversion>]`` (``201``) whose
+       ``colourSource`` is ``{imageId, conversion}`` of the colour image, whose ``valueConversion`` describes the
+       conversion and whose original file is an uncompressed TIFF of the converted slices (its SHA-256 identifies it).
+       Called on a converted image, it converts that image's colour image. ``200`` with the existing image for
+       ``luminance`` (the colour image itself) and for a conversion made before. ``422`` ``NotColour`` for gray images
+       and for stacks stored as gray TIFFs (a DICOM series); ``404`` when the colour image is gone
+   * - ``GET /images/{id}/colour-preview.png``
+     - ``?conversion&maxSize``: the first slice of the colour image converted, rendered with its own default window, not
+       stored
    * - ``POST /images/series``
      - The files of a DICOM series as ``multipart/form-data`` (one ``file`` field per file, at most
        ``GLCM_MAX_SERIES_FILES``, together at most ``GLCM_MAX_VOLUME_BYTES``) and an optional ``name`` field; ``201`` with
@@ -408,7 +421,8 @@ script.
    * - ``glcm samples``
      - The sample images the server offers, as ``sample:<path>`` arguments
    * - ``glcm info <image>``
-     - Size, bit depth, display window, pixel spacing, value conversion and checksum
+     - Size, bit depth, display window, pixel spacing, value conversion and checksum; ``--colour <conversion>`` (also on
+       ``measure``, ``regions`` and ``feature-map``) converts a colour image another way first
    * - ``glcm measure <image...> [--rois <file>]``
      - Measures the ROIs (the whole image without ``--rois``) and writes CSV or JSON; several images with equal
        settings are merged into one table. ``--rois`` takes an ROI set, a project, an array of ROIs, or ImageJ's
@@ -451,17 +465,20 @@ run in a terminal says on standard error (standard output belongs to the protoco
    * - ``list_samples``
      - —
    * - ``open_image``
-     - ``image``
+     - ``image``, ``colour``
    * - ``view_image``
-     - ``image``, ``kind`` (``display`` or ``edges``), ``min``, ``max``, ``slice``
+     - ``image``, ``kind`` (``display`` or ``edges``), ``min``, ``max``, ``slice``, ``colour``
    * - ``select_regions``
      - ``image``, ``min``, ``max``, ``minPixels``, ``maxPixels``, ``minSphericity``, ``maxRegions``, ``at``, ``tolerance``,
-       ``saveTo``, ``slice``
+       ``saveTo``, ``slice``, ``colour``
    * - ``measure``
      - ``image``, ``rois``, ``rectangles``, ``preset``, ``features``, ``grayLevels``, ``distances``, ``maxRows``, ``saveTo``,
-       ``slice`` (of the rectangles or the whole image; without regions every slice of a stack is measured)
+       ``slice`` (of the rectangles or the whole image; without regions every slice of a stack is measured), ``colour``
    * - ``feature_map``
-     - ``image``, ``feature``, ``window``, ``saveTo``, ``slice``
+     - ``image``, ``feature``, ``window``, ``saveTo``, ``slice``, ``colour``
+
+``colour`` (every tool that takes an image) converts a colour image another way first, through
+``POST /images/{id}/colour``; the tools report the converted image's id.
 
 The packages MCP needs are optional dependencies, so an installation can leave them out: the Docker image carries the
 command line but not the MCP server, and ``glcm mcp`` says so there rather than failing obscurely.
@@ -486,13 +503,15 @@ functions throw, with an ``Error`` whose ``code`` is ``INVALID_ARGUMENT``, ``UNS
      - Version of ``glcm_core``
    * - ``catalog(): NativeCatalog``
      - Features, presets and limits
-   * - ``decodeImageFile(path, {maxPixels, maxStackPixels}?): Promise<DecodedImage>``
+   * - ``decodeImageFile(path, {maxPixels, maxStackPixels, colour, firstSlice, encodeTiff}?): Promise<DecodedImage>``
      - Size, bit depth, ``slices``, channels, warnings, default window, histogram and pixels of an image file; the pages
        of a multi-page TIFF and the frames of a DICOM file are slices, their pixels one slice after another, and
        ``maxStackPixels`` limits all of them together. With ``maxPixels``,
        the size is read from the header first: larger images reject with ``IMAGE_TOO_LARGE`` before decoding, and
        files that are not PNG, JPEG, BMP, TIFF, DICOM or NIfTI with ``DECODE_FAILED``. Also ``valueConversion`` (or
-       ``null``); DICOM files give their window as ``windowMin``/``windowMax``
+       ``null``); DICOM files give their window as ``windowMin``/``windowMax``. ``colour`` (a ``ColourConversionId``,
+       default ``luminance``) chooses how colour images become gray, ``firstSlice`` reads only the first page or frame,
+       and ``encodeTiff`` also returns the result as an uncompressed TIFF in ``tiff``
    * - ``inspectNiftiVolume(path, copyPath, {maxBytes}?): Promise<NativeVolumeInfo>``
      - Header, RAS axes, slice geometry, value range, ``storage`` (``{kind, bitDepth, scale, offset}``), conversion and
        window of a NIfTI file, written uncompressed to ``copyPath`` (``glcm::InspectNiftiVolume``)
@@ -589,6 +608,9 @@ paths are relative to ``core/``. The main entry points:
    * - ``roi/RegionSelection.hpp``
      - ``SelectThresholdRegions`` and ``SelectWandRegion``: connected regions of pixel values, with holes filled, as
        polygon outlines along the pixel edges
+   * - ``imaging/ColourConversion.hpp``
+     - ``ColourConversion``, ``ColourConversionId``/``ColourConversionFromId``, ``ConvertColour`` → ``ConvertedColour{gray,
+       value_conversion, warning}``; the loaders take a ``ColourConversion`` (default ``Luminance``)
    * - ``imaging/IntensityPlots.hpp``
      - ``ComputeLineProfile`` → ``LineProfile{values, length, step}`` and ``ComputeRoiHistogram`` → ``RoiHistogram``
        (Plot Profile and Histogram)

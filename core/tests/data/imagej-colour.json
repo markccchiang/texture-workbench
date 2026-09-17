@@ -1,0 +1,8 @@
+{
+  "source": "ImageJ 1.54p: ColorProcessor.convertToByte(false) with weights 1/3, getHSBStack()",
+  "image": "256 x 256, R = x, G = y, B = (7x + 13y) mod 256",
+  "mean": "e28aa8b94bb87c89c6434ac34f38e481484fb7a4988bb3596750aed732bcd159",
+  "hue": "23b7aa0beddff65f13dad81a1e20c2824830641f7d6ff0dfa316b728a2f95c1a",
+  "saturation": "1234a0594cb615b7894a9489c7b7fc816c4b8dc8ff8fe06724d10dde84728f35",
+  "brightness": "f35a3032f9a035cfd30c8e56fc3497e6a90a0af462183406c94e8f686939a320"
+}

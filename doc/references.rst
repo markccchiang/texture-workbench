@@ -68,6 +68,10 @@ Image processing methods
 .. [Unser1999] M. Unser, "Splines: A Perfect Fit for Signal and Image Processing," *IEEE Signal Processing Magazine*,
    vol. 16, no. 6, pp. 22–38, 1999. `doi:10.1109/79.799930 <https://doi.org/10.1109/79.799930>`__
 
+.. [Ruifrok2001] A. C. Ruifrok and D. A. Johnston, "Quantification of Histochemical Staining by Color Deconvolution,"
+   *Analytical and Quantitative Cytology and Histology*, vol. 23, no. 4, pp. 291–299, 2001.
+   `PubMed <https://pubmed.ncbi.nlm.nih.gov/11531144/>`__
+
 .. [Lorensen1987] W. E. Lorensen and H. E. Cline, "Marching Cubes: A High Resolution 3D Surface Construction
    Algorithm," *ACM SIGGRAPH Computer Graphics*, vol. 21, no. 4, pp. 163–169, 1987.
    `doi:10.1145/37402.37422 <https://doi.org/10.1145/37402.37422>`__

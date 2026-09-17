@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "imaging/ColourConversion.hpp"
 #include "imaging/DicomReader.hpp"
 #include "imaging/DisplayRenderer.hpp"
 #include "imaging/EdgeDetection.hpp"
@@ -315,14 +316,35 @@ struct DecodedResult {
     }
 };
 
+struct DecodeRequest {
+    int64_t max_pixels = 0;
+    int64_t max_stack_pixels = 0;
+    glcm::ColourConversion colour = glcm::ColourConversion::Luminance;
+    bool first_slice = false; // only the first page or frame
+    bool encode_tiff = false; // also the stack as a TIFF (EncodeTiffStack)
+};
+
 class DecodeImageWorker : public PromiseWorker {
 public:
-    DecodeImageWorker(Napi::Env env, std::string path, int64_t max_pixels, int64_t max_stack_pixels)
-        : PromiseWorker(env), _path(std::move(path)), _max_pixels(max_pixels), _max_stack_pixels(max_stack_pixels) {}
+    DecodeImageWorker(Napi::Env env, std::string path, DecodeRequest request)
+        : PromiseWorker(env), _path(std::move(path)), _request(request) {}
 
     void Execute() override {
         try {
-            _result.Take(glcm::LoadImageStackFile(_path, _max_pixels, _max_stack_pixels));
+            glcm::LoadedStack stack;
+            if (_request.first_slice) {
+                glcm::LoadedImage image = glcm::LoadImageFile(_path, _request.max_pixels, _request.colour);
+                stack.pixels = image.gray;
+                stack.info = image.info;
+                stack.warnings = std::move(image.warnings);
+                stack.window = image.window;
+            } else {
+                stack = glcm::LoadImageStackFile(_path, _request.max_pixels, _request.max_stack_pixels, _request.colour);
+            }
+            _result.Take(stack);
+            if (_request.encode_tiff) {
+                _tiff = glcm::EncodeTiffStack(stack);
+            }
         } catch (const glcm::ImageTooLargeError& error) {
             Fail(CODE_IMAGE_TOO_LARGE, error.what());
         } catch (const glcm::StackTooLargeError& error) {
@@ -335,14 +357,19 @@ public:
     }
 
     void OnOK() override {
-        Resolve(_result.ToObject(Env()));
+        Napi::Env env = Env();
+        Napi::Object result = _result.ToObject(env);
+        if (_request.encode_tiff) {
+            result.Set("tiff", Napi::Buffer<uint8_t>::Copy(env, _tiff.data(), _tiff.size()));
+        }
+        Resolve(result);
     }
 
 private:
     std::string _path;
-    int64_t _max_pixels;
-    int64_t _max_stack_pixels;
+    DecodeRequest _request;
     DecodedResult _result;
+    std::vector<uchar> _tiff;
 };
 
 // A stack made on the server (NIfTI volume, DICOM series), decoded and encoded as a TIFF that stands for its original file
@@ -812,10 +839,30 @@ int64_t MaxStackPixelsOption(const Napi::CallbackInfo& info, size_t index) {
     return static_cast<int64_t>(number);
 }
 
-// decodeImageFile(path: string, options?: {maxPixels?, maxStackPixels?}): Promise<DecodedImage>
+// decodeImageFile(path: string, options?: {maxPixels?, maxStackPixels?, colour?, firstSlice?, encodeTiff?}): Promise<DecodedImage>
 Napi::Value DecodeImageFile(const Napi::CallbackInfo& info) {
-    auto* worker =
-        new DecodeImageWorker(info.Env(), StringArgument(info, 0, "path"), MaxPixelsOption(info, 1), MaxStackPixelsOption(info, 1));
+    Napi::Env env = info.Env();
+    DecodeRequest request;
+    request.max_pixels = MaxPixelsOption(info, 1);
+    request.max_stack_pixels = MaxStackPixelsOption(info, 1);
+    if (info.Length() > 1 && info[1].IsObject()) {
+        const Napi::Object options = info[1].As<Napi::Object>();
+        const Napi::Value colour = options.Get("colour");
+        if (!colour.IsUndefined()) {
+            const auto conversion = colour.IsString() ? glcm::ColourConversionFromId(colour.As<Napi::String>().Utf8Value()) : std::nullopt;
+            if (!conversion) {
+                throw Napi::TypeError::New(env, "options.colour must be a colour conversion id");
+            }
+            request.colour = *conversion;
+        }
+        const auto flag = [&](const char* name) {
+            const Napi::Value value = options.Get(name);
+            return value.IsBoolean() && value.As<Napi::Boolean>().Value();
+        };
+        request.first_slice = flag("firstSlice");
+        request.encode_tiff = flag("encodeTiff");
+    }
+    auto* worker = new DecodeImageWorker(env, StringArgument(info, 0, "path"), request);
     const Napi::Promise promise = worker->Promise();
     worker->Queue();
     return promise;

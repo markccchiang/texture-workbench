@@ -19,6 +19,7 @@ add_library(glcm_core STATIC
         analysis/Score.cpp
         analysis/SizeZone.cpp
         analysis/TextureAnalysis.cpp
+        imaging/ColourConversion.cpp
         imaging/DicomReader.cpp
         imaging/DisplayRenderer.cpp
         imaging/EdgeDetection.cpp
@@ -63,6 +64,7 @@ if (GLCM_BUILD_TESTS)
     if (GTest_FOUND)
         enable_testing()
         add_executable(glcm-tests
+                tests/ColourConversionTest.cpp
                 tests/EdgeDetectionTest.cpp
                 tests/FeatureMapTest.cpp
                 tests/FirstOrderTest.cpp

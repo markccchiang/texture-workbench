@@ -4,12 +4,14 @@
 
 import {
   adaptToImage,
+  COLOUR_CONVERSION_IDS,
   checkSettings,
   defaultSettings,
   MAX_ROIS_PER_REQUEST,
   type AnalysisInfo,
   type AnalysisSettings,
   type CatalogResponse,
+  type ColourConversion,
   type Direction,
   type FeatureMapInfo,
   type ImageInfo,
@@ -78,6 +80,21 @@ export async function openImage(client: ApiClient, source: ImageSource): Promise
     `${source.name} could not be opened`,
   );
   return { info: result.json<ImageInfo>(), reused: false };
+}
+
+/**
+ * The colour image converted another way (POST /images/{id}/colour): a channel, the mean, an HSB component or a stain.
+ * luminance gives the colour image itself.
+ */
+export async function convertColour(client: ApiClient, imageId: string, conversion: string): Promise<ImageInfo> {
+  if (!(COLOUR_CONVERSION_IDS as readonly string[]).includes(conversion)) {
+    throw new ApiError(0, 'BadOption', `There is no colour conversion "${conversion}"; choose one of ${COLOUR_CONVERSION_IDS.join(', ')}`);
+  }
+  const result = requireOk(
+    await client.request('POST', `/images/${imageId}/colour`, { json: { conversion: conversion as ColourConversion } }),
+    'The image could not be converted',
+  );
+  return result.json<ImageInfo>();
 }
 
 /** An ROI over the whole image, so that a measurement needs no ROI file */

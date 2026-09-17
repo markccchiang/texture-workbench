@@ -48,7 +48,7 @@ export interface DecodedImage {
   sourceChannels: number;
   /** Millimetres per pixel from the file's resolution metadata (DICOM PixelSpacing, NIfTI voxel size); null when the file has none */
   pixelSpacing: { x: number; y: number } | null;
-  /** DICOM and NIfTI: how the file's values became the stored samples; null when they are stored unchanged */
+  /** DICOM and NIfTI, and colour conversions other than the luminance: how the file's values became the stored samples; null when they are stored unchanged */
   valueConversion: NativeValueConversion | null;
   warnings: string[];
   /** 0.5th and 99.5th percentiles (nearest rank) over all slices; DICOM: the file's first WindowCenter/WindowWidth when present */
@@ -87,13 +87,22 @@ export interface DecodeOptions {
   maxPixels?: number;
   /** Largest width × height × slices of a stack, checked before its pixels are decoded (IMAGE_TOO_LARGE). 0 or absent: no limit. */
   maxStackPixels?: number;
+  /** How a colour image becomes gray (glcm::ColourConversion); default 'luminance'. Gray images are unaffected. */
+  colour?: ColourConversionId;
+  /** Only the first page or frame */
+  firstSlice?: boolean;
+  /** Also return the decoded stack as an uncompressed TIFF (`tiff`) */
+  encodeTiff?: boolean;
 }
 
+export type ColourConversionId =
+  'luminance' | 'mean' | 'red' | 'green' | 'blue' | 'hue' | 'saturation' | 'brightness' | 'hematoxylinHe' | 'eosinHe' | 'hematoxylinHdab' | 'dabHdab';
+
 /**
- * Decodes an image file (PNG, JPEG, BMP, 8/16-bit TIFF, DICOM, 2D NIfTI); color is converted to grayscale. Every page of a
+ * Decodes an image file (PNG, JPEG, BMP, 8/16-bit TIFF, DICOM, 2D NIfTI); colour is converted to grayscale with `colour`. Every page of a
  * multi-page TIFF (up to a page of another size or type) and every frame of a DICOM file become the slices of a stack.
  */
-export function decodeImageFile(path: string, options?: DecodeOptions): Promise<DecodedImage>;
+export function decodeImageFile(path: string, options?: DecodeOptions): Promise<DecodedImage & { tiff?: Buffer }>;
 
 /** value = stored sample × scale + offset, in the file's values after its rescale slope and intercept */
 export interface NativeValueConversion {

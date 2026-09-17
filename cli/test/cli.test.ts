@@ -230,6 +230,26 @@ describe('glcm', () => {
     expect(tiff.length).toBeGreaterThan(32 * 32 * 4);
   });
 
+  it('converts a colour image another way with --colour', async () => {
+    const info = await glcm('info', 'sample:textures/ihc.png', '--colour', 'dabHdab', '--json');
+    expect(info.code).toBe(0);
+    const image = JSON.parse(info.out);
+    expect(image).toMatchObject({ name: 'ihc.png [DAB H-DAB]', bitDepth: 16, valueConversion: { unit: 'OD' } });
+    expect(image.colourSource.conversion).toBe('dabHdab');
+
+    const file = path.join(dataDir, 'dab.csv');
+    const measured = await glcm('measure', 'sample:textures/ihc.png', '--colour', 'dabHdab', '--preset', 'basic', '--out', file);
+    expect(measured.code).toBe(0);
+    const csv = await fs.readFile(file, 'utf8');
+    expect(csv).toContain('ihc.png [DAB H-DAB]');
+    expect(csv).toContain('# valueConversion=DAB optical density');
+
+    const unknown = await glcm('info', 'sample:textures/ihc.png', '--colour', 'purple');
+    expect(unknown.code).toBe(2);
+    expect(unknown.err).toContain('There is no colour conversion "purple"');
+    expect((await glcm('info', SAMPLE, '--colour', 'red')).err).toContain('not a colour image');
+  });
+
   it('refuses what it cannot do, with the reason and a usage exit code', async () => {
     expect((await glcm('nonsense')).code).toBe(2);
     expect((await glcm('measure')).code).toBe(2);

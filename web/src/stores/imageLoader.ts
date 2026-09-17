@@ -1,9 +1,10 @@
 // Opening images: upload, then download the raw samples when the server offers them (doc/ui-design-plan.md, 6.1).
 
-import type { ImageInfo, SliceOrientation, VolumeInfo } from '@glcm/api';
+import type { ColourConversion, ImageInfo, SliceOrientation, VolumeInfo } from '@glcm/api';
 import { notifications } from '@mantine/notifications';
 import {
   ApiRequestError,
+  convertColourImage,
   deleteVolume,
   downloadSample,
   fetchRawImage,
@@ -61,7 +62,7 @@ function progressReporter(controller: AbortController, name: string) {
 }
 
 /** Downloads the raw samples if offered, then shows the image; null if the load was cancelled */
-async function showImage(info: ImageInfo, controller: AbortController): Promise<ImageInfo | null> {
+async function showImage(info: ImageInfo, controller: AbortController, keepView = false): Promise<ImageInfo | null> {
   const { signal } = controller;
   const setLoading = progressReporter(controller, info.name);
   let raw: RawImage | null = null;
@@ -86,7 +87,7 @@ async function showImage(info: ImageInfo, controller: AbortController): Promise<
   if (signal.aborted) {
     return null;
   }
-  useViewer.getState().openImage({ info, raw });
+  useViewer.getState().openImage({ info, raw }, { keepView });
   for (const warning of info.warnings) {
     notifications.show({
       color: 'yellow',
@@ -195,6 +196,32 @@ export function openDicomSeries(files: readonly File[], name: string): Promise<I
 /** Opens an image the server already has */
 export function openStoredImage(info: ImageInfo): Promise<ImageInfo | null> {
   return run(info.name, (controller) => showImage(info, controller));
+}
+
+/**
+ * Opens the open colour image (or the colour image the open image was converted from) converted another way, keeping
+ * the ROIs, the view and the slice shown
+ */
+export function openColourConversion(conversion: ColourConversion): Promise<ImageInfo | null> {
+  const current = useViewer.getState().image;
+  if (!current) {
+    return Promise.resolve(null);
+  }
+  const shownSlice = current.slice ?? 1;
+  return run(current.info.name, async (controller) => {
+    if (currentLoad === controller) {
+      useViewer.getState().setLoading({ name: current.info.name, phase: 'converting', progress: null });
+    }
+    const info = await convertColourImage(current.info.imageId, conversion, controller.signal);
+    if (info.imageId === current.info.imageId) {
+      return info;
+    }
+    const shown = await showImage(info, controller, true);
+    if (shown && shownSlice > 1) {
+      void showSlice(shownSlice);
+    }
+    return shown;
+  });
 }
 
 /** Raw samples of recently shown slices of stacks, so going back and forth does not download them again */

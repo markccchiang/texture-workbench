@@ -55,6 +55,15 @@ describe('the MCP server', () => {
     expect(textOf(result)).toMatch(/image id: img_[0-9a-f]{32}/);
   });
 
+  it('converts a colour image as asked', async () => {
+    expect(textOf(await call('open_image', { image: 'sample:textures/ihc.png' }))).toContain('colour image: converted to its luminance');
+    const red = textOf(await call('open_image', { image: 'sample:textures/ihc.png', colour: 'red' }));
+    expect(red).toContain('ihc.png [red]');
+    expect(red).toContain('values: Red channel');
+    const measured = await call('measure', { image: 'sample:textures/ihc.png', colour: 'hematoxylinHdab', preset: 'basic', maxRows: 1 });
+    expect(measured.isError).toBeFalsy();
+  });
+
   it('returns a picture to look at', async () => {
     const result = await call('view_image', { image: SAMPLE });
     const picture = result.content.find((part) => part.type === 'image');

@@ -165,7 +165,8 @@ Namespace ``glcm``; include paths are relative to ``core/``.
        ``ResamplingTest`` compares the values with ``core/tests/data/simpleitk-resampling.json``. ``RunAnalysis`` uses them
        when ``AnalysisSettings::resampling`` is set.
    * - ``imaging/ImageLoader``
-     - Decodes PNG, JPEG, BMP and 8/16-bit TIFF with OpenCV and converts color to grayscale (with a warning); DICOM and
+     - Decodes PNG, JPEG, BMP and 8/16-bit TIFF with OpenCV and converts colour to gray with a ``ColourConversion``
+       (luminance unless asked otherwise, with a warning); DICOM and
        2D NIfTI files, recognized by their content, go to the readers below. ``LoadImageStackFile`` reads a file as a
        ``LoadedStack`` (the slices one below the other in one ``cv::Mat``): every page of a multi-page TIFF (up to a page
        of another size or type), every frame of a DICOM file, or the single image. ``EncodeTiffStack`` writes a stack as an
@@ -185,6 +186,17 @@ Namespace ``glcm``; include paths are relative to ``core/``.
        and writes an uncompressed copy. ``ExtractNiftiSlice`` reads one plane of one volume and lays it out in RAS
        orientation. ``ExtractNiftiStack`` reads one volume once, in file order, and lays out every slice of one orientation
        as ``ExtractNiftiSlice`` would.
+   * - ``imaging/ColourConversion``
+     - ``ConvertColour(bgr, conversion)``: luminance (OpenCV's ``COLOR_BGR2GRAY``, no value conversion, so uploads stay
+       as they were), the unweighted mean, a channel, an HSB component (ImageJ's float arithmetic; 16-bit images keep 16
+       bits), or a stain density by colour deconvolution with scikit-image's ``hed_from_rgb``/``hdx_from_rgb``, stored as
+       16-bit samples with the value conversion ``OD = stored × scale``. ``ColourConversionTest`` compares SHA-256 hashes of
+       the mean and HSB with ImageJ 1.54p (``core/tests/data/imagej-colour.json`` from ``scripts/imagej-colour``) and the
+       densities with scikit-image (``scikit-image-stains.json`` from ``scripts/radiomics-reference.py``). The server's
+       ``POST /images/{id}/colour`` decodes the stored colour file again with ``decodeImageFile(path, {colour,
+       encodeTiff})`` and stores the result as a new image with ``colourSource``; the web app's *Image ▸ Colour
+       Conversion…* (``web/src/colour/``) opens it with ``openColourConversion``, which keeps the ROIs and the viewport
+       (``viewerStore.openImage(image, {keepView})``) when the size and slices match.
    * - ``imaging/IntensityPlots``
      - ``ComputeLineProfile``: round(L) + 1 samples along a line, bilinear between pixel centres, NaN outside the image;
        ``ComputeRoiHistogram``: the ROI's pixels (``RasterizeCroppedMask``) in bins of whole width over min–max, with mean,

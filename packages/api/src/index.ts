@@ -1,4 +1,5 @@
 export * from './analysis.js';
+export * from './colour.js';
 export * from './exports.js';
 export * from './featureMaps.js';
 export * from './imagejRoi.js';

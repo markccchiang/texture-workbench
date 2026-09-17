@@ -27,7 +27,7 @@ export interface LoadedImage {
 
 export interface LoadingState {
   name: string;
-  phase: 'downloadingSample' | 'uploading' | 'downloading' | 'openingSlice';
+  phase: 'downloadingSample' | 'uploading' | 'downloading' | 'openingSlice' | 'converting';
   /** 0..1, or null when unknown */
   progress: number | null;
 }
@@ -76,7 +76,11 @@ export interface ViewerState {
   brushSize: number;
 
   setLoading(loading: LoadingState | null): void;
-  openImage(image: LoadedImage): void;
+  /**
+   * Shows an image. With keepView (another conversion of the same colour image), the ROIs and the viewport stay when the
+   * image has the same size and slices.
+   */
+  openImage(image: LoadedImage, options?: { keepView?: boolean }): void;
   /** Shows another slice of the open stack (its samples already downloaded, when offered) */
   showSlice(image: LoadedImage): void;
   /** Sets the spacing of the open image and remembers it for the image; null: no spacing */
@@ -163,19 +167,25 @@ export const useViewer = create<ViewerState>()((set, get) => ({
     set({ pixelSpacing: spacing });
   },
 
-  openImage: (image) => {
-    const { viewSize, image: previous } = get();
+  openImage: (image, options) => {
+    const { viewSize, image: previous, viewport } = get();
     const canFit = hasArea(viewSize);
-    // ROIs belong to one image
-    if (previous?.info.imageId !== image.info.imageId) {
+    const sameGeometry =
+      options?.keepView === true &&
+      previous !== null &&
+      previous.info.width === image.info.width &&
+      previous.info.height === image.info.height &&
+      previous.info.slices === image.info.slices;
+    // ROIs belong to one image, or to the conversions of one colour image
+    if (previous?.info.imageId !== image.info.imageId && !sameGeometry) {
       useRois.getState().reset();
     }
     useRois.getState().setCurrentSlice(image.info.slices > 1 ? (image.slice ?? 1) : null);
     set({
       image,
       window: { min: image.info.windowMin, max: image.info.windowMax },
-      viewport: canFit ? fitToView(image.info, viewSize) : INITIAL_VIEWPORT,
-      needsFit: !canFit,
+      viewport: sameGeometry ? viewport : canFit ? fitToView(image.info, viewSize) : INITIAL_VIEWPORT,
+      needsFit: !sameGeometry && !canFit,
       // A navigator toggled for the previous image should not stick to the next one
       navigatorMode: 'auto',
       hover: null,

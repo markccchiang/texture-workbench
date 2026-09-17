@@ -91,6 +91,15 @@ For a stack (see :ref:`stacks`), that is the whole of every slice, one row per s
 one table. ROIs from ``--rois`` are measured on their own slices, and ``glcm regions`` finds
 regions on the slice given with ``--slice`` (slice 1 by default) and saves them on it.
 
+A colour image is measured on its luminance. ``--colour`` (on ``info``, ``measure``, ``regions`` and ``feature-map``)
+converts it another way first, as *Image ▸ Colour Conversion…* does (see :ref:`colour-images`): ``mean``, ``red``,
+``green``, ``blue``, ``hue``, ``saturation``, ``brightness``, ``hematoxylinHe``, ``eosinHe``, ``hematoxylinHdab`` or
+``dabHdab``:
+
+.. code-block:: bash
+
+   glcm measure slide.png --colour dabHdab --rois glands.roi.json --out dab.csv
+
 The usual way to measure the *same* regions is to draw them once in the application, save them with *ROI ▸ Export ROI
 Set…*, and use that file:
 
@@ -175,7 +184,8 @@ with a token.
 The assistant can then open an image, **look** at it (it receives the rendering, or the edge map, as a picture), choose
 regions — as rectangles it names by number, or by intensity as above — measure them, and compute a feature map. On a
 stack the tools that work on an image (``view_image``, ``select_regions``, ``measure`` and ``feature_map``) take a
-``slice`` (from 1), and ``measure`` without regions measures every slice. It
+``slice`` (from 1), and ``measure`` without regions measures every slice. The same tools, and ``open_image``, take a
+``colour`` conversion for colour images. It
 cannot draw an outline by hand, which is what the browser is for; a practical way to work is to draw the difficult ROIs
 yourself, export them, and let the assistant measure and compare them.
 

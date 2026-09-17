@@ -66,6 +66,8 @@ describe('system routes', () => {
       '/api/v1/images/series',
       '/api/v1/images/{id}',
       '/api/v1/images/{id}/brush-roi',
+      '/api/v1/images/{id}/colour',
+      '/api/v1/images/{id}/colour-preview.png',
       '/api/v1/images/{id}/combine-rois',
       '/api/v1/images/{id}/display.png',
       '/api/v1/images/{id}/edges.png',

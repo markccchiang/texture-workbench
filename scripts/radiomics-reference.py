@@ -3,7 +3,8 @@
 
 Writes core/tests/data/pyradiomics-firstorder.json (FirstOrderTest), pyradiomics-glrlm.json (RunLengthTest),
 pyradiomics-glszm.json (SizeZoneTest), pyradiomics-ngtdm.json (GrayToneDifferenceTest) and scikit-image-lbp.json
-(LocalBinaryPatternTest), pyradiomics-shape2d.json (ShapeTest) and simpleitk-resampling.json (ResamplingTest): for
+(LocalBinaryPatternTest), pyradiomics-shape2d.json (ShapeTest), simpleitk-resampling.json (ResamplingTest) and
+scikit-image-stains.json (ColourConversionTest: stain optical densities by colour deconvolution): for
 rectangle ROIs on sample images, the values of PyRadiomics' first-order, GLRLM, GLSZM and
 NGTDM feature classes, and the histogram of scikit-image's local_binary_pattern (which PyRadiomics' LBP filter uses).
 Rectangles avoid differences in mask rasterization (the core covers the pixels whose centres lie inside). Entropy and
@@ -32,6 +33,7 @@ import pywt
 import radiomics
 import SimpleITK as sitk
 import skimage
+import skimage.io
 from radiomics import firstorder, glrlm, glszm, ngtdm, shape2D
 from skimage.feature import local_binary_pattern
 
@@ -47,6 +49,7 @@ LOG_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'simpleitk-log.json'
 LOG_FEATURES_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pyradiomics-log-features.json'
 WAVELET_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pywavelets-wavelet.json'
 WAVELET_FEATURES_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'pyradiomics-wavelet-features.json'
+STAINS_OUTPUT = ROOT / 'core' / 'tests' / 'data' / 'scikit-image-stains.json'
 LBP_SAMPLES = 8
 
 # PyRadiomics feature name -> core feature id
@@ -335,6 +338,28 @@ def wavelet_features_reference(image_path: str, rectangle: tuple[int, int, int, 
     }
 
 
+def synthetic_rgb() -> np.ndarray:
+    """The 256 × 256 test image of ColourConversionTest (and scripts/imagej-colour): R = x, G = y, B = (7x + 13y) mod 256"""
+    y, x = np.mgrid[0:256, 0:256]
+    return np.stack([x, y, (7 * x + 13 * y) % 256], axis=-1).astype(np.uint8)
+
+
+def stains_reference(name: str, rgb: np.ndarray, step: int) -> dict:
+    """Optical densities of scikit-image's separate_stains (float64) at every step-th pixel of each row and column"""
+    from skimage.color import hdx_from_rgb, hed_from_rgb, separate_stains
+
+    he = separate_stains(rgb, hed_from_rgb)
+    hdab = separate_stains(rgb, hdx_from_rgb)
+    return {
+        'image': name,
+        'step': step,
+        'hematoxylinHe': he[::step, ::step, 0].ravel().tolist(),
+        'eosinHe': he[::step, ::step, 1].ravel().tolist(),
+        'hematoxylinHdab': hdab[::step, ::step, 0].ravel().tolist(),
+        'dabHdab': hdab[::step, ::step, 1].ravel().tolist(),
+    }
+
+
 def main() -> None:
     document = {
         'source': (
@@ -460,6 +485,16 @@ def main() -> None:
     }
     WAVELET_FEATURES_OUTPUT.write_text(json.dumps(wavelet_features, indent=2) + '\n')
     print(f'{WAVELET_FEATURES_OUTPUT.relative_to(ROOT)}: {len(wavelet_features["cases"])} cases')
+
+    stains = {
+        'source': f'scikit-image {skimage.__version__} separate_stains with hed_from_rgb and hdx_from_rgb',
+        'cases': [
+            stains_reference('synthetic', synthetic_rgb(), 9),
+            stains_reference('textures/ihc.png', skimage.io.imread(ROOT / 'samples' / 'textures' / 'ihc.png'), 17),
+        ],
+    }
+    STAINS_OUTPUT.write_text(json.dumps(stains) + '\n')
+    print(f'{STAINS_OUTPUT.relative_to(ROOT)}: {len(stains["cases"])} cases')
 
 
 if __name__ == '__main__':

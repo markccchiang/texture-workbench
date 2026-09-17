@@ -196,7 +196,8 @@ Testing
      - Core unit tests
    * - PyRadiomics, scikit-image, SimpleITK, PyWavelets (Python 3.12)
      - 3.1.0 (git tag), 0.26.0, 2.5.6, 1.10.0
-     - Reference values for the features, the resampling and the Laplacian of Gaussian and wavelet filters:
+     - Reference values for the features, the resampling, the Laplacian of Gaussian and wavelet filters and the stain
+       densities of colour deconvolution:
        ``scripts/radiomics-reference.py`` (packages pinned in ``scripts/requirements-radiomics.txt``) writes
        ``core/tests/data/*.json``, which the core tests compare against. Only regenerating those files needs Python; the
        tests and the application do not run it.

@@ -26,6 +26,7 @@ const EXPECTED: ReadonlyArray<readonly [file: string, width: number, height: num
   ['textures/camera.png', 512, 512, 8, 1],
   ['textures/coins.png', 384, 303, 8, 1],
   ['textures/grass.png', 512, 512, 8, 1],
+  ['textures/ihc.png', 512, 512, 8, 3],
   ['textures/gravel.png', 512, 512, 8, 1],
 ];
 

@@ -15,6 +15,7 @@ import { catalogRoutes } from './routes/catalog.js';
 import { exportRoutes } from './routes/exports.js';
 import { featureMapRoutes } from './routes/featureMaps.js';
 import { healthRoutes } from './routes/health.js';
+import { colourRoutes } from './routes/colour.js';
 import { imageRoutes } from './routes/images.js';
 import { sampleRoutes } from './routes/samples.js';
 import { volumeRoutes } from './routes/volumes.js';
@@ -149,6 +150,7 @@ export async function buildApp(config: ServerConfig, options: BuildAppOptions = 
       await api.register(healthRoutes, { config });
       await api.register(catalogRoutes, { config });
       await api.register(imageRoutes, { config, store, displayCache });
+      await api.register(colourRoutes, { config, store });
       await api.register(analysisRoutes, { store, jobs, results });
       await api.register(featureMapRoutes, { store, maps });
       await api.register(exportRoutes, { store });

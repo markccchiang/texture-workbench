@@ -6,7 +6,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { z } from 'zod';
-import type { ImageInfo, Roi } from '@glcm/api';
+import { COLOUR_CONVERSION_IDS, type ImageInfo, type Roi } from '@glcm/api';
 import { ApiError, createClient, requireOk, type ApiClient, type ConnectionOptions } from './client.js';
 import * as operations from '@glcm/client';
 import { openImageTarget, readRois, writeRoiSet } from './files.js';
@@ -35,6 +35,13 @@ const RECTANGLE = z.object({
   height: z.number(),
 });
 
+const COLOUR = z
+  .enum(COLOUR_CONVERSION_IDS)
+  .optional()
+  .describe(
+    'For a colour image: how it becomes gray. Default luminance; mean; red, green or blue channel; hue, saturation or brightness (HSB); hematoxylinHe or eosinHe (H&E stain densities); hematoxylinHdab or dabHdab (H-DAB stain densities, e.g. DAB immunostaining)',
+  );
+
 function describe(image: ImageInfo, reused: boolean): string {
   const lines = [
     `${image.name} — ${image.width} × ${image.height} px${image.slices > 1 ? ` × ${image.slices} slices (a stack; slices count from 1)` : ''}, ${image.bitDepth}-bit`,
@@ -42,6 +49,9 @@ function describe(image: ImageInfo, reused: boolean): string {
     `display window: ${image.windowMin} – ${image.windowMax}`,
     image.pixelSpacing ? `pixel spacing: ${number(image.pixelSpacing.x)} × ${number(image.pixelSpacing.y)} mm` : 'pixel spacing: not set',
   ];
+  if (image.sourceChannels >= 3 && !image.colourSource) {
+    lines.push('colour image: converted to its luminance (the colour argument converts it another way)');
+  }
   if (image.valueConversion) {
     lines.push(`values: ${image.valueConversion.description}`);
   }
@@ -133,11 +143,11 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
       title: 'Open an image',
       description:
         'Opens an image file, a sample (sample:<path>) or an image the server already has, and reports its size, bit depth, display window, pixel spacing and value conversion. PNG, JPEG, BMP, TIFF, uncompressed DICOM and 2D NIfTI are read.',
-      inputSchema: { image: z.string().describe('A file path, sample:<path>, or an image id') },
+      inputSchema: { image: z.string().describe('A file path, sample:<path>, or an image id'), colour: COLOUR },
     },
-    async ({ image }) => {
+    async ({ image, colour }) => {
       try {
-        const opened = await openImageTarget(await dependencies.client(), image);
+        const opened = await openImageTarget(await dependencies.client(), image, colour);
         return asText(describe(opened.info, opened.reused));
       } catch (error) {
         return failure(error);
@@ -156,12 +166,13 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         min: z.number().optional().describe('Display window minimum; the image default is used otherwise'),
         max: z.number().optional(),
         slice: z.number().int().min(1).optional().describe('Slice of a stack, from 1 (default 1)'),
+        colour: COLOUR,
       },
     },
-    async ({ image, kind, min, max, slice }) => {
+    async ({ image, kind, min, max, slice, colour }) => {
       try {
         const client = await dependencies.client();
-        const { info } = await openImageTarget(client, image);
+        const { info } = await openImageTarget(client, image, colour);
         const query =
           kind === 'edges'
             ? { method: 'canny', sigma: 1.4, low: 0, high: 0, maxSize: VIEW_MAX_SIZE, slice }
@@ -216,12 +227,13 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         tolerance: z.number().optional().describe('How far a value may differ from the pixel at "at" (default 5 % of the window)'),
         saveTo: z.string().optional().describe('Write the regions as an ROI set file as well; a name ending in .zip writes a RoiSet.zip for ImageJ'),
         slice: z.number().int().min(1).optional().describe('Slice of a stack, from 1 (default 1)'),
+        colour: COLOUR,
       },
     },
-    async ({ image, min, max, minPixels, maxPixels, minSphericity, maxRegions, at, tolerance, saveTo, slice }) => {
+    async ({ image, min, max, minPixels, maxPixels, minSphericity, maxRegions, at, tolerance, saveTo, slice, colour }) => {
       try {
         const client = await dependencies.client();
-        const { info } = await openImageTarget(client, image);
+        const { info } = await openImageTarget(client, image, colour);
         const regions = at
           ? [
               await operations.selectRegionAt(client, info.imageId, {
@@ -289,13 +301,14 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
           .min(1)
           .optional()
           .describe('For a stack: the slice (from 1) of the rectangles or of the whole image; without regions every slice is measured whole'),
+        colour: COLOUR,
       },
     },
-    async ({ image, rois, rectangles, preset, features, grayLevels, distances, maxRows, saveTo, slice }) => {
+    async ({ image, rois, rectangles, preset, features, grayLevels, distances, maxRows, saveTo, slice, colour }) => {
       try {
         const client = await dependencies.client();
         const catalog = await operations.getCatalog(client);
-        const { info } = await openImageTarget(client, image);
+        const { info } = await openImageTarget(client, image, colour);
         const settings = operations.buildSettings(catalog, info.bitDepth, {
           preset,
           features,
@@ -352,13 +365,14 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
         window: z.number().optional().describe('Odd window side in pixels (default 31)'),
         saveTo: z.string().optional().describe('Write the values as a 32-bit floating point TIFF'),
         slice: z.number().int().min(1).optional().describe('Slice of a stack, from 1 (default 1)'),
+        colour: COLOUR,
       },
     },
-    async ({ image, feature, window, saveTo, slice }) => {
+    async ({ image, feature, window, saveTo, slice, colour }) => {
       try {
         const client = await dependencies.client();
         const catalog = await operations.getCatalog(client);
-        const { info } = await openImageTarget(client, image);
+        const { info } = await openImageTarget(client, image, colour);
         const settings = operations.buildSettings(catalog, info.bitDepth, {});
         const map = await operations.computeFeatureMap(
           client,

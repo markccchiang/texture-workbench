@@ -20,6 +20,7 @@ import { MOD_KEY, useUi } from '../stores/uiStore';
 import { isNavigatorVisible, useViewer, type Tool } from '../stores/viewerStore';
 import { usePreferences } from '../stores/preferences';
 import { COLOR_TABLES } from '../image/colorTables';
+import { canConvertColour } from '../colour/ColourConversionDialog';
 import { useEdgeMap } from '../viewer/edgeMap';
 
 function Shortcut({ children }: { children: ReactNode }) {
@@ -56,6 +57,7 @@ const TOOL_ITEMS: Array<{ tool: Tool; label: string; key: string }> = [
 
 export function MenuBar() {
   const hasImage = useViewer((state) => state.image !== null);
+  const imageInfo = useViewer((state) => state.image?.info);
   const hasRuler = useViewer((state) => state.ruler !== null);
   const slices = useViewer((state) => state.image?.info.slices ?? 1);
   const tool = useViewer((state) => state.tool);
@@ -190,6 +192,9 @@ export function MenuBar() {
             ))}
           </Menu.Sub.Dropdown>
         </Menu.Sub>
+        <Menu.Item disabled={!canConvertColour(imageInfo)} onClick={() => ui().setModal('colourConversion')}>
+          Colour Conversion…
+        </Menu.Item>
         <Menu.Divider />
         <Menu.Item
           disabled={!hasImage}
