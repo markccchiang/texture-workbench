@@ -24,6 +24,8 @@ export interface CommandSource {
   rois: RoiSetDocument | { fileName: string };
   colour?: CommandRequest['colour'];
   spacing?: CommandRequest['spacing'];
+  /** Where the command may measure differently from the application, shown under the command */
+  notes?: string[];
 }
 
 const HEALTH_QUERY = { queryKey: ['health'], queryFn: ({ signal }: { signal: AbortSignal }) => getHealth(signal), staleTime: Infinity };
@@ -72,6 +74,11 @@ export function CommandPanel({ source }: { source: CommandSource }) {
         {source.images.length === 1 ? source.images[0] : 'the images'}
         {ownRois ? '' : ` and ${(source.rois as { fileName: string }).fileName}`}, then run the command there; the results go to {names.results}.
       </Text>
+      {source.notes?.map((note) => (
+        <Text key={note} size="xs" c="yellow.8" data-testid="glcm-command-note">
+          {note}
+        </Text>
+      ))}
       <Switch
         size="sm"
         checked={sendToServer}
@@ -112,7 +119,9 @@ export function CopyCommandContent() {
     );
   }
   const { info } = image;
-  const { file, colour } = imageSource(info);
+  // Images the server made from a volume or a series have no file to name: the command names the stored image
+  const { file, colour } = info.madeFrom ? { file: info.name, colour: undefined } : imageSource(info);
+  const argument = info.madeFrom ? info.imageId : file;
   const settings = requestSettings(adaptToImage(stored, info.bitDepth), info.bitDepth, window_);
   return (
     <Stack gap="sm">
@@ -123,11 +132,16 @@ export function CopyCommandContent() {
       <CommandPanel
         source={{
           baseName: file,
-          images: [file],
+          images: [argument],
           settings,
           rois: buildRoiSet(info, rois, classes),
           colour,
           spacing: spacing && !sameSpacing(spacing, info.pixelSpacing) ? spacing : undefined,
+          notes: info.madeFrom
+            ? [
+                `${info.name} was made from ${info.madeFrom === 'dicomSeries' ? 'a DICOM series' : 'a NIfTI volume'} and has no file of its own, so the command names the stored image by its id. It runs only on this server, or on this application's data folder while the application is not running.`,
+              ]
+            : [],
         }}
       />
     </Stack>

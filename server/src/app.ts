@@ -150,7 +150,7 @@ export async function buildApp(config: ServerConfig, options: BuildAppOptions = 
       await api.register(healthRoutes, { config });
       await api.register(catalogRoutes, { config });
       await api.register(imageRoutes, { config, store, displayCache });
-      await api.register(colourRoutes, { config, store });
+      await api.register(colourRoutes, { config, store, displayCache });
       await api.register(analysisRoutes, { store, jobs, results });
       await api.register(featureMapRoutes, { store, maps });
       await api.register(exportRoutes, { store });

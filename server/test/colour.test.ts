@@ -86,6 +86,33 @@ describe('colour conversions', () => {
     expect(slice2.value).toBe(20);
   });
 
+  it('makes one image for conversions requested together, and different files for conversions giving equal samples', async () => {
+    // Equal channels: red, green, mean and brightness have the same samples
+    const gray = [10, 10, 10, 200, 200, 200, 77, 77, 77, 5, 5, 5];
+    const image = (
+      await uploadImage(t.app, 'equal.tif', encodeTiff({ width: 2, height: 2, bitsPerSample: 8, samplesPerPixel: 3, data: gray }))
+    ).json<ImageInfo>();
+    const responses = await Promise.all(Array.from({ length: 4 }, () => convert(image.imageId, 'red')));
+    expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 200, 200, 201]);
+    expect(new Set(responses.map((response) => response.json<ImageInfo>().imageId)).size).toBe(1);
+
+    const red = responses[0].json<ImageInfo>();
+    const green = (await convert(image.imageId, 'green')).json<ImageInfo>();
+    expect(await samples(red)).toEqual(await samples(green));
+    expect(green.sha256).not.toBe(red.sha256);
+    const lookup = (await t.app.inject({ method: 'GET', url: `/api/v1/images?sha256=${red.sha256}` })).json<{ images: ImageInfo[] }>().images;
+    expect(lookup.map((info) => info.imageId)).toEqual([red.imageId]);
+  });
+
+  it('answers without the stored path when the colour image goes away during a conversion', async () => {
+    const image = (
+      await uploadImage(t.app, 'gone.tif', encodeTiff({ width: 3, height: 2, bitsPerSample: 8, samplesPerPixel: 3, data: RGB }))
+    ).json<ImageInfo>();
+    const [response] = await Promise.all([convert(image.imageId, 'blue'), t.app.inject({ method: 'DELETE', url: `/api/v1/images/${image.imageId}` })]);
+    expect([201, 404]).toContain(response.statusCode);
+    expect(response.body).not.toContain('/original');
+  });
+
   it('refuses gray images, unknown conversions and missing images', async () => {
     expect((await convert(gray.imageId, 'red')).json()).toMatchObject({ error: 'NotColour' });
     expect((await convert(gray.imageId, 'red')).statusCode).toBe(422);

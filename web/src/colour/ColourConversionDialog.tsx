@@ -27,12 +27,13 @@ const DESCRIPTIONS: Record<ColourConversion, string> = {
 
 /** The colour image can be converted: it is one, or was converted from one */
 export function canConvertColour(info: ImageInfo | undefined): boolean {
-  return info !== undefined && (info.colourSource !== undefined || info.sourceChannels >= 3);
+  return info !== undefined && (info.colourSource !== undefined || (info.sourceChannels >= 3 && info.madeFrom === undefined));
 }
 
 function usePreview(imageId: string, conversion: ColourConversion) {
   const [preview, setPreview] = useState<{ url: string; conversion: ColourConversion } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // The failure of one conversion's preview, not shown once another is chosen
+  const [failure, setFailure] = useState<{ conversion: ColourConversion; message: string } | null>(null);
   const urlRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -45,11 +46,11 @@ function usePreview(imageId: string, conversion: ColourConversion) {
         }
         urlRef.current = URL.createObjectURL(blob);
         setPreview({ url: urlRef.current, conversion });
-        setError(null);
+        setFailure(null);
       })
       .catch((reason: Error) => {
         if (!controller.signal.aborted) {
-          setError(reason.message);
+          setFailure({ conversion, message: reason.message });
         }
       });
     return () => controller.abort();
@@ -63,7 +64,7 @@ function usePreview(imageId: string, conversion: ColourConversion) {
     },
     [],
   );
-  return { preview, error };
+  return { preview, error: failure?.conversion === conversion ? failure.message : null };
 }
 
 export function ColourConversionContent({ onClose }: { onClose(): void }) {

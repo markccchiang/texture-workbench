@@ -49,7 +49,7 @@ function describe(image: ImageInfo, reused: boolean): string {
     `display window: ${image.windowMin} – ${image.windowMax}`,
     image.pixelSpacing ? `pixel spacing: ${number(image.pixelSpacing.x)} × ${number(image.pixelSpacing.y)} mm` : 'pixel spacing: not set',
   ];
-  if (image.sourceChannels >= 3 && !image.colourSource) {
+  if (image.sourceChannels >= 3 && !image.colourSource && !image.madeFrom) {
     lines.push('colour image: converted to its luminance (the colour argument converts it another way)');
   }
   if (image.valueConversion) {

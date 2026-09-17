@@ -525,6 +525,23 @@
                       },
                       "description": "Present on images made by POST /images/{id}/colour"
                     },
+                    "madeFrom": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "niftiVolume"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "dicomSeries"
+                          ]
+                        }
+                      ],
+                      "description": "Present on images the server made from several files or a volume (their name is not the name of a file)"
+                    },
                     "pixelSpacing": {
                       "anyOf": [
                         {
@@ -924,6 +941,23 @@
                             },
                             "description": "Present on images made by POST /images/{id}/colour"
                           },
+                          "madeFrom": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "niftiVolume"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "dicomSeries"
+                                ]
+                              }
+                            ],
+                            "description": "Present on images the server made from several files or a volume (their name is not the name of a file)"
+                          },
                           "pixelSpacing": {
                             "anyOf": [
                               {
@@ -1233,6 +1267,23 @@
                         }
                       },
                       "description": "Present on images made by POST /images/{id}/colour"
+                    },
+                    "madeFrom": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "niftiVolume"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "dicomSeries"
+                          ]
+                        }
+                      ],
+                      "description": "Present on images the server made from several files or a volume (their name is not the name of a file)"
                     },
                     "pixelSpacing": {
                       "anyOf": [
@@ -1625,6 +1676,23 @@
                         }
                       },
                       "description": "Present on images made by POST /images/{id}/colour"
+                    },
+                    "madeFrom": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "niftiVolume"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "dicomSeries"
+                          ]
+                        }
+                      ],
+                      "description": "Present on images the server made from several files or a volume (their name is not the name of a file)"
                     },
                     "pixelSpacing": {
                       "anyOf": [
@@ -2638,7 +2706,7 @@
         "tags": [
           "images"
         ],
-        "description": "Decodes the colour image again with another conversion and stores the result as a new image named \"<name> [<conversion>]\", whose original file is an uncompressed TIFF of the converted slices (its SHA-256 identifies the image) and whose colourSource names the colour image. The conversion is recorded as the image's valueConversion, so results say what was measured. Called on an image that was converted already, it converts its colour image. luminance returns the colour image itself; converting an image the same way twice returns the image made the first time. 422 NotColour for gray images.",
+        "description": "Decodes the colour image again with another conversion and stores the result as a new image named \"<name> [<conversion>]\", whose original file is an uncompressed TIFF of the converted slices (with the conversion in its ImageDescription, so its SHA-256 identifies the image) and whose colourSource names the colour image. The conversion is recorded as the image's valueConversion, so results say what was measured. Called on an image that was converted already, it converts its colour image. luminance returns the colour image itself; converting an image the same way again (also while the first request runs) returns the image made the first time. 422 NotColour for gray images and stacks made on the server.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2903,6 +2971,23 @@
                         }
                       },
                       "description": "Present on images made by POST /images/{id}/colour"
+                    },
+                    "madeFrom": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "niftiVolume"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "dicomSeries"
+                          ]
+                        }
+                      ],
+                      "description": "Present on images the server made from several files or a volume (their name is not the name of a file)"
                     },
                     "pixelSpacing": {
                       "anyOf": [
@@ -3174,6 +3259,23 @@
                       },
                       "description": "Present on images made by POST /images/{id}/colour"
                     },
+                    "madeFrom": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "niftiVolume"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "dicomSeries"
+                          ]
+                        }
+                      ],
+                      "description": "Present on images the server made from several files or a volume (their name is not the name of a file)"
+                    },
                     "pixelSpacing": {
                       "anyOf": [
                         {
@@ -3368,7 +3470,7 @@
         "tags": [
           "images"
         ],
-        "description": "The first slice of the colour image (or of the image it was converted from) converted with conversion, rendered with its own default window (0.5th–99.5th percentiles) and reduced so the long side is at most maxSize.",
+        "description": "The first slice of the colour image (or of the image it was converted from) converted with conversion, rendered with its own default window (0.5th–99.5th percentiles) and reduced so the long side is at most maxSize. Cached like display.png.",
         "parameters": [
           {
             "schema": {
@@ -12605,6 +12707,23 @@
                       },
                       "description": "Present on images made by POST /images/{id}/colour"
                     },
+                    "madeFrom": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "niftiVolume"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "dicomSeries"
+                          ]
+                        }
+                      ],
+                      "description": "Present on images the server made from several files or a volume (their name is not the name of a file)"
+                    },
                     "pixelSpacing": {
                       "anyOf": [
                         {
@@ -13016,6 +13135,23 @@
                         }
                       },
                       "description": "Present on images made by POST /images/{id}/colour"
+                    },
+                    "madeFrom": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "niftiVolume"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "dicomSeries"
+                          ]
+                        }
+                      ],
+                      "description": "Present on images the server made from several files or a volume (their name is not the name of a file)"
                     },
                     "pixelSpacing": {
                       "anyOf": [

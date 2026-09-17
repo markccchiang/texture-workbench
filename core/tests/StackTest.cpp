@@ -75,6 +75,29 @@ TEST(StackTest, TiffStacksReadBackWithTheSameSamplesAndSpacing) {
     }
 }
 
+TEST(StackTest, ADescriptionMakesTheTiffDifferentButNotItsSamples) {
+    for (const std::string description : {"odd", "even", "glcm colour conversion: red"}) {
+        for (bool spacing : {false, true}) {
+            LoadedStack stack = RandomStack(5, 3, 2, CV_16UC1);
+            if (spacing) {
+                stack.info.pixel_spacing = PixelSpacing{0.5, 0.25};
+            }
+            const std::vector<uchar> plain = EncodeTiffStack(stack);
+            const std::vector<uchar> described = EncodeTiffStack(stack, description);
+            EXPECT_NE(plain, described);
+            TemporaryFile file("described.tif");
+            Write(file.path, described);
+            const LoadedStack read = LoadImageStackFile(file.path.string());
+            ASSERT_EQ(read.slices, 2);
+            EXPECT_EQ(cv::norm(read.pixels, stack.pixels, cv::NORM_INF), 0);
+            EXPECT_EQ(read.info.pixel_spacing.has_value(), spacing);
+            const std::string text(described.begin(), described.end());
+            EXPECT_NE(text.find(description + std::string(1, '\0')), std::string::npos);
+        }
+    }
+    EXPECT_THROW(EncodeTiffStack(RandomStack(2, 2, 1, CV_8UC1), std::string("a\0b", 3)), std::invalid_argument);
+}
+
 TEST(StackTest, TiffPagesOfAnotherSizeEndTheStack) {
     cv::Mat a(4, 6, CV_16UC1, cv::Scalar(100));
     cv::Mat b(4, 6, CV_16UC1, cv::Scalar(200));

@@ -150,6 +150,33 @@ TEST(ColourConversionTest, SixteenBitImagesKeepTheirDepth) {
     }
 }
 
+TEST(ColourConversionTest, SixteenBitBrightnessIsTheLargestChannel) {
+    cv::Mat bgr(256, 256, CV_16UC3);
+    for (int v = 0; v < 65536; ++v) {
+        bgr.at<cv::Vec3w>(v / 256, v % 256) =
+            cv::Vec3w(static_cast<uint16_t>(v / 3), static_cast<uint16_t>(v), static_cast<uint16_t>(v / 2));
+    }
+    const cv::Mat brightness = ConvertColour(bgr, ColourConversion::Brightness).gray;
+    std::vector<cv::Mat> channels;
+    cv::split(bgr, channels);
+    EXPECT_EQ(cv::norm(brightness, channels[1], cv::NORM_INF), 0);
+    // Grays have no saturation; full colours have saturation 65535
+    EXPECT_EQ(ConvertColour(cv::Mat(1, 1, CV_16UC3, cv::Scalar(700, 700, 700)), ColourConversion::Saturation).gray.at<uint16_t>(0, 0), 0);
+    EXPECT_EQ(ConvertColour(cv::Mat(1, 1, CV_16UC3, cv::Scalar(0, 0, 9)), ColourConversion::Saturation).gray.at<uint16_t>(0, 0), 65535);
+}
+
+TEST(ColourConversionTest, TheLargestSampleScalesBrightnessAndStains) {
+    // 12 bits stored in 16: white is 4095
+    const cv::Mat white(1, 1, CV_16UC3, cv::Scalar(4095, 4095, 4095));
+    EXPECT_EQ(ConvertColour(white, ColourConversion::Brightness, 4095).gray.at<uint16_t>(0, 0), 65535);
+    EXPECT_EQ(ConvertColour(white, ColourConversion::DabHdab, 4095).gray.at<uint16_t>(0, 0), 0);
+    EXPECT_GT(ConvertColour(white, ColourConversion::DabHdab).gray.at<uint16_t>(0, 0), 0);
+    // Channels do not depend on it
+    EXPECT_EQ(ConvertColour(white, ColourConversion::Red, 4095).gray.at<uint16_t>(0, 0), 4095);
+    EXPECT_THROW(ConvertColour(white, ColourConversion::Red, 70000), std::invalid_argument);
+    EXPECT_THROW(ConvertColour(cv::Mat(1, 1, CV_8UC3), ColourConversion::Red, 100), std::invalid_argument);
+}
+
 TEST(ColourConversionTest, StainsMatchScikitImage) {
     // Written by scripts/radiomics-reference.py: separate_stains with hed_from_rgb and hdx_from_rgb
     const nlohmann::json reference = ReadJson("scikit-image-stains.json");

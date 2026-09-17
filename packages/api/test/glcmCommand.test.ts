@@ -7,6 +7,13 @@ describe('glcm measure command', () => {
     expect(shellQuote('scan 1.png')).toBe("'scan 1.png'");
     expect(shellQuote("it's.png")).toBe(`'it'\\''s.png'`);
     expect(shellQuote('')).toBe("''");
+    // zsh expands a leading =, PowerShell a leading @
+    expect(shellQuote('=scan.png')).toBe("'=scan.png'");
+    expect(shellQuote('@scan.png')).toBe("'@scan.png'");
+    expect(shellQuote('a=b.png')).toBe('a=b.png');
+    expect(() => shellWords("glcm 'abc")).toThrow('unterminated');
+    expect(() => shellWords('glcm abc\\')).toThrow('backslash');
+    expect(shellWords('glcm\tmeasure  a.png\n')).toEqual(['glcm', 'measure', 'a.png']);
     expect(shellWords(`glcm measure 'scan 1.png' 'it'\\''s.png' --out x.csv`)).toEqual(['glcm', 'measure', 'scan 1.png', "it's.png", '--out', 'x.csv']);
   });
 
@@ -34,6 +41,18 @@ describe('glcm measure command', () => {
       'r.zip',
       '--out',
       'o.csv',
+    ]);
+    // Names that look like options become paths in the current folder
+    expect(measureArguments({ images: ['-scan.png'], settingsFile: '-s.json', roisFile: 'r.json', out: '-o.csv' })).toEqual([
+      'glcm',
+      'measure',
+      './-scan.png',
+      '--settings',
+      './-s.json',
+      '--rois',
+      'r.json',
+      '--out',
+      './-o.csv',
     ]);
     // Every command splits back into its words
     const words = measureArguments({ ...request, images: ["O'Brien scan.png"] });

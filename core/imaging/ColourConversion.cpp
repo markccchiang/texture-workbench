@@ -6,6 +6,7 @@
 #include <opencv2/imgproc.hpp>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace glcm {
 
@@ -98,44 +99,81 @@ std::array<float, 3> Hsb(int r, int g, int b, float maximum) {
     return {hue, saturation, brightness};
 }
 
-template <typename T>
-cv::Mat HsbComponent(const cv::Mat& bgr, int component) {
-    const bool sixteen = bgr.depth() == CV_16U;
-    const double scale = sixteen ? 65535.0 : 255.0;
-    cv::Mat gray(bgr.size(), sixteen ? CV_16UC1 : CV_8UC1);
+// The same components in double precision, for 16-bit images (float would lose up to one step of 65535)
+std::array<double, 3> HsbDouble(int r, int g, int b, double maximum) {
+    const int cmax = std::max({r, g, b});
+    const int cmin = std::min({r, g, b});
+    const double brightness = static_cast<double>(cmax) / maximum;
+    const double saturation = cmax != 0 ? static_cast<double>(cmax - cmin) / static_cast<double>(cmax) : 0.0;
+    double hue = 0.0;
+    if (cmax != cmin) {
+        const auto range = static_cast<double>(cmax - cmin);
+        const double redc = (cmax - r) / range;
+        const double greenc = (cmax - g) / range;
+        const double bluec = (cmax - b) / range;
+        hue = r == cmax ? bluec - greenc : g == cmax ? 2.0 + redc - bluec : 4.0 + greenc - redc;
+        hue /= 6.0;
+        if (hue < 0) {
+            hue += 1.0;
+        }
+    }
+    return {hue, saturation, brightness};
+}
+
+cv::Mat HsbComponent8(const cv::Mat& bgr, int component) {
+    cv::Mat gray(bgr.size(), CV_8UC1);
     for (int row = 0; row < bgr.rows; ++row) {
-        const T* pixel = bgr.ptr<T>(row);
-        T* out = gray.ptr<T>(row);
+        const uchar* pixel = bgr.ptr<uchar>(row);
+        uchar* out = gray.ptr<uchar>(row);
         for (int col = 0; col < bgr.cols; ++col, pixel += 3) {
-            const auto hsb = Hsb(pixel[2], pixel[1], pixel[0], static_cast<float>(scale));
+            const auto hsb = Hsb(pixel[2], pixel[1], pixel[0], 255.0f);
             // ImageJ's getHSBStack: (byte)((int)(h * 255.0))
-            out[col] = static_cast<T>(static_cast<int>(hsb[static_cast<size_t>(component)] * scale));
+            out[col] = static_cast<uchar>(static_cast<int>(hsb[static_cast<size_t>(component)] * 255.0));
+        }
+    }
+    return gray;
+}
+
+// 16-bit: channel values up to `maximum` (65535, or less for DICOM files with fewer bits stored), components rounded to
+// 0-65535, so the brightness of a 16-bit image is its largest channel
+cv::Mat HsbComponent16(const cv::Mat& bgr, int component, int maximum) {
+    cv::Mat gray(bgr.size(), CV_16UC1);
+    for (int row = 0; row < bgr.rows; ++row) {
+        const uint16_t* pixel = bgr.ptr<uint16_t>(row);
+        uint16_t* out = gray.ptr<uint16_t>(row);
+        for (int col = 0; col < bgr.cols; ++col, pixel += 3) {
+            const auto hsb = HsbDouble(pixel[2], pixel[1], pixel[0], maximum);
+            out[col] = static_cast<uint16_t>(std::lround(std::clamp(hsb[static_cast<size_t>(component)], 0.0, 1.0) * 65535.0));
         }
     }
     return gray;
 }
 
 template <typename T>
-cv::Mat StainOf(const cv::Mat& bgr, const Matrix& matrix, int stain, double scale) {
-    const double maximum = bgr.depth() == CV_16U ? 65535.0 : 255.0;
+cv::Mat StainOf(const cv::Mat& bgr, const Matrix& matrix, int stain, double scale, int maximum) {
+    // The density of every possible sample: the same double expression per value, looked up per channel
     const double log_adjust = std::log(1e-6);
+    const size_t values = bgr.depth() == CV_16U ? 65536 : 256;
+    std::vector<double> density(values);
+    for (size_t value = 0; value < values; ++value) {
+        // skimage: img_as_float multiplies by 1 / imax, then np.maximum(rgb, 1e-6)
+        density[value] = std::log(std::max(static_cast<double>(value) * (1.0 / maximum), 1e-6)) / log_adjust;
+    }
+    const auto column = static_cast<size_t>(stain);
     cv::Mat gray(bgr.size(), CV_16UC1);
     for (int row = 0; row < bgr.rows; ++row) {
         const T* pixel = bgr.ptr<T>(row);
         uint16_t* out = gray.ptr<uint16_t>(row);
         for (int col = 0; col < bgr.cols; ++col, pixel += 3) {
-            // skimage: img_as_float multiplies by 1 / imax, then np.maximum(rgb, 1e-6)
-            const auto density = [&](T value) { return std::log(std::max(value * (1.0 / maximum), 1e-6)) / log_adjust; };
-            const std::array<double, 3> x = {density(pixel[2]), density(pixel[1]), density(pixel[0])};
-            const double d = std::max(0.0, x[0] * matrix[0][static_cast<size_t>(stain)] + x[1] * matrix[1][static_cast<size_t>(stain)] +
-                                               x[2] * matrix[2][static_cast<size_t>(stain)]);
+            const double d = std::max(
+                0.0, density[pixel[2]] * matrix[0][column] + density[pixel[1]] * matrix[1][column] + density[pixel[0]] * matrix[2][column]);
             out[col] = static_cast<uint16_t>(std::min(65535.0, std::round(d / scale)));
         }
     }
     return gray;
 }
 
-ConvertedColour Convert(const cv::Mat& bgr, ColourConversion conversion) {
+ConvertedColour Convert(const cv::Mat& bgr, ColourConversion conversion, int maximum) {
     ConvertedColour result;
     const std::string what = EntryOf(conversion).description;
     const bool sixteen = bgr.depth() == CV_16U;
@@ -148,7 +186,8 @@ ConvertedColour Convert(const cv::Mat& bgr, ColourConversion conversion) {
             positive += std::max(0.0, row[static_cast<size_t>(column)]);
         }
         const double scale = positive / 65535.0;
-        result.gray = sixteen ? StainOf<uint16_t>(bgr, matrix, column, scale) : StainOf<uchar>(bgr, matrix, column, scale);
+        result.gray =
+            sixteen ? StainOf<uint16_t>(bgr, matrix, column, scale, maximum) : StainOf<uchar>(bgr, matrix, column, scale, maximum);
         result.value_conversion = ValueConversion{scale, 0, "OD", what + "; " + ConversionFormula(scale, 0, "OD")};
     };
 
@@ -170,13 +209,13 @@ ConvertedColour Convert(const cv::Mat& bgr, ColourConversion conversion) {
             result.gray = Channel(bgr, 0);
             break;
         case ColourConversion::Hue:
-            result.gray = sixteen ? HsbComponent<uint16_t>(bgr, 0) : HsbComponent<uchar>(bgr, 0);
+            result.gray = sixteen ? HsbComponent16(bgr, 0, maximum) : HsbComponent8(bgr, 0);
             break;
         case ColourConversion::Saturation:
-            result.gray = sixteen ? HsbComponent<uint16_t>(bgr, 1) : HsbComponent<uchar>(bgr, 1);
+            result.gray = sixteen ? HsbComponent16(bgr, 1, maximum) : HsbComponent8(bgr, 1);
             break;
         case ColourConversion::Brightness:
-            result.gray = sixteen ? HsbComponent<uint16_t>(bgr, 2) : HsbComponent<uchar>(bgr, 2);
+            result.gray = sixteen ? HsbComponent16(bgr, 2, maximum) : HsbComponent8(bgr, 2);
             break;
         case ColourConversion::HematoxylinHe:
             stain(HED_FROM_RGB, 0);
@@ -209,11 +248,18 @@ std::optional<ColourConversion> ColourConversionFromId(const std::string& id) {
     return found == ENTRIES.end() ? std::nullopt : std::optional<ColourConversion>(found->conversion);
 }
 
-ConvertedColour ConvertColour(const cv::Mat& bgr, ColourConversion conversion) {
+ConvertedColour ConvertColour(const cv::Mat& bgr, ColourConversion conversion, int maximum) {
     if (bgr.empty() || (bgr.type() != CV_8UC3 && bgr.type() != CV_16UC3)) {
         throw std::invalid_argument("A colour conversion needs an 8- or 16-bit three-channel image");
     }
-    return Convert(bgr, conversion);
+    const int depth_maximum = bgr.depth() == CV_16U ? 65535 : 255;
+    if (maximum <= 0) {
+        maximum = depth_maximum;
+    }
+    if (maximum > depth_maximum || (bgr.depth() == CV_8U && maximum != 255)) {
+        throw std::invalid_argument("The largest sample of a colour conversion must fit the image's bit depth");
+    }
+    return Convert(bgr, conversion, maximum);
 }
 
 } // namespace glcm

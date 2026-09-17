@@ -91,8 +91,9 @@ LoadedStack LoadImageStackFile(
     const std::string& path, int64_t max_pixels = 0, int64_t max_stack_pixels = 0, ColourConversion colour = ColourConversion::Luminance);
 
 // A stack as an uncompressed little-endian TIFF: one 8- or 16-bit grayscale page per slice, with the pixel spacing as the
-// resolution in pixels per centimetre. LoadImageStackFile reads it back with the same samples.
-std::vector<uchar> EncodeTiffStack(const LoadedStack& stack);
+// resolution in pixels per centimetre and, when not empty, `description` as the ImageDescription of every page (so that
+// equal samples made for different purposes give different files). LoadImageStackFile reads it back with the same samples.
+std::vector<uchar> EncodeTiffStack(const LoadedStack& stack, const std::string& description = "");
 
 // Same as LoadImageFile, for an encoded image held in memory (e.g. an upload)
 LoadedImage LoadImageBytes(const std::vector<uchar>& bytes, int64_t max_pixels = 0, ColourConversion colour = ColourConversion::Luminance);

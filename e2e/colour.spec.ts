@@ -5,6 +5,7 @@ import path from 'node:path';
 import type { ImageInfo } from '@glcm/api';
 import * as native from '@glcm/native';
 import { expect, test, type Page } from '@playwright/test';
+import { encodeTiffPages } from '../bindings/node/test/tiff.js';
 import { chooseMenuItem, drag, openImage, resultRows, ROOT, SETTINGS, storedRois, viewport } from './helpers.js';
 
 const IHC = path.join(ROOT, 'samples', 'textures', 'ihc.png');
@@ -29,6 +30,12 @@ test('converts a colour image to a stain density and measures it with the same R
   await page.keyboard.press('t');
   const [roi] = await storedRois(page);
   const view = await viewport(page);
+  // A spacing entered by hand (the PNG has none) stays with the converted image
+  await page.evaluate(() =>
+    (window as unknown as { __glcm: { viewer: { getState(): { setPixelSpacing(spacing: { x: number; y: number }): void } } } }).__glcm.viewer
+      .getState()
+      .setPixelSpacing({ x: 0.25, y: 0.25 }),
+  );
 
   await chooseMenuItem(page, 'Image', 'Colour Conversion…');
   const dialog = page.getByRole('dialog', { name: 'Colour Conversion' });
@@ -46,6 +53,12 @@ test('converts a colour image to a stain density and measures it with the same R
   // The ROI and the view stay
   expect(await storedRois(page)).toEqual([roi]);
   expect(await viewport(page)).toEqual(view);
+  expect(
+    await page.evaluate(() => (window as unknown as { __glcm: { viewer: { getState(): { pixelSpacing: unknown } } } }).__glcm.viewer.getState().pixelSpacing),
+  ).toEqual({
+    x: 0.25,
+    y: 0.25,
+  });
 
   // The samples are the addon's conversion
   const expected = await native.decodeImageFile(IHC, { colour: 'dabHdab' });
@@ -76,6 +89,43 @@ test('converts a colour image to a stain density and measures it with the same R
   await dialog.getByRole('button', { name: 'Convert' }).click();
   await expect(status).toContainText('ihc.png 512×512 8-bit');
   expect(await storedRois(page)).toEqual([roi]);
+});
+
+test('converts a colour stack on the slice shown, keeping the selection there', async ({ page }) => {
+  await page.goto('/?testHooks');
+  const page_ = (red: number) => ({
+    width: 32,
+    height: 24,
+    bitsPerSample: 8 as const,
+    samplesPerPixel: 3 as const,
+    data: Array.from({ length: 32 * 24 * 3 }, (_, i) => (i % 3 === 0 ? red + ((i / 3) % 7) : i % 3 === 1 ? 50 : 90)),
+  });
+  await page
+    .getByTestId('file-input')
+    .setInputFiles({ name: 'colour-pages.tif', mimeType: 'image/tiff', buffer: encodeTiffPages([page_(10), page_(100), page_(200)]) });
+  const readout = page.getByTestId('slice-readout');
+  await expect(readout).toHaveText('1 / 3');
+  await page.keyboard.press('.');
+  await expect(readout).toHaveText('2 / 3');
+  await page.keyboard.press('r');
+  await drag(page, [4, 4], [20, 16]);
+  await page.keyboard.press('t');
+  const selected = await page.evaluate(
+    () => (window as unknown as { __glcm: { rois: { getState(): { selectedIds: string[] } } } }).__glcm.rois.getState().selectedIds,
+  );
+  expect(selected).toHaveLength(1);
+
+  await chooseMenuItem(page, 'Image', 'Colour Conversion…');
+  const dialog = page.getByRole('dialog', { name: 'Colour Conversion' });
+  await dialog.getByRole('radio', { name: 'Red' }).check();
+  await dialog.getByRole('button', { name: 'Convert' }).click();
+  await expect(page.getByTestId('status-bar')).toContainText('colour-pages.tif [red]');
+  await expect(readout).toHaveText('2 / 3');
+  expect(
+    await page.evaluate(() => (window as unknown as { __glcm: { rois: { getState(): { selectedIds: string[] } } } }).__glcm.rois.getState().selectedIds),
+  ).toEqual(selected);
+  const samples = await rawSamples(page);
+  expect(samples.slice(0, 3)).toEqual([100, 101, 102]);
 });
 
 test('offers the conversion only for colour images', async ({ page }) => {

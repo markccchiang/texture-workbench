@@ -144,11 +144,17 @@ results go to ``camera-results.csv``. **Copy Command** puts the command on the c
 - **Send to this server** adds ``--server`` with the application's address, so the command measures on the running
   server, as it must while the application runs on the same folder (see above). On a server with an access token, set
   ``GLCM_API_TOKEN`` before running it.
-- The command names the image by its file name, so an image opened from a NIfTI volume or a DICOM series, which has no
-  file of its own, needs a file or its image id in its place.
+- An image opened from a NIfTI volume or a DICOM series has no file of its own, so the command names it by its image id
+  and the dialog says so: the command then runs on this server, or on the application's data folder while the
+  application is not running.
+- File names that begin with ``-`` are written as ``./-name``, so they are not taken for options; names with spaces or
+  other special characters are quoted for macOS and Linux shells (sh, bash, zsh).
 
 *Analyze ▸ Batch Measure…* has the same button, **Copy as Command…**, for the chosen images and ROIs; the command then
-names every image, and an ROI set file chosen in the dialog is used as it is instead of being saved again.
+names every image, and an ROI set file chosen in the dialog is used as it is instead of being saved again. It notes
+where the command can differ from Batch Measure: it uses the pixel spacing stored in each file, not spacings entered in
+the application, and with the score's calibration profile, 16-bit images get the intensity range of the settings file
+instead of each image's default window.
 
 Regions can also be found by intensity, without drawing anything:
 

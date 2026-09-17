@@ -201,6 +201,7 @@ export const imageRoutes: FastifyPluginAsyncTypebox<ImageRoutesOptions> = async 
           },
           config,
         );
+        info.madeFrom = 'dicomSeries';
         await fs.writeFile(tiffPath, stack.tiff);
         await store.save(info, stack.pixels, tiffPath);
         return reply.code(201).send(info);

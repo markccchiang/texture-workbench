@@ -37,12 +37,15 @@ struct ConvertedColour {
 
 // Converts an 8- or 16-bit BGR image (OpenCV's channel order). Channels, the mean and the HSB components keep the bit depth:
 // - Mean: round(R/3 + G/3 + B/3) (ImageJ adds the weighted channels and 0.5, then truncates)
-// - Hue, saturation, brightness: java.awt.Color.RGBtoHSB in float (brightness = max / M, saturation = (max − min) / max,
-//   hue in sixths from the largest channel), each × M truncated, where M is 255 or 65535
+// - Hue, saturation, brightness: 8-bit as java.awt.Color.RGBtoHSB in float (brightness = max / 255, saturation =
+//   (max − min) / max, hue in sixths from the largest channel), each × 255 truncated, as ImageJ's HSB stack; 16-bit in
+//   double, with brightness = max / M, each × 65535 rounded
+// M is the largest sample: 255 for 8-bit images, 65535 for 16-bit ones unless `maximum` gives less (a DICOM file with
+// fewer bits stored); 0 chooses it from the depth. Stains use M too; channels and the mean do not depend on it.
 // Stains are stored as 16-bit samples: the optical density d = max(0, Σ_j x_j · C[j][s]) with x_j = ln(max(v_j / M,
 // 10⁻⁶)) / ln(10⁻⁶), and stored = round(d / scale), scale = (sum of the positive C[j][s]) / 65535, so that value =
-// stored × scale. Throws std::invalid_argument for another image type.
-ConvertedColour ConvertColour(const cv::Mat& bgr, ColourConversion conversion);
+// stored × scale. Throws std::invalid_argument for another image type, or a maximum beyond the bit depth (8-bit: 255).
+ConvertedColour ConvertColour(const cv::Mat& bgr, ColourConversion conversion, int maximum = 0);
 
 } // namespace glcm
 

@@ -210,6 +210,7 @@ export const volumeRoutes: FastifyPluginAsyncTypebox<VolumeRoutesOptions> = asyn
         bitDepth: image.bitDepth,
         slices: 1,
         sourceChannels: 1,
+        madeFrom: 'niftiVolume',
         pixelSpacing: image.pixelSpacing,
         ...(image.valueConversion ? { valueConversion: image.valueConversion } : {}),
         sha256: createHash('sha256').update(png).digest('hex'),
@@ -282,6 +283,7 @@ export const volumeRoutes: FastifyPluginAsyncTypebox<VolumeRoutesOptions> = asyn
         windowMax: volume.info.windowMax,
         warnings: volume.info.warnings,
         pixelSpacing: geometry.pixelSpacing,
+        madeFrom: 'niftiVolume',
       };
       const tiffPath = store.temporaryUploadPath();
       try {

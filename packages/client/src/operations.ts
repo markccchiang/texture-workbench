@@ -82,19 +82,21 @@ export async function openImage(client: ApiClient, source: ImageSource): Promise
   return { info: result.json<ImageInfo>(), reused: false };
 }
 
-/**
- * The colour image converted another way (POST /images/{id}/colour): a channel, the mean, an HSB component or a stain.
- * luminance gives the colour image itself.
- */
-export async function convertColour(client: ApiClient, imageId: string, conversion: string): Promise<ImageInfo> {
+/** Throws a BadOption error for a colour conversion id the server does not know */
+export function checkColourConversion(conversion: string): asserts conversion is ColourConversion {
   if (!(COLOUR_CONVERSION_IDS as readonly string[]).includes(conversion)) {
     throw new ApiError(0, 'BadOption', `There is no colour conversion "${conversion}"; choose one of ${COLOUR_CONVERSION_IDS.join(', ')}`);
   }
-  const result = requireOk(
-    await client.request('POST', `/images/${imageId}/colour`, { json: { conversion: conversion as ColourConversion } }),
-    'The image could not be converted',
-  );
-  return result.json<ImageInfo>();
+}
+
+/**
+ * The colour image converted another way (POST /images/{id}/colour): a channel, the mean, an HSB component or a stain.
+ * luminance gives the colour image itself; `reused` is false only when the server made the converted image now.
+ */
+export async function convertColour(client: ApiClient, imageId: string, conversion: string): Promise<OpenedImage> {
+  checkColourConversion(conversion);
+  const result = requireOk(await client.request('POST', `/images/${imageId}/colour`, { json: { conversion } }), 'The image could not be converted');
+  return { info: result.json<ImageInfo>(), reused: result.status !== 201 };
 }
 
 /** An ROI over the whole image, so that a measurement needs no ROI file */

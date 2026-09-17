@@ -859,7 +859,7 @@ one.
 **Mean**: :math:`\lfloor R/3 + G/3 + B/3 + 0.5 \rfloor`, ImageJ's conversion with unweighted RGB conversions. **Red**,
 **green**, **blue**: the channel unchanged.
 
-**Hue, saturation, brightness** follow ``java.awt.Color.RGBtoHSB``, which ImageJ's HSB stack uses, in single precision.
+**Hue, saturation, brightness** follow ``java.awt.Color.RGBtoHSB``, which ImageJ's HSB stack uses.
 With :math:`c_{\max}` and :math:`c_{\min}` the largest and smallest channel,
 
 .. math::
@@ -868,10 +868,14 @@ With :math:`c_{\max}` and :math:`c_{\min}` the largest and smallest channel,
    H = \frac{1}{6} \begin{cases} b - g & R = c_{\max} \\ 2 + r - b & G = c_{\max} \\ 4 + g - r & \text{otherwise} \end{cases}
 
 where :math:`r = (c_{\max} - R)/(c_{\max} - c_{\min})` and likewise :math:`g`, :math:`b`; :math:`S = 0` when
-:math:`c_{\max} = 0`, :math:`H = 0` when :math:`S = 0`, and 1 is added to a negative :math:`H`. The stored sample is
-:math:`\lfloor x M \rfloor` for :math:`x \in \{H, S, V\}`. The core tests compare the mean and the three components of a
-256 × 256 image holding many colours with ImageJ 1.54p (``scripts/imagej-colour``); they are identical. ImageJ has no
-HSB stack of 16-bit colour images; the same formulas with :math:`M = 65\,535` are used for them.
+:math:`c_{\max} = 0`, :math:`H = 0` when :math:`S = 0`, and 1 is added to a negative :math:`H`. For 8-bit images
+they are computed in single precision, as Java does, and the stored sample is :math:`\lfloor 255\, x \rfloor` for
+:math:`x \in \{H, S, V\}`. The core tests compare the mean and the three components of a 256 × 256 image holding many
+colours with ImageJ 1.54p (``scripts/imagej-colour``); they are identical. ImageJ has no HSB stack of 16-bit colour
+images; for them the same formulas are computed in double precision and stored as :math:`\operatorname{round}(65\,535\,
+x)`, so the brightness of an image with :math:`M = 65\,535` is exactly its largest channel (single precision would lose
+one step for about half of the values). For a DICOM file with fewer bits stored than allocated, :math:`M` is the largest
+value those bits hold (4095 for 12 bits), for the HSB components and the stains alike.
 
 **Stains** are separated by colour deconvolution [Ruifrok2001]_ as scikit-image's ``separate_stains`` does. The
 intensities become optical densities relative to the brightest possible light,

@@ -193,6 +193,9 @@ export function ProfileContent() {
   }
   const profile = profileOf(query.data, ruler, spacing);
   const values = profile.points.flatMap((point) => (point.value === null ? [] : [point.value]));
+  // A loop, not Math.min(...values): a long line has more samples than a call may take arguments
+  const lowest = values.reduce((low, value) => Math.min(low, value), Infinity);
+  const highest = values.reduce((high, value) => Math.max(high, value), -Infinity);
   const last = profile.points[profile.points.length - 1];
   return (
     <Stack gap="xs">
@@ -200,7 +203,7 @@ export function ProfileContent() {
       <Text size="xs" c="dimmed" data-testid="profile-summary">
         {profile.points.length} samples over {formatValue(last.distance)} {profile.unit === 'mm' ? 'mm' : 'pixels'}
         {image.info.slices > 1 ? ` on slice ${slice}` : ''}
-        {values.length > 0 ? ` · min ${formatValue(Math.min(...values))} · max ${formatValue(Math.max(...values))}` : ''}
+        {values.length > 0 ? ` · min ${formatValue(lowest)} · max ${formatValue(highest)}` : ''}
         {values.length < profile.points.length ? ` · ${profile.points.length - values.length} outside the image` : ''}
       </Text>
       <Buttons csv={profileCsv(profile)} name={`${fileStem(image.info.name)}-profile`} svgRef={svgRef} />

@@ -58,6 +58,17 @@ bool HostIsLittleEndian() {
     return *reinterpret_cast<const uint8_t*>(&probe) == 1;
 }
 
+// A Buffer that takes over the bytes instead of copying them (copied only where external buffers are not allowed); the
+// vector is left empty
+Napi::Buffer<uint8_t> MovedBuffer(Napi::Env env, std::vector<uint8_t>&& bytes) {
+    if (bytes.empty()) {
+        return Napi::Buffer<uint8_t>::New(env, 0);
+    }
+    auto* owned = new std::vector<uint8_t>(std::move(bytes));
+    return Napi::Buffer<uint8_t>::NewOrCopy(
+        env, owned->data(), owned->size(), [](Napi::Env /*env*/, uint8_t* /*data*/, std::vector<uint8_t>* hint) { delete hint; }, owned);
+}
+
 // The rows of a CV_8UC1 or CV_16UC1 image as bytes, with 16-bit samples in little-endian order
 std::vector<uint8_t> ToLittleEndianBytes(const cv::Mat& gray) {
     const size_t bytes_per_sample = gray.elemSize();
@@ -293,7 +304,8 @@ struct DecodedResult {
         pixels = ToLittleEndianBytes(stack.pixels);
     }
 
-    Napi::Object ToObject(Napi::Env env) const {
+    // Hands the pixels over to the object (the result is left without them)
+    Napi::Object ToObject(Napi::Env env) {
         Napi::Object result = Napi::Object::New(env);
         result.Set("width", Napi::Number::New(env, info.width));
         result.Set("height", Napi::Number::New(env, info.height));
@@ -311,7 +323,7 @@ struct DecodedResult {
             histogram.Set(static_cast<uint32_t>(i), Napi::Number::New(env, static_cast<double>(statistics.histogram[i])));
         }
         result.Set("histogram", histogram);
-        result.Set("pixels", Napi::Buffer<uint8_t>::Copy(env, pixels.data(), pixels.size()));
+        result.Set("pixels", MovedBuffer(env, std::move(pixels)));
         return result;
     }
 };
@@ -322,6 +334,7 @@ struct DecodeRequest {
     glcm::ColourConversion colour = glcm::ColourConversion::Luminance;
     bool first_slice = false; // only the first page or frame
     bool encode_tiff = false; // also the stack as a TIFF (EncodeTiffStack)
+    std::string tiff_description;
 };
 
 class DecodeImageWorker : public PromiseWorker {
@@ -341,10 +354,10 @@ public:
             } else {
                 stack = glcm::LoadImageStackFile(_path, _request.max_pixels, _request.max_stack_pixels, _request.colour);
             }
-            _result.Take(stack);
             if (_request.encode_tiff) {
-                _tiff = glcm::EncodeTiffStack(stack);
+                _tiff = glcm::EncodeTiffStack(stack, _request.tiff_description);
             }
+            _result.Take(stack);
         } catch (const glcm::ImageTooLargeError& error) {
             Fail(CODE_IMAGE_TOO_LARGE, error.what());
         } catch (const glcm::StackTooLargeError& error) {
@@ -360,7 +373,7 @@ public:
         Napi::Env env = Env();
         Napi::Object result = _result.ToObject(env);
         if (_request.encode_tiff) {
-            result.Set("tiff", Napi::Buffer<uint8_t>::Copy(env, _tiff.data(), _tiff.size()));
+            result.Set("tiff", MovedBuffer(env, std::move(_tiff)));
         }
         Resolve(result);
     }
@@ -382,8 +395,8 @@ public:
     void Execute() override {
         try {
             glcm::LoadedStack stack = _load();
-            _result.Take(stack);
             _tiff = glcm::EncodeTiffStack(stack);
+            _result.Take(stack);
             _series_description = stack.series_description;
         } catch (const glcm::ImageTooLargeError& error) {
             Fail(CODE_IMAGE_TOO_LARGE, error.what());
@@ -399,7 +412,7 @@ public:
     void OnOK() override {
         Napi::Env env = Env();
         Napi::Object result = _result.ToObject(env);
-        result.Set("tiff", Napi::Buffer<uint8_t>::Copy(env, _tiff.data(), _tiff.size()));
+        result.Set("tiff", MovedBuffer(env, std::move(_tiff)));
         result.Set("seriesDescription", Napi::String::New(env, _series_description));
         Resolve(result);
     }
@@ -861,6 +874,13 @@ Napi::Value DecodeImageFile(const Napi::CallbackInfo& info) {
         };
         request.first_slice = flag("firstSlice");
         request.encode_tiff = flag("encodeTiff");
+        const Napi::Value description = options.Get("tiffDescription");
+        if (!description.IsUndefined()) {
+            if (!description.IsString()) {
+                throw Napi::TypeError::New(env, "options.tiffDescription must be a string");
+            }
+            request.tiff_description = description.As<Napi::String>().Utf8Value();
+        }
     }
     auto* worker = new DecodeImageWorker(env, StringArgument(info, 0, "path"), request);
     const Napi::Promise promise = worker->Promise();

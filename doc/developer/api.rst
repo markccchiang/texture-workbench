@@ -57,13 +57,16 @@ Endpoints
        ``green``, ``blue``, ``hue``, ``saturation``, ``brightness``, ``hematoxylinHe``, ``eosinHe``, ``hematoxylinHdab``,
        ``dabHdab``; see :ref:`colour-conversion`), stored as a new image named ``<name> [<conversion>]`` (``201``) whose
        ``colourSource`` is ``{imageId, conversion}`` of the colour image, whose ``valueConversion`` describes the
-       conversion and whose original file is an uncompressed TIFF of the converted slices (its SHA-256 identifies it).
-       Called on a converted image, it converts that image's colour image. ``200`` with the existing image for
-       ``luminance`` (the colour image itself) and for a conversion made before. ``422`` ``NotColour`` for gray images
-       and for stacks stored as gray TIFFs (a DICOM series); ``404`` when the colour image is gone
+       conversion and whose original file is an uncompressed TIFF of the converted slices with the colour image and the
+       conversion in its ImageDescription (so equal samples of two conversions still give two files, and its SHA-256
+       identifies it). Called on a converted image, it converts that image's colour image. ``200`` with the existing
+       image for ``luminance`` (the colour image itself), for a conversion made before and for requests that arrive while
+       the same conversion runs (they share it). ``422`` ``NotColour`` for gray images and for images with ``madeFrom``
+       (a DICOM series is stored as gray slices), ``ImageTooLarge``, ``UnsupportedImage`` or ``InvalidImage`` (without the
+       server's paths); ``404`` when the colour image is gone. At most two colour images are decoded at once.
    * - ``GET /images/{id}/colour-preview.png``
-     - ``?conversion&maxSize``: the first slice of the colour image converted, rendered with its own default window, not
-       stored
+     - ``?conversion&maxSize``: the first slice of the colour image converted, rendered with its own default window; not
+       stored as an image, but cached like ``display.png``
    * - ``POST /images/series``
      - The files of a DICOM series as ``multipart/form-data`` (one ``file`` field per file, at most
        ``GLCM_MAX_SERIES_FILES``, together at most ``GLCM_MAX_VOLUME_BYTES``) and an optional ``name`` field; ``201`` with
@@ -214,7 +217,7 @@ Main schemas
 ~~~~~~~~~~~~
 
 **ImageInfo** — ``imageId``, ``name``, ``sizeBytes``, ``width``, ``height``, ``bitDepth`` (8 or 16), ``slices`` (1 for a
-single image; width and height are those of one slice), ``sourceChannels``, ``sha256``, ``transfer`` (``"raw"`` or ``"server"``), ``windowMin``, ``windowMax`` (0.5 and 99.5
+single image; width and height are those of one slice), ``sourceChannels``, ``colourSource`` (converted images), ``madeFrom`` (``"niftiVolume"`` or ``"dicomSeries"`` for images the server made from several files or a volume), ``sha256``, ``transfer`` (``"raw"`` or ``"server"``), ``windowMin``, ``windowMax`` (0.5 and 99.5
 percentiles, or the first DICOM window), ``histogram`` (256 bins), ``pixelSpacing``, ``valueConversion`` (DICOM and
 NIfTI only), ``warnings``, ``createdAt``.
 

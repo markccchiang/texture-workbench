@@ -554,7 +554,8 @@ ConvertedColour RgbFrameToGray(const std::vector<uint8_t>& bytes, const DicomIma
     }
     cv::Mat bgr;
     cv::cvtColor(rgb, bgr, cv::COLOR_RGB2BGR);
-    return ConvertColour(bgr, colour);
+    // 12 bits stored in 16 allocated: white is 4095, not 65535
+    return ConvertColour(bgr, colour, image.bits_allocated == 16 ? static_cast<int>(image.MaxSample()) : 0);
 }
 
 // One frame of one file of a stack

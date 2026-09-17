@@ -160,7 +160,14 @@ describe('stacks', () => {
     const response = await t.app.inject({ method: 'POST', url: `/api/v1/volumes/${volume.volumeId}/stack`, payload: { orientation: 'coronal', volume: 1 } });
     expect(response.statusCode, response.body).toBe(201);
     const image = response.json<ImageInfo>();
-    expect(image).toMatchObject({ name: 'ramp.nii [coronal, volume 1]', width: 4, height: 2, slices: 3, pixelSpacing: { x: 0.5, y: 2 } });
+    expect(image).toMatchObject({
+      name: 'ramp.nii [coronal, volume 1]',
+      width: 4,
+      height: 2,
+      slices: 3,
+      pixelSpacing: { x: 0.5, y: 2 },
+      madeFrom: 'niftiVolume',
+    });
     expect(image.windowMin).toBe(volume.windowMin);
 
     // Every slice equals the single slice the volume gives
@@ -202,6 +209,9 @@ describe('stacks', () => {
     expect(response.statusCode, response.body).toBe(201);
     const image = response.json<ImageInfo>();
     expect(image).toMatchObject({ name: 'T2 axial', slices: 3, width: 2, height: 2, pixelSpacing: { x: 0.6, y: 0.8 } });
+    expect(image.madeFrom).toBe('dicomSeries');
+    // Stored as gray slices: no colour conversion, not even luminance
+    expect((await t.app.inject({ method: 'POST', url: `/api/v1/images/${image.imageId}/colour`, payload: { conversion: 'luminance' } })).statusCode).toBe(422);
     expect(image.warnings).toEqual(['1 file is not a DICOM image and was left out']);
     const values = [];
     for (let slice = 1; slice <= 3; slice += 1) {

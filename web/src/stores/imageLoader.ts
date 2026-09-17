@@ -62,14 +62,15 @@ function progressReporter(controller: AbortController, name: string) {
 }
 
 /** Downloads the raw samples if offered, then shows the image; null if the load was cancelled */
-async function showImage(info: ImageInfo, controller: AbortController, keepView = false): Promise<ImageInfo | null> {
+async function showImage(info: ImageInfo, controller: AbortController, options: { keepView?: boolean; slice?: number } = {}): Promise<ImageInfo | null> {
+  const slice = Math.min(Math.max(1, options.slice ?? 1), info.slices);
   const { signal } = controller;
   const setLoading = progressReporter(controller, info.name);
   let raw: RawImage | null = null;
   if (info.transfer === 'raw') {
     setLoading('downloading', 0);
     try {
-      raw = await fetchRawImage(info, (loaded, total) => setLoading('downloading', loaded / total), signal);
+      raw = await fetchRawImage(info, (loaded, total) => setLoading('downloading', loaded / total), signal, slice);
     } catch (error) {
       if (isAbort(error)) {
         throw error;
@@ -87,7 +88,7 @@ async function showImage(info: ImageInfo, controller: AbortController, keepView 
   if (signal.aborted) {
     return null;
   }
-  useViewer.getState().openImage({ info, raw }, { keepView });
+  useViewer.getState().openImage({ info, raw, ...(slice > 1 ? { slice } : {}) }, { keepView: options.keepView });
   for (const warning of info.warnings) {
     notifications.show({
       color: 'yellow',
@@ -207,7 +208,6 @@ export function openColourConversion(conversion: ColourConversion): Promise<Imag
   if (!current) {
     return Promise.resolve(null);
   }
-  const shownSlice = current.slice ?? 1;
   return run(current.info.name, async (controller) => {
     if (currentLoad === controller) {
       useViewer.getState().setLoading({ name: current.info.name, phase: 'converting', progress: null });
@@ -216,11 +216,9 @@ export function openColourConversion(conversion: ColourConversion): Promise<Imag
     if (info.imageId === current.info.imageId) {
       return info;
     }
-    const shown = await showImage(info, controller, true);
-    if (shown && shownSlice > 1) {
-      void showSlice(shownSlice);
-    }
-    return shown;
+    // The slice shown now (or on its way), which may have changed while the server converted; opened directly on it, so
+    // the selection on that slice stays
+    return showImage(info, controller, { keepView: true, slice: targetSlice() });
   });
 }
 

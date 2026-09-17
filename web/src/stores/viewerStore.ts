@@ -77,8 +77,8 @@ export interface ViewerState {
 
   setLoading(loading: LoadingState | null): void;
   /**
-   * Shows an image. With keepView (another conversion of the same colour image), the ROIs and the viewport stay when the
-   * image has the same size and slices.
+   * Shows an image. With keepView (another conversion of the same colour image), the ROIs, the viewport, the ruler and the
+   * pixel spacing stay when the image has the same size and slices.
    */
   openImage(image: LoadedImage, options?: { keepView?: boolean }): void;
   /** Shows another slice of the open stack (its samples already downloaded, when offered) */
@@ -168,7 +168,7 @@ export const useViewer = create<ViewerState>()((set, get) => ({
   },
 
   openImage: (image, options) => {
-    const { viewSize, image: previous, viewport } = get();
+    const { viewSize, image: previous, viewport, pixelSpacing: previousSpacing, ruler } = get();
     const canFit = hasArea(viewSize);
     const sameGeometry =
       options?.keepView === true &&
@@ -181,6 +181,11 @@ export const useViewer = create<ViewerState>()((set, get) => ({
       useRois.getState().reset();
     }
     useRois.getState().setCurrentSlice(image.info.slices > 1 ? (image.slice ?? 1) : null);
+    // Another conversion of the same pixels: the spacing in use (perhaps entered by hand) stays, remembered for this image too
+    const pixelSpacing = sameGeometry ? previousSpacing : spacingForImage(image.info);
+    if (sameGeometry && !sameSpacing(pixelSpacing, spacingForImage(image.info))) {
+      usePreferences.getState().rememberPixelSpacing(image.info.sha256, sameSpacing(pixelSpacing, image.info.pixelSpacing) ? undefined : pixelSpacing);
+    }
     set({
       image,
       window: { min: image.info.windowMin, max: image.info.windowMax },
@@ -191,8 +196,8 @@ export const useViewer = create<ViewerState>()((set, get) => ({
       hover: null,
       displaySource: null,
       rendererKind: null,
-      pixelSpacing: spacingForImage(image.info),
-      ruler: null,
+      pixelSpacing,
+      ruler: sameGeometry ? ruler : null,
       wandTolerance: defaultWandTolerance(image.info.windowMin, image.info.windowMax),
     });
   },

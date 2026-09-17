@@ -200,6 +200,12 @@ export function BatchContent({ onClose }: { onClose(): void }) {
             images: images.map((file) => file.name),
             settings,
             rois: source === 'manager' ? buildRoiSet(image!.info, useRois.getState().rois, useRois.getState().classes) : { fileName: roiFile!.name },
+            notes: [
+              'Pixel spacings entered in the application are not in the command: it uses the spacing stored in each file. Add --spacing x,y for images whose files have none.',
+              ...(settings.score.enabled && settings.score.profile === 'calibration'
+                ? ['The score of 16-bit images uses the intensity range in the settings file, while Batch Measure uses each image’s default window.']
+                : []),
+            ],
           }}
         />
       )}

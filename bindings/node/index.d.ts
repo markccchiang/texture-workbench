@@ -93,6 +93,8 @@ export interface DecodeOptions {
   firstSlice?: boolean;
   /** Also return the decoded stack as an uncompressed TIFF (`tiff`) */
   encodeTiff?: boolean;
+  /** With encodeTiff: the ImageDescription of every page */
+  tiffDescription?: string;
 }
 
 export type ColourConversionId =

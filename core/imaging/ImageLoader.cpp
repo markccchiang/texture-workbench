@@ -246,7 +246,7 @@ void Put32(std::vector<uchar>& out, size_t at, uint32_t value) {
 
 } // namespace
 
-std::vector<uchar> EncodeTiffStack(const LoadedStack& stack) {
+std::vector<uchar> EncodeTiffStack(const LoadedStack& stack, const std::string& description) {
     if (stack.slices < 1 || stack.pixels.empty() || (stack.pixels.type() != CV_8UC1 && stack.pixels.type() != CV_16UC1) ||
         stack.pixels.rows != stack.info.height * stack.slices || stack.pixels.cols != stack.info.width) {
         throw std::invalid_argument("The stack's pixels do not match its size");
@@ -254,8 +254,13 @@ std::vector<uchar> EncodeTiffStack(const LoadedStack& stack) {
     const uint16_t bits = stack.pixels.depth() == CV_16U ? 16 : 8;
     const uint64_t slice_bytes = static_cast<uint64_t>(stack.info.width) * static_cast<uint64_t>(stack.info.height) * (bits / 8);
     const bool with_resolution = stack.info.pixel_spacing.has_value();
-    const uint16_t entries = with_resolution ? 12 : 9;
-    const uint64_t ifd_bytes = 2 + 12 * static_cast<uint64_t>(entries) + 4 + (with_resolution ? 16 : 0);
+    // ImageDescription: ASCII with its terminating NUL, padded to an even length, stored after the resolution
+    const uint64_t description_bytes = description.empty() ? 0 : (description.size() + 2) & ~uint64_t{1};
+    if (description.find('\0') != std::string::npos || description.size() > 65535) {
+        throw std::invalid_argument("The TIFF description must be text without NUL characters");
+    }
+    const uint16_t entries = static_cast<uint16_t>((with_resolution ? 12 : 9) + (description.empty() ? 0 : 1));
+    const uint64_t ifd_bytes = 2 + 12 * static_cast<uint64_t>(entries) + 4 + (with_resolution ? 16 : 0) + description_bytes;
     const uint64_t total = 8 + static_cast<uint64_t>(stack.slices) * (ifd_bytes + slice_bytes);
     if (total > 0xFFFFFFFFull) {
         throw std::invalid_argument("The stack is too large for a TIFF file (4 GB)");
@@ -273,7 +278,8 @@ std::vector<uchar> EncodeTiffStack(const LoadedStack& stack) {
     for (int k = 0; k < stack.slices; ++k) {
         const size_t ifd = position;
         const size_t extra = ifd + 2 + 12 * entries + 4;
-        const size_t data = extra + (with_resolution ? 16 : 0);
+        const size_t description_at = extra + (with_resolution ? 16 : 0);
+        const size_t data = description_at + static_cast<size_t>(description_bytes);
         size_t entry = ifd + 2;
         Put16(out, ifd, entries);
         const auto tag = [&](uint16_t id, uint16_t type, uint32_t count, uint32_t value) {
@@ -288,14 +294,18 @@ std::vector<uchar> EncodeTiffStack(const LoadedStack& stack) {
             entry += 12;
         };
         // Tags in ascending order: NewSubfileType (a page), ImageWidth, ImageLength, BitsPerSample, Compression (none),
-        // PhotometricInterpretation (black is zero), StripOffsets, RowsPerStrip, StripByteCounts, XResolution, YResolution,
-        // ResolutionUnit (centimetre)
+        // PhotometricInterpretation (black is zero), ImageDescription (when given), StripOffsets, RowsPerStrip, StripByteCounts,
+        // XResolution, YResolution, ResolutionUnit (centimetre)
         tag(254, 4, 1, 2);
         tag(256, 4, 1, static_cast<uint32_t>(stack.info.width));
         tag(257, 4, 1, static_cast<uint32_t>(stack.info.height));
         tag(258, 3, 1, bits);
         tag(259, 3, 1, 1);
         tag(262, 3, 1, 1);
+        if (!description.empty()) {
+            tag(270, 2, static_cast<uint32_t>(description.size() + 1), static_cast<uint32_t>(description_at));
+            std::copy(description.begin(), description.end(), out.begin() + static_cast<std::ptrdiff_t>(description_at));
+        }
         tag(273, 4, 1, static_cast<uint32_t>(data));
         tag(278, 4, 1, static_cast<uint32_t>(stack.info.height));
         tag(279, 4, 1, static_cast<uint32_t>(slice_bytes));

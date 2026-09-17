@@ -154,6 +154,11 @@ export const ImageInfo = Type.Object({
   }),
   sourceChannels: Type.Integer({ description: 'Channels before grayscale conversion (1, 3 or 4)' }),
   colourSource: Type.Optional(ColourSource),
+  madeFrom: Type.Optional(
+    Type.Union([Type.Literal('niftiVolume'), Type.Literal('dicomSeries')], {
+      description: 'Present on images the server made from several files or a volume (their name is not the name of a file)',
+    }),
+  ),
   pixelSpacing: Type.Union([PixelSpacing, Type.Null()], {
     description:
       "From the file's metadata (PNG pHYs, JPEG JFIF, BMP, TIFF resolution, DICOM PixelSpacing or ImagerPixelSpacing, NIfTI voxel size); null when the file has none, or only the 72/96 dpi default of image editors",
