@@ -1,3 +1,4 @@
+import { colourConversionOption } from '@glcm/api';
 import { ActionIcon, Loader, Text, Tooltip } from '@mantine/core';
 import { IconX } from '@tabler/icons-react';
 import { cancelMeasurement } from '../analysis/measure';
@@ -44,7 +45,7 @@ export function StatusBar() {
         <Text size="xs" truncate>
           {info.name} {info.width}×{info.height}
           {info.slices > 1 ? `×${info.slices} slices` : ''} {info.bitDepth}-bit
-          {info.sourceChannels > 1 ? ' (converted to grayscale)' : ''}
+          {info.sourceChannels > 1 ? ` (colour: ${colourConversionOption(info.colourSource?.conversion ?? 'luminance').label})` : ''}
         </Text>
       )}
       {selected && (

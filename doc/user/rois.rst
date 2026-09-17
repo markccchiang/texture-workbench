@@ -55,9 +55,10 @@ Choose a tool in the toolbar, in the *ROI* menu or with its key, then draw on th
 
 A newly drawn shape has a **dashed white outline**: it is the *active* ROI and not yet part of the ROI Manager. Press
 :kbd:`T` (or **Add (T)** in the ROI Manager, or *ROI ▸ Add to Manager*) to add it. It then gets a name ("ROI 1",
-"ROI 2", …) and its own color. Drawing another shape replaces an active ROI that was not added.
+"ROI 2", …) and its own colour. Drawing another shape replaces an active ROI that was not added.
 
-If you measure while an active ROI exists and no ROI is selected, the active ROI is added automatically and measured.
+If you choose *Measure Selected* while an active ROI exists and no ROI is selected, the active ROI is added automatically
+and measured; *Measure All* does the same only when the ROI Manager is empty.
 
 .. tip::
 
@@ -78,7 +79,7 @@ The **livewire** tool (:kbd:`I`, also called intelligent scissors) draws an outl
    are needed). The closed outline becomes the active ROI; press :kbd:`T` to add it.
 
 Between two points the path is the cheapest chain of neighbouring pixels, where pixels on strong edges are cheap. It
-stays within 32 pixels of the rectangle spanned by the two points, and the points may be at most 1,024 pixels apart. The
+stays within 32 pixels of the rectangle spanned by the two points, and the points may be at most 1,024 pixels apart along each axis. The
 gradient uses the **Smoothing σ** of the edge map (see :doc:`viewing`), so showing the edge map helps to see which edges
 the livewire will follow. Where the boundary is faint, add points closer together.
 
@@ -191,7 +192,7 @@ Enlarging, shrinking and bands
    A band of 12 mm around a rectangle with a hole.
 
 Distances are measured **between pixel centres**, and a pixel counts when it is not farther than the distance: enlarging
-by 1 pixel adds the four pixels next to each edge pixel, but not the diagonal ones, which are √2 away. The distance is
+by 1 pixel adds the pixels directly beside the ROI's edge pixels, but not the diagonal ones, which are √2 away. The distance is
 in pixels, or in millimetres when the image has a pixel spacing (see :ref:`pixel-spacing`). Millimetres are exact also
 for pixels that are not square: 2 mm on 0.5 × 1 mm pixels reaches four columns but only two rows. Corners become rounded,
 since the pixels at a corner are farther away diagonally.
@@ -257,13 +258,13 @@ The ROI Manager
 Each row shows, from left to right:
 
 - **visibility** (the eye) — hidden ROIs are not drawn, but they can still be selected here and measured;
-- **color** and **name** — double-click the name to rename it, then press :kbd:`Enter`; choose another color in the
+- **colour** and **name** — double-click the name to rename it, then press :kbd:`Enter`; choose another colour in the
   row menu;
 - **shape** — Rectangle, Ellipse, Polygon or Freehand, after the slice number for ROIs on a slice of a stack (see
   :ref:`stacks`); clicking an ROI of another slice shows its slice;
 - **pixel count**, or ⚠ with an explanation when the ROI cannot be measured;
-- a **menu** (⋯) with *Zoom to ROI*, *Rename*, a choice of eight **colors**, the **class** (*No class*, the classes and
-  *Manage Classes…*), *Duplicate*, *Copy to All Slices* (stacks) and *Delete*. Changing the color can be undone like
+- a **menu** (⋯) with *Zoom to ROI*, *Rename*, a choice of eight **colours**, the **class** (*No class*, the classes and
+  *Manage Classes…*), *Duplicate*, *Copy to All Slices* (stacks) and *Delete*. Changing the colour can be undone like
   other ROI changes.
 
 Click a row to select the ROI; :kbd:`⌘`/:kbd:`Ctrl`-click to add it to the selection; :kbd:`Shift`-click to select a

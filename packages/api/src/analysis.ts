@@ -269,7 +269,7 @@ export const ScoreProfile = Type.Union([Type.Literal('calibration'), Type.Litera
 export type ScoreProfile = Static<typeof ScoreProfile>;
 
 export const AnalysisSettings = Type.Object({
-  features: Type.Array(Type.String(), { minItems: 1, maxItems: 64, description: 'Feature ids from GET /catalog' }),
+  features: Type.Array(Type.String(), { minItems: 1, maxItems: 512, description: 'Feature ids from GET /catalog' }),
   grayLevels: Type.Integer({ minimum: 2, maximum: 256 }),
   quantization: Type.Object({
     method: QuantizationMethod,

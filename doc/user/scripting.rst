@@ -3,9 +3,10 @@
 Without the browser: the command line and AI assistants
 =======================================================
 
-Everything the application does through the browser it can also do from a command line, and an AI assistant can drive it
-too. The measurements are the same in every case: the same code computes them, and the results carry the same image
-checksums and settings.
+The measurements of the application — measuring ROIs, finding regions by intensity and computing feature maps — can also
+be made from a command line, and an AI assistant can drive them too. Drawing and editing ROIs, plots, reports and
+projects stay in the browser. The measurements are the same in every case: the same code computes them, and the results
+carry the same image checksums and settings.
 
 This is worth using when
 
@@ -70,11 +71,12 @@ The commands
    * - ``glcm regions <image>``
      - Finds regions by intensity and saves them as an ROI set the application also reads
    * - ``glcm feature-map <image>``
-     - Computes one feature over the whole image and saves it as a 32-bit TIFF
+     - Computes one feature over the whole image (in a 31-pixel window unless ``--window`` says otherwise) and, with
+       ``--out``, saves it as a 32-bit TIFF
    * - ``glcm mcp``
      - Serves the same work to an AI assistant (below)
 
-``<image>`` is a file, a sample (``sample:textures/brick.png``), or an image the server already has. A file is
+``<image>`` is a file, a sample (``sample:textures/brick.png``), or the id of an image the server already has. A file is
 recognised by its checksum, so measuring it again does not upload it again.
 
 Measuring
@@ -108,7 +110,9 @@ Set…*, and use that file:
    glcm measure patient-*.png --rois lungs.roi.json --preset haralick --out study.csv
 
 Images measured with the same settings are written into one table, as a batch measurement in the application would be;
-when the settings differ, each group gets its own file. The settings themselves come from the defaults, then a settings
+when the settings differ, each group gets its own file (``study-1.csv``, ``study-2.csv``, …), and ``--json`` gives one
+document per image. A combined table leaves out the comment lines that describe one image (its time, name, checksum and
+pixel spacing). The settings themselves come from the defaults, then a settings
 file, then a preset, then single options such as ``--features Contrast,Entropy``, ``--gray-levels 32``,
 ``--distances 1,2``, ``--quantization fixedRange,0,255``, ``--resample 0.5,0.5`` (see :ref:`resampling <resampling>`; the
 image needs a pixel spacing, or ``--spacing``), ``--log-sigma 2`` for the Laplacian of Gaussian or ``--wavelet HH`` for a wavelet sub-band (either with
@@ -132,6 +136,8 @@ on the open image — every ROI of the ROI Manager, with the current analysis se
 .. code-block:: bash
 
    glcm measure camera.png --settings camera.settings.json --rois camera.roi.json --out camera-results.csv
+
+(The figure shows ``--spacing 0.5,0.5`` as well, because a pixel spacing had been entered for that image.)
 
 **Save Files** downloads a ZIP with the settings file, the ROI set and a script (``camera-measure.sh``) holding the same
 command. Unpack it in the folder with the image and run the command there (or the script, ``sh camera-measure.sh``); the

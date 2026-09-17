@@ -55,7 +55,8 @@ Pixel values
 ------------
 
 The status bar shows the column (``x``), row (``y``) and value of the pixel under the pointer. Values are those of the
-stored image: 0–255 for 8-bit images and 0–65535 for 16-bit images, after conversion to grayscale for color images.
+stored image: 0–255 for 8-bit images and 0–65535 for 16-bit images; for colour images, after the colour conversion
+(the luminance unless another one was chosen, see :ref:`colour-images`).
 Column 0, row 0 is the upper left pixel.
 
 .. _stacks:
@@ -146,8 +147,8 @@ does:
 - The horizontal axis is the distance from the start of the line, in millimetres when the image has a pixel spacing.
 - On a stack, the profile is that of the slice shown.
 
-*Analyze ▸ Histogram* counts the pixel values of the selected ROI (or of the ROI just drawn; without either, of the whole
-image or the slice shown):
+*Analyze ▸ Histogram* counts the pixel values of the selected ROI when exactly one ROI on the slice shown is selected
+(otherwise of the ROI just drawn; without either, of the whole image or the slice shown):
 
 .. figure:: images/histogram.png
    :alt: The Histogram dialog with a bar chart of pixel counts against the value, a choice of the number of bins, and the pixel count, minimum, maximum, mean, standard deviation, mode and bin width.
@@ -184,7 +185,8 @@ those above it white. Changing the window **only changes the display**; measurem
 - Choose the settings button next to the slider (or *Image ▸ Window/Level ▸ Custom…*) to see the histogram of the whole
   image, type exact **Min** and **Max** values, or choose:
 
-  - **Auto** — from the 0.5th to the 99.5th percentile of the intensities (the window used when the image opens);
+  - **Auto** — the window the image opened with: from the 0.5th to the 99.5th percentile of the intensities, or the
+    window stored in a DICOM file (*Image ▸ Window/Level ▸ Auto (Default Window)*);
   - **Full range** — 0–255 or 0–65535.
 
 - Under **Saved windows**, type a name and choose **Save** to keep the current window, for example a lung window for CT

@@ -441,7 +441,7 @@ def command_line() -> str:
     d.add(text(680, 140, 'tools an assistant calls', 10.5, None, MUTED, 'middle'))
 
     d.section_label(24, 186, 'Shared operations')
-    d.box(465, 232, 620, 62, '@glcm/client', 'openImage · buildSettings · measure · selectRegions · computeFeatureMap', 'web', strong=True)
+    d.box(465, 232, 620, 62, '@glcm/client', 'openImage · measure · selectThresholdRegions · selectRegionAt · computeFeatureMap', 'web', strong=True)
     d.arrow([(250, 121), (250, 176), (300, 176), (300, 201)])
     d.arrow([(680, 121), (680, 176), (630, 176), (630, 201)])
     d.add(text(465, 281, 'Only @glcm/api and fetch: reads no files, needs no native addon', 11, None, MUTED, 'middle'))

@@ -26,7 +26,7 @@
   <text x="24.0" y="186.0" font-size="10.5" fill="#64748b" font-weight="700" letter-spacing="0.08em">SHARED OPERATIONS</text>
   <g filter="url(#shadow)"><rect x="155.0" y="201.0" width="620" height="62" rx="10" fill="#eef4fe" stroke="#3b73d9" stroke-width="1.8"/></g>
   <text x="465.0" y="229.0" font-size="12.5" fill="#1e293b" font-weight="600" text-anchor="middle">@glcm/client</text>
-  <text x="465.0" y="245.0" font-size="10.5" fill="#64748b" text-anchor="middle" font-family="'SFMono-Regular', Menlo, Consolas, monospace">openImage · buildSettings · measure · selectRegions · computeFeatureMap</text>
+  <text x="465.0" y="245.0" font-size="10.5" fill="#64748b" text-anchor="middle" font-family="'SFMono-Regular', Menlo, Consolas, monospace">openImage · measure · selectThresholdRegions · selectRegionAt · computeFeatureMap</text>
   <path d="M250.0,121.0 L250.0,176.0 L300.0,176.0 L300.0,201.0" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow)"/>
   <path d="M680.0,121.0 L680.0,176.0 L630.0,176.0 L630.0,201.0" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow)"/>
   <text x="465.0" y="281.0" font-size="11" fill="#64748b" text-anchor="middle">Only @glcm/api and fetch: reads no files, needs no native addon</text>

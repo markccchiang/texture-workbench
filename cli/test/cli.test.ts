@@ -68,6 +68,16 @@ describe('glcm', () => {
     expect(rows[0]).toContain('Whole image');
   });
 
+  it('measures every preset, including all features', async () => {
+    const presets = JSON.parse((await glcm('features', '--presets', '--json')).out) as Array<{ id: string; features: string[] }>;
+    const all = presets.find((preset) => preset.id === 'all')!;
+    expect(all.features.length).toBeGreaterThan(64);
+    for (const preset of presets) {
+      const result = await glcm('measure', SAMPLE, '--preset', preset.id, '--json');
+      expect(result.code, `${preset.id}: ${result.err}`).toBe(0);
+    }
+  });
+
   it('selects regions, writes an ROI set and measures it', async () => {
     const roiFile = path.join(dataDir, 'regions.roi.json');
     const regions = await glcm('regions', SAMPLE, '--min', '0', '--max', '110', '--min-pixels', '400', '--max-regions', '3', '--out', roiFile);

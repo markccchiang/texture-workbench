@@ -60,7 +60,8 @@ sessions, and results already in the table keep the settings they were measured 
        (in mm with a pixel spacing, in pixels without). *Wavelet (Coiflet 1)* measures one **Sub-band** of a wavelet
        transform: LL a smoothed image, LH horizontal edges, HL vertical edges, HH fine diagonal detail. Filtered values
        are real numbers, so the quantization must be a fixed
-       bin width or ROI min–max (choosing the filter switches to a bin width of 25, PyRadiomics' default), and local
+       bin width or ROI min–max (choosing a filter while the quantization is *Fixed range* or *None* switches it to a bin width
+       of 25, PyRadiomics' default), and local
        binary patterns and the score are not available. See :ref:`Resampling <resampling>` below.
    * - **Resample before measuring** (Advanced)
      - Resamples the image to other pixels, in millimetres, before measuring — usually square pixels (**Square pixels
@@ -78,8 +79,8 @@ including choosing a preset or resetting to the defaults. Opening a project star
 
 .. figure:: images/feature-picker.png
    :alt: The feature picker with a search field and checkboxes grouped into first-order statistics, Haralick features,
-         other co-occurrence features, run length (GLRLM), size zone (GLSZM), gray tone difference (NGTDM) and local
-         binary pattern (LBP) features; Correlation III and Sum of Squares are marked non-standard.
+         other co-occurrence features, run length (GLRLM), size zone (GLSZM), gray tone difference (NGTDM), local
+         binary pattern (LBP) and shape (2D) features; Correlation III and Sum of Squares are marked non-standard.
    :align: center
 
    The feature picker.
@@ -156,6 +157,8 @@ stop the batch; reopen it to see the progress.
 
 **Download combined CSV** saves the results of every finished image as one CSV file, with the settings as comment lines
 once (``# images=`` gives the number of images) and the ``image`` and ``imageSha256`` columns telling the rows apart.
+The lines that describe one image — its time, name, checksum and pixel spacing — are left out of a combined file; the
+``areaMm2`` column still gives each row's area.
 If the images needed different settings, for example 8-bit and 16-bit images with a fixed quantization range, the
 download is a ZIP with one CSV per group of settings.
 
@@ -173,7 +176,7 @@ values in colour over the image:
 
 - **Feature** — any Haralick or other co-occurrence feature except the Maximal Correlation Coefficient, which is too
   slow to compute for every window.
-- **Window** — the side of the square window in pixels, an odd number from 3 to 127 (15 by default). Windows at the
+- **Window** — the side of the square window in pixels, an odd number from 3 to 127 (15 the first time; the dialog then keeps your last choice). Windows at the
   edges of the image are cut off by the edges.
 - **Distance** — one of the distances of the analysis settings; it must be smaller than the window.
 - **Step** — the spacing of the points. *Automatic* chooses the smallest step that gives at most 512 points along each

@@ -34,11 +34,11 @@ Keyboard
    * - :kbd:`T`
      - Add the active ROI to the ROI Manager
    * - :kbd:`Enter`
-     - Close the polygon being drawn
+     - Close the polygon or livewire outline being drawn
    * - :kbd:`Backspace` / :kbd:`Delete`
      - Remove the last vertex of the polygon or livewire being drawn; otherwise delete the selected ROIs
    * - :kbd:`Esc`
-     - Cancel the polygon being drawn; otherwise clear the active ROI and the selection
+     - Cancel the polygon or livewire outline being drawn; otherwise clear the active ROI, the selection and the ruler
    * - :kbd:`⌘A`
      - Select all ROIs
    * - :kbd:`⌘Z` / :kbd:`⌘⇧Z`

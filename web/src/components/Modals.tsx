@@ -191,6 +191,8 @@ const SHORTCUTS: [string, string][] = [
   ['⇧1 … ⇧9 / ⇧0', 'Give the selected ROIs a class / remove it'],
   ['L', 'Ruler: drag to measure a distance (Shift: 45° steps)'],
   ['T', 'Add the drawn ROI to the ROI Manager'],
+  ['Enter', 'Close the polygon or livewire outline being drawn'],
+  ['Esc', 'Cancel the outline being drawn; otherwise clear the drawn ROI, the selection and the ruler'],
   ['M / ⇧M', 'Measure selected / all ROIs'],
   [`${MOD_KEY}K`, 'Plot the profile along the ruler line'],
   ['. / ,', 'Next / previous slice of a stack'],
@@ -202,7 +204,7 @@ const SHORTCUTS: [string, string][] = [
   ['1', 'Zoom to 100 %'],
   ['0', 'Fit the image to the window'],
   ['N', 'Show or hide the navigator'],
-  ['Arrow keys', 'Pan by 50 px (Shift: by one view)'],
+  ['Arrow keys', 'Move the selected ROIs by 1 px (Shift: 10 px); without a selection, pan by 50 px (Shift: by one view)'],
   ['Space + drag', 'Pan (also middle-button drag or the Pan tool)'],
   ['Mouse wheel', 'Zoom around the cursor'],
   ['Pinch', 'Zoom around the fingers'],
@@ -322,7 +324,7 @@ function AboutContent() {
   return (
     <Stack gap="xs">
       <Text size="sm">
-        Texture features of regions of interest in grayscale images: co-occurrence (Haralick) features, first-order statistics,
+        Texture features of regions of interest in 8- and 16-bit and colour images: co-occurrence (Haralick) features, first-order statistics,
         GLRLM, GLSZM, NGTDM and LBP.
       </Text>
       <InfoRows rows={[['Core version', health.data?.coreVersion ?? '…']]} />

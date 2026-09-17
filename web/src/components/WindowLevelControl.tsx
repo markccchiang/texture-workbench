@@ -170,7 +170,7 @@ function WindowLevelPanel() {
         </Button>
       </Group>
       <Text size="xs" c="dimmed">
-        Auto = 0.5–99.5 percentiles ({image.info.windowMin}–{image.info.windowMax})
+        Auto = the window the image opened with ({image.info.windowMin}–{image.info.windowMax}): the 0.5–99.5 percentiles, or the window stored in a DICOM file
       </Text>
       <ColorTablePicker />
       <SavedWindows bitDepth={image.info.bitDepth} min={window.min} max={window.max} maxValue={maxValue} />

@@ -137,7 +137,7 @@ export function BatchContent({ onClose }: { onClose(): void }) {
         multiple
         disabled={running}
         accept={IMAGE_FILE_TYPES}
-        placeholder="Choose PNG, JPEG, BMP or TIFF images"
+        placeholder="Choose PNG, JPEG, BMP, TIFF, DICOM or NIfTI images"
         clearable
         value={images}
         onChange={setImages}

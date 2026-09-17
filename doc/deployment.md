@@ -11,7 +11,9 @@ The server decides its mode from `GLCM_HOST`:
 | Address | `127.0.0.1`, `::1` or `localhost` | any other address, e.g. `0.0.0.0` in a container |
 | Access token | optional | **required**: the server refuses to start without `GLCM_API_TOKEN` |
 | Data directory | `~/.glcm-texture-analysis` | `/data` |
-| Largest upload | 200 MiB, 20 000 × 20 000 px | 100 MiB, 10 000 × 10 000 px |
+| Largest upload | 200 MiB, 20 000 × 20 000 px | 100 MiB, 10 000 × 10 000 px (per file of a DICOM series) |
+| Volumes and series | 4 GiB of voxel data or series files, 10 000 series files | 1 GiB, 2 000 series files |
+| Largest stack | 1 000 000 000 px in all slices | 400 000 000 px |
 | Rate limit | off | 600 requests per minute per token |
 | Analysis queue | 100 000 jobs | 20 000 jobs (ROI × distance) |
 | Pixel cache | 2 GiB | 1 GiB |
@@ -25,7 +27,7 @@ Create a token (at least 43 characters, e.g. 32 random bytes in base64) and star
 
 ```bash
 export GLCM_API_TOKEN="$(openssl rand -base64 32)"
-docker compose up -d                 # uses compose.yaml: port 127.0.0.1:8080, volume glcm-data
+docker compose up -d                 # uses compose.yaml: port 127.0.0.1:8080, volume texture-workbench_glcm-data
 docker compose logs -f glcm
 ```
 
@@ -36,6 +38,10 @@ docker build -t texture-workbench .
 docker run -d --name glcm -p 127.0.0.1:8080:8080 -v glcm-data:/data -e GLCM_API_TOKEN texture-workbench
 node scripts/smoke-test.mjs http://127.0.0.1:8080   # uses GLCM_API_TOKEN from the environment
 ```
+
+Compose prefixes the volume with the project name (the folder name, `texture-workbench_glcm-data`), while `docker run`
+above uses a volume named `glcm-data`: the two do not share their data. Use one way, or give `docker run` the Compose
+volume (`-v texture-workbench_glcm-data:/data`).
 
 The image is built in two stages from base images pinned by digest (Dependabot proposes updates). The first compiles `glcm_core`, the Node-API addon and the web app. The runtime stage is `node:24-bookworm-slim` with only the OpenCV runtime libraries, and runs as the unprivileged `node` user. It stores everything in the `/data` volume:
 - `images/` holds uploads and decoded pixels;
@@ -48,8 +54,10 @@ The image also carries the `glcm` command, so a container is enough to measure f
 repository:
 
 ```bash
-docker exec -e GLCM_API_TOKEN glcm glcm measure sample:medical/ct-chest.png \
-    --server http://127.0.0.1:8080 --token "$GLCM_API_TOKEN" --features Contrast,Entropy
+# With Compose (the service is called glcm; the container already has GLCM_API_TOKEN)
+docker compose exec glcm glcm measure sample:medical/ct-chest.png --server http://127.0.0.1:8080 --features Contrast,Entropy
+# With the docker run container above (named glcm)
+docker exec glcm glcm measure sample:medical/ct-chest.png --server http://127.0.0.1:8080 --features Contrast,Entropy
 docker exec glcm glcm --help
 ```
 
@@ -84,7 +92,7 @@ location / {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
-    client_max_body_size 100m;
+    client_max_body_size 1024m;   # at least GLCM_MAX_VOLUME_BYTES (1 GiB): NIfTI volumes and DICOM series
     proxy_buffering off;          # Server-Sent Events of /api/v1/analyses/{id}/events
     proxy_read_timeout 1h;
 }

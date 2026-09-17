@@ -853,8 +853,8 @@ else. Let :math:`R`, :math:`G` and :math:`B` be a pixel's channels and :math:`M`
 depth (255 or 65 535). The results carry the conversion as the image's value conversion; all but the luminance write
 one.
 
-**Luminance** (the default): :math:`0.299 R + 0.587 G + 0.114 B`, rounded, as OpenCV's ``COLOR_BGR2GRAY`` computes it
-(in fixed point for 8-bit images).
+**Luminance** (the default): approximately :math:`0.299 R + 0.587 G + 0.114 B`, as OpenCV's ``COLOR_BGR2GRAY`` computes it
+in fixed-point arithmetic; on 16-bit images a result can differ from the rounded exact value by one or two steps.
 
 **Mean**: :math:`\lfloor R/3 + G/3 + B/3 + 0.5 \rfloor`, ImageJ's conversion with unweighted RGB conversions. **Red**,
 **green**, **blue**: the channel unchanged.
@@ -874,7 +874,7 @@ they are computed in single precision, as Java does, and the stored sample is :m
 colours with ImageJ 1.54p (``scripts/imagej-colour``); they are identical. ImageJ has no HSB stack of 16-bit colour
 images; for them the same formulas are computed in double precision and stored as :math:`\operatorname{round}(65\,535\,
 x)`, so the brightness of an image with :math:`M = 65\,535` is exactly its largest channel (single precision would lose
-one step for about half of the values). For a DICOM file with fewer bits stored than allocated, :math:`M` is the largest
+one step for about half of the values). For a DICOM file with 16 bits allocated and fewer stored, :math:`M` is the largest
 value those bits hold (4095 for 12 bits), for the HSB components and the stains alike.
 
 **Stains** are separated by colour deconvolution [Ruifrok2001]_ as scikit-image's ``separate_stains`` does. The
@@ -895,8 +895,8 @@ hematoxylin, stain 1 eosin) and ``hdx_from_rgb`` for H-DAB (stain 0 hematoxylin,
 sum :math:`P_s` of the positive entries of column :math:`s`, so it is stored as the 16-bit sample
 :math:`\operatorname{round}(D_s / k)` with :math:`k = P_s / 65\,535`, and the value conversion is
 :math:`D_s = \text{stored} \times k` in the unit ``OD``. The core tests compare the densities of the four stains, on the
-test image and on the ``textures/ihc.png`` sample, with scikit-image 0.26: every stored value lies within
-:math:`k / 2` of scikit-image's.
+test image and on the ``textures/ihc.png`` sample, with scikit-image 0.26 at every 9th (test image) or 17th (``ihc.png``) pixel
+along each axis: every compared stored value lies within :math:`k / 2` of scikit-image's.
 
 .. note::
 

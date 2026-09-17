@@ -55,7 +55,7 @@ Endpoints
    * - ``POST /images/{id}/colour``
      - ``{conversion}`` → ``ImageInfo``: the colour image decoded again with another conversion (``mean``, ``red``,
        ``green``, ``blue``, ``hue``, ``saturation``, ``brightness``, ``hematoxylinHe``, ``eosinHe``, ``hematoxylinHdab``,
-       ``dabHdab``; see :ref:`colour-conversion`), stored as a new image named ``<name> [<conversion>]`` (``201``) whose
+       ``dabHdab``; see :ref:`colour-conversion`), stored as a new image named ``<name> [<suffix>]``, e.g. ``[red]`` or ``[DAB H-DAB]`` (``201``) whose
        ``colourSource`` is ``{imageId, conversion}`` of the colour image, whose ``valueConversion`` describes the
        conversion and whose original file is an uncompressed TIFF of the converted slices with the colour image and the
        conversion in its ImageDescription (so equal samples of two conversions still give two files, and its SHA-256
@@ -118,12 +118,13 @@ Endpoints
        as the pixel centres where it turns; ``400`` for points outside the image or more than 1024 pixels apart
    * - ``POST /images/{id}/line-profile``
      - ``{from: {x, y}, to: {x, y}, slice?}`` → ``{values, length, step}``: round(``length``) + 1 samples evenly spaced
-       along the line, each interpolated bilinearly between the four nearest pixel centres (the nearest centre between
-       the outermost centres and the image edge), ``null`` outside the image; lines up to 100 000 pixels
+       along the line, each interpolated bilinearly between the four nearest pixel centres (coordinates between the
+       outermost centres and the image edge are clamped to those centres), ``null`` outside the image; lines up to 100 000 pixels
    * - ``POST /images/{id}/roi-histogram``
      - ``{shape, bins?, slice?}`` → ``{pixelCount, min, max, mean, std, mode, binStart, binWidth, counts}``: the pixels of
        the shape (as for ``roi-stats``) in bins of the smallest whole width that covers their minimum to maximum in at
-       most ``bins`` (1–65 536, default 256); ``mode`` is the most frequent value
+       most ``bins`` (1–65 536, default 256); ``std`` is the sample standard deviation (0 for one pixel), ``mode`` the
+       lowest of the most frequent values; an ROI without pixels gives ``null`` statistics and no ``counts``
    * - ``POST /images/{id}/combine-rois``
      - ``{operation: "union"|"subtract"|"intersect"|"xor", shapes}`` → ``{shape, pixelCount, boundingBox}``: the shapes
        rasterized on the image grid and combined (``xor``: the pixels an odd number of shapes cover); ``shape`` is one
@@ -218,13 +219,15 @@ Main schemas
 
 **ImageInfo** — ``imageId``, ``name``, ``sizeBytes``, ``width``, ``height``, ``bitDepth`` (8 or 16), ``slices`` (1 for a
 single image; width and height are those of one slice), ``sourceChannels``, ``colourSource`` (converted images), ``madeFrom`` (``"niftiVolume"`` or ``"dicomSeries"`` for images the server made from several files or a volume), ``sha256``, ``transfer`` (``"raw"`` or ``"server"``), ``windowMin``, ``windowMax`` (0.5 and 99.5
-percentiles, or the first DICOM window), ``histogram`` (256 bins), ``pixelSpacing``, ``valueConversion`` (DICOM and
-NIfTI only), ``warnings``, ``createdAt``.
+percentiles, or the first DICOM window), ``histogram`` (256 bins), ``pixelSpacing``, ``valueConversion`` (DICOM,
+NIfTI and converted colour images), ``warnings``, ``createdAt``.
 
 **Value conversion** — ``{scale, offset, unit, description}``: the file's value (after its rescale slope and intercept)
 is ``stored sample × scale + offset``; ``unit`` is ``HU`` for CT. Values are stored unchanged when they are integers
-within 0–65 535, + 1024 when they are integers with a negative minimum, and mapped linearly from their minimum–maximum
-otherwise; DICOM MONOCHROME1 is inverted (``scale`` −1). ``AnalysisInfo.valueConversion`` and the results document's
+within 0–65 535, + 1024 when they are integers with a negative minimum of at least −1024 (or CT values, clipped there)
+whose maximum + 1024 fits, and mapped linearly from their minimum–maximum otherwise; DICOM MONOCHROME1 is inverted
+(``scale`` −1). A colour conversion other than the luminance records ``scale`` 1 (channels, mean, HSB) or the stain
+scale with the unit ``OD`` (see :ref:`colour-conversion`). ``AnalysisInfo.valueConversion`` and the results document's
 ``image.valueConversion`` carry the description, which exports write as ``# valueConversion=…``.
 
 **VolumeInfo** — ``volumeId``, ``name``, ``sizeBytes``, ``niftiVersion``, ``dimensions`` (voxels along i, j, k),
@@ -364,9 +367,10 @@ Error codes
      - ``UnsupportedMediaType``
      - Upload not sent as ``multipart/form-data``
    * - 422
-     - ``InvalidImage``, ``UnsupportedImage``, ``ImageTooLarge``, ``TooManyJobs``
+     - ``InvalidImage``, ``UnsupportedImage``, ``ImageTooLarge``, ``TooManyJobs``, ``NotColour``
      - The file cannot be decoded, has an unsupported format (e.g. 32-bit float), or has too many pixels (checked from
-       the file header before decoding); an analysis has more jobs than the server allows
+       the file header before decoding); an analysis has more jobs than the server allows; a colour conversion was asked
+       for an image without colour channels
    * - 429
      - ``TooManyRequests``
      - Rate limit exceeded (with ``Retry-After``)
@@ -506,7 +510,7 @@ functions throw, with an ``Error`` whose ``code`` is ``INVALID_ARGUMENT``, ``UNS
      - Version of ``glcm_core``
    * - ``catalog(): NativeCatalog``
      - Features, presets and limits
-   * - ``decodeImageFile(path, {maxPixels, maxStackPixels, colour, firstSlice, encodeTiff}?): Promise<DecodedImage>``
+   * - ``decodeImageFile(path, {maxPixels, maxStackPixels, colour, firstSlice, encodeTiff, tiffDescription}?): Promise<DecodedImage>``
      - Size, bit depth, ``slices``, channels, warnings, default window, histogram and pixels of an image file; the pages
        of a multi-page TIFF and the frames of a DICOM file are slices, their pixels one slice after another, and
        ``maxStackPixels`` limits all of them together. With ``maxPixels``,
@@ -514,7 +518,8 @@ functions throw, with an ``Error`` whose ``code`` is ``INVALID_ARGUMENT``, ``UNS
        files that are not PNG, JPEG, BMP, TIFF, DICOM or NIfTI with ``DECODE_FAILED``. Also ``valueConversion`` (or
        ``null``); DICOM files give their window as ``windowMin``/``windowMax``. ``colour`` (a ``ColourConversionId``,
        default ``luminance``) chooses how colour images become gray, ``firstSlice`` reads only the first page or frame,
-       and ``encodeTiff`` also returns the result as an uncompressed TIFF in ``tiff``
+       and ``encodeTiff`` also returns the result as an uncompressed TIFF in ``tiff`` (with ``tiffDescription`` as the
+       ImageDescription of every page)
    * - ``inspectNiftiVolume(path, copyPath, {maxBytes}?): Promise<NativeVolumeInfo>``
      - Header, RAS axes, slice geometry, value range, ``storage`` (``{kind, bitDepth, scale, offset}``), conversion and
        window of a NIfTI file, written uncompressed to ``copyPath`` (``glcm::InspectNiftiVolume``)

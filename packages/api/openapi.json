@@ -6250,7 +6250,7 @@
                           "type": "string"
                         },
                         "minItems": 1,
-                        "maxItems": 64,
+                        "maxItems": 512,
                         "description": "Feature ids from GET /catalog"
                       },
                       "grayLevels": {
@@ -6727,7 +6727,7 @@
                             "type": "string"
                           },
                           "minItems": 1,
-                          "maxItems": 64,
+                          "maxItems": 512,
                           "description": "Feature ids from GET /catalog"
                         },
                         "grayLevels": {
@@ -7328,7 +7328,7 @@
                             "type": "string"
                           },
                           "minItems": 1,
-                          "maxItems": 64,
+                          "maxItems": 512,
                           "description": "Feature ids from GET /catalog"
                         },
                         "grayLevels": {
@@ -7966,7 +7966,7 @@
                             "type": "string"
                           },
                           "minItems": 1,
-                          "maxItems": 64,
+                          "maxItems": 512,
                           "description": "Feature ids from GET /catalog"
                         },
                         "grayLevels": {
@@ -10066,7 +10066,7 @@
                                 "type": "string"
                               },
                               "minItems": 1,
-                              "maxItems": 64,
+                              "maxItems": 512,
                               "description": "Feature ids from GET /catalog"
                             },
                             "grayLevels": {
@@ -10909,7 +10909,7 @@
                           "type": "string"
                         },
                         "minItems": 1,
-                        "maxItems": 64,
+                        "maxItems": 512,
                         "description": "Feature ids from GET /catalog"
                       },
                       "grayLevels": {

@@ -1,6 +1,6 @@
 # Texture Analysis Web UI — Design Plan
 
-Status: **Draft v3** — all open questions are resolved, and **phases 0–5 are implemented** (see §9). This is the plan the application was built from; later work went beyond it. The application now also reads DICOM (files and series) and NIfTI volumes, reads and writes ImageJ `.roi` files, filters images (Laplacian of Gaussian, wavelet) and opens stacks, and a new `glcm` command line and MCP server exist (`cli/`), so decisions 2–4 and the non-goals below record the choices of the time, not the current scope. The file layout in §4 is the one planned; a few planned files were named differently or merged. The user guide and developer guide in `doc/` describe the application as it is.
+Status: **Draft v3** — all open questions are resolved, and **phases 0–5 are implemented** (see §9). This is the plan the application was built from; later work went beyond it. The application now also reads DICOM (files and series) and NIfTI volumes, reads and writes ImageJ `.roi` files, filters images (Laplacian of Gaussian, wavelet), opens stacks, converts colour images by channel, HSB component or stain density, and a new `glcm` command line and MCP server exist (`cli/`), so decisions 2–4 and the non-goals below record the choices of the time, not the current scope. The file layout in §4 is the one planned; a few planned files were named differently or merged. The user guide and developer guide in `doc/` describe the application as it is.
 Scope: an ImageJ-style texture analysis application with a **TypeScript web frontend** and the existing C++ GLCM core behind a server API. It runs locally on macOS or Linux and can later be deployed to Linux servers for large-scale analysis.
 
 Decisions taken (reviews of drafts v1 and v2):
@@ -605,7 +605,7 @@ Example analysis request (`POST /api/v1/analyses`):
 | `POST /exports/results` | CSV/JSON for an arbitrary list of result rows (the current table) |
 | `POST /exports/roi-images` | ZIP of ROI crops, masks, manifest |
 
-The OpenAPI document is generated from the TypeBox schemas and published at `/api/v1/openapi.json`.
+The OpenAPI document is generated from the TypeBox schemas (as built: written to `packages/api/openapi.json` by `npm run openapi`; the server does not publish it).
 
 ### 8.6 Build and platforms
 

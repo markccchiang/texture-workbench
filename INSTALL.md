@@ -22,7 +22,7 @@ You need:
 brew install cmake opencv eigen nlohmann-json googletest node
 ```
 
-**Debian or Ubuntu** (install Node.js 24 separately, for example from [nodejs.org](https://nodejs.org/)):
+**Debian 12 or Ubuntu 24.04 and newer** (install Node.js 24 separately, for example from [nodejs.org](https://nodejs.org/); older releases ship nlohmann-json before 3.11, which is too old):
 
 ```bash
 sudo apt install cmake g++ libopencv-dev libeigen3-dev nlohmann-json3-dev zlib1g-dev libgtest-dev

@@ -168,7 +168,7 @@ export function MenuBar() {
         <Menu.Divider />
         <Menu.Label>Window/Level</Menu.Label>
         <Menu.Item disabled={!hasImage} onClick={() => viewer().resetWindow('auto')}>
-          Auto (0.5–99.5 %)
+          Auto (Default Window)
         </Menu.Item>
         <Menu.Item disabled={!hasImage} onClick={() => viewer().resetWindow('full')}>
           Full Range

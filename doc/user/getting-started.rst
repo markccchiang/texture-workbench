@@ -120,8 +120,9 @@ A **DICOM series** — a folder of single-frame files, one per slice, as a CT or
 stack with *File ▸ Open DICOM Series…*, which asks for the folder. Files that are not DICOM images are left out; when
 the folder holds several series, the one with the most files is used; the slices are ordered along the patient axis
 across the image plane (ImagePositionPatient), or by instance number when the files have no position. The values of
-all files are stored with one conversion, the pixel spacing and window come from the first file, and the stack is named
-after the folder.
+all files are stored with one conversion, the pixel spacing comes from the first file and the window from the first
+file that has one, and the stack is named after the folder. A series can have up to 10 000 files (2 000 on a shared
+server), together no larger than the volume limit below.
 
 **NIfTI** files (``.nii`` or ``.nii.gz``, NIfTI-1 or NIfTI-2) hold volumes. When a 3D or 4D file opens, a dialog asks
 how to open it:
@@ -153,10 +154,10 @@ conversion is shown in *Image Info* and written into exported results (``valueCo
 
 - The rescale is applied first: RescaleSlope and RescaleIntercept (DICOM), or ``scl_slope`` and ``scl_inter`` (NIfTI).
 - Integer values between 0 and 65 535 are stored unchanged.
-- Integer values with a negative minimum are stored + 1024. For CT this is HU + 1024, as in the CT samples: air
-  (−1000 HU) is stored as 24 and water as 1024. In CT files, lower values (outside the scan field) are stored as 0,
-  and a notification says so. For NIfTI files, whose modality is not known, this applies when the minimum is at
-  least −1024.
+- Integer values with a negative minimum of at least −1024 are stored + 1024, as long as the maximum + 1024 still fits
+  in 65 535. For CT this is HU + 1024, as in the CT samples: air (−1000 HU) is stored as 24 and water as 1024. In CT
+  files (DICOM files with Hounsfield units), lower values mark pixels outside the scan field: they are stored as 0,
+  and a notification says so.
 - Other values (for example floating-point data) are mapped linearly from their minimum–maximum to 0–65 535; for
   NIfTI files the minimum and maximum of the whole file, so all slices are stored alike.
 - DICOM **MONOCHROME1** images, where low values are bright, are inverted so that bright means dense.

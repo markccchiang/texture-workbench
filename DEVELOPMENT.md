@@ -24,7 +24,7 @@ ctest --test-dir build
 ./build/glcm-tests --gtest_filter='TextureAnalysisTest.ConstantImage'   # a single test
 ```
 
-The tests (`core/tests/`) check the features against Haralick's worked example, against a simple, independent GLCM implementation, and against reference values from PyRadiomics, scikit-image, SimpleITK (resampling, Laplacian of Gaussian) and PyWavelets (wavelet). They also cover ROI masks and ROI operations, image loading, quantization, display rendering, the analysis pipeline, feature maps and the exporters.
+The tests (`core/tests/`) check the features against Haralick's worked example, against a simple, independent GLCM implementation, and against reference values from PyRadiomics, scikit-image (LBP, stain densities), SimpleITK (resampling, Laplacian of Gaussian), PyWavelets (wavelet) and ImageJ (colour conversions). They also cover ROI masks and ROI operations, image loading (DICOM, NIfTI, stacks, colour images), quantization, display rendering, line profiles and ROI histograms, the analysis pipeline, feature maps and the exporters. The JavaScript tests compare ImageJ ROI files with ImageJ's own pixels.
 
 The JavaScript tests are described under [Web application](#web-application).
 
@@ -40,10 +40,10 @@ The JavaScript tests are described under [Web application](#web-application).
 | Gray tone difference (NGTDM) | Coarseness, Contrast, Busyness, Complexity, Strength |
 | Shape (2D) | Mesh Surface, Pixel Surface, Perimeter, Perimeter to Surface Ratio, Sphericity, Maximum 2D Diameter, Major/Minor Axis Length, Elongation (in mm with a pixel spacing) |
 | Local binary patterns (LBP) | Fractions of the uniform patterns 0–8 and of non-uniform patterns, LBP Entropy, LBP Energy (rotation-invariant uniform LBP with 8 samples, radius = distance) |
-| Haralick | Energy (Angular Second Moment), Contrast, Correlation (I, II, III), Sum of Squares (in i, j, both), Homogeneity I, Homogeneity II (Inverse Difference Moment), Sum Average, Sum Variance, Sum Entropy, Entropy, Difference Variance, Difference Entropy, Information Measures of Correlation I and II, Maximal Correlation Coefficient |
-| Others | Auto Correlation, Cluster Shade, Cluster Prominence, Dissimilarity, Maximum Probability, Inverse Difference Normalized, Inverse Difference Moment Normalized |
+| Haralick | Energy (Angular Second Moment), Contrast, Correlation II, Sum of Squares (in x and y, in x, in y), Homogeneity II (Inverse Difference Moment), Sum Average, Sum Variance, Sum Entropy, Entropy, Difference Variance, Difference Entropy, Information Measures of Correlation I and II, Maximal Correlation Coefficient |
+| Others | Auto Correlation, Correlation I, Correlation III, Cluster Shade, Cluster Prominence, Dissimilarity, Homogeneity I, Maximum Probability, Inverse Difference Normalized, Inverse Difference Moment Normalized |
 
-"Another way" variants of Contrast and Correlation compute the same value with a different formula and are useful as cross-checks.
+The "(Check)" variants of Contrast, Correlation I and Correlation II (`ContrastAnotherWay` and so on in the C++ API) compute the same value with a different formula and are useful as cross-checks.
 
 Using the library directly (include paths are relative to `core/`):
 
@@ -87,11 +87,11 @@ npm run typecheck       # TypeScript
 npm run openapi         # regenerate packages/api/openapi.json
 ```
 
-For web development, run `npm start` and `npm run dev:web` side by side, then open http://127.0.0.1:5173/. The Vite dev server reloads on changes and forwards `/api` to port 8080.
+For web development, run `npm start` (or `npm run dev`, which restarts the server when its sources change) and `npm run dev:web` side by side, then open http://127.0.0.1:5173/. The Vite dev server reloads on changes and forwards `/api` to port 8080.
 
 Images up to 4096 × 4096 px are sent to the browser as raw samples and rendered there with a WebGL2 shader, which falls back to a lookup table. Its output is identical to the server's `display.png` rendering. Larger images are shown through `display.png`, and their pixel values come from `/pixel`.
 
-The ROI Manager's pixel counts come from the core, with the same pixel-centre rule the analysis uses. The edge map, the livewire, the magic wand, Threshold ROI, the brush, the eraser, Union and Subtract are computed on the pixel grid by the core too, so an ROI always contains exactly the pixels that are measured.
+The ROI Manager's pixel counts come from the core, with the same pixel-centre rule the analysis uses. The edge map, the livewire, the magic wand, Threshold ROI, the brush, the eraser, Union, Subtract, Intersect, XOR, Enlarge, Shrink and Make Band are computed on the pixel grid by the core too, so an ROI always contains exactly the pixels that are measured.
 
 ## Local mode, server mode and deployment
 
@@ -99,7 +99,7 @@ On a loopback address the server runs in **local mode**, without authentication.
 
 ```bash
 export GLCM_API_TOKEN="$(openssl rand -base64 32)"
-docker compose up -d                                  # server on 127.0.0.1:8080, data in the glcm-data volume
+docker compose up -d                                  # server on 127.0.0.1:8080, data in the texture-workbench_glcm-data volume
 node scripts/smoke-test.mjs http://127.0.0.1:8080     # checks authentication, upload, analysis and export
 ```
 
@@ -117,7 +117,7 @@ The server is configured with environment variables:
 | `GLCM_TRUST_PROXY` | `false` | Use `X-Forwarded-*` headers from a reverse proxy |
 | `GLCM_PORT` | `8080` | Port |
 | `GLCM_DATA_DIR` | `~/.glcm-texture-analysis`; `/data` in server mode | Uploaded images, results and caches |
-| `GLCM_MAX_UPLOAD_BYTES` | 209,715,200 (200 MiB); 100 MiB in server mode | Largest upload |
+| `GLCM_MAX_UPLOAD_BYTES` | 209,715,200 (200 MiB); 100 MiB in server mode | Largest upload (for a DICOM series, of each file) |
 | `GLCM_MAX_IMAGE_PIXELS` | 400,000,000; 100,000,000 in server mode | Largest image; checked from the file header before decoding |
 | `GLCM_MAX_VOLUME_BYTES` | 4 GiB; 1 GiB in server mode | Largest NIfTI volume (uncompressed voxel data); checked from the file header. Also the largest DICOM series upload |
 | `GLCM_MAX_STACK_PIXELS` | 1,000,000,000; 400,000,000 in server mode | Largest stack (pixels of all slices together: TIFF pages, DICOM frames and series, NIfTI volumes opened as stacks); checked before decoding |
@@ -142,7 +142,7 @@ Endpoints (full details in `packages/api/openapi.json` and the Developer guide):
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /api/v1/health` | Liveness and core version |
+| `GET /api/v1/health` | Liveness, core version, mode (local or server) and authentication |
 | `GET /api/v1/catalog` | Features (with non-standard flags), presets and limits |
 | `POST /api/v1/images` | Upload an image as a multipart `file` field; TIFF pages and DICOM frames become the slices of a stack |
 | `POST /api/v1/images/series` | Upload the files of a DICOM series (multipart `file` fields) as one stack |
@@ -185,7 +185,8 @@ Endpoints (full details in `packages/api/openapi.json` and the Developer guide):
 ## Command line and MCP
 
 `cli/` (`@glcm/cli`) drives the same API without a browser, either in its own process (no server, no port) or against a
-running server with `--server` and `--token`.
+running server with `--server` and `--token` (or the environment variables `GLCM_SERVER` and `GLCM_API_TOKEN`). The
+web app's *Analyze ▸ Copy as Command…* writes the `glcm measure` command of a measurement, with its settings and ROI set.
 
 ```bash
 npm run cli -- --help                                    # or: node cli/bin/glcm.mjs --help
@@ -193,9 +194,9 @@ npm run cli -- features --presets                        # what can be measured
 npm run cli -- info sample:textures/brick.png            # size, bit depth, window, spacing, checksum
 npm run cli -- measure image.png --preset haralick --out results.csv
 npm run cli -- measure *.png --rois rois.roi.json --out batch.csv   # merged when the settings match
-npm run cli -- regions ct.png --min 1200 --max 1600 --out lungs.roi.json
+npm run cli -- regions ct.png --min 0 --max 700 --min-pixels 4000 --max-pixels 100000 --out lungs.roi.json
 npm run cli -- measure ct.png --rois RoiSet.zip --out lungs.csv    # ImageJ's .roi or RoiSet.zip, on ImageJ's pixels
-npm run cli -- regions ct.png --min 1200 --max 1600 --out lungs-RoiSet.zip   # .zip: a RoiSet.zip for ImageJ
+npm run cli -- regions ct.png --min 0 --max 700 --min-pixels 4000 --max-pixels 100000 --out lungs-RoiSet.zip   # .zip: a RoiSet.zip for ImageJ
 npm run cli -- feature-map brick.png --feature Contrast --out contrast.tif
 npm run cli -- measure image.png --server http://127.0.0.1:8080 --token "$GLCM_API_TOKEN"
 ```
@@ -228,11 +229,14 @@ While the server runs it marks its data directory with `server.lock`, and a comm
 the same folder — that would empty `uploads/` and `volumes/` under it. Send the command to the server instead:
 `--server http://127.0.0.1:8080 --token "$GLCM_API_TOKEN"`.
 
-The Docker image ships the `glcm` command as well (`docker exec <container> glcm measure … --server http://127.0.0.1:8080
---token …`). Its build removes the MCP SDK and zod by name, about 17 MB of packages a server image is better without, and
-`glcm mcp` then says so instead of failing obscurely. It cannot use `npm ci --omit=optional` for that: esbuild ships its
-platform binary as an optional dependency, and without it `tsx` cannot run the server.
-Everything else needs the built native addon (`npm run build:native`), so it runs from a clone of this repository.
+The Docker image ships the `glcm` command as well (`docker compose exec glcm glcm measure … --server http://127.0.0.1:8080`;
+the container already has `GLCM_API_TOKEN`). Its build removes the MCP SDK and zod by name, about 17 MB of packages a
+server image is better without, and `glcm mcp` then says so instead of failing obscurely. It cannot use
+`npm ci --omit=optional` for that: esbuild ships its platform binary as an optional dependency, and without it `tsx`
+cannot run the server.
+
+Outside the image, the command needs the built native addon (`npm run build:native`), so it runs from a clone of this
+repository.
 
 ## Documentation
 
@@ -260,5 +264,5 @@ The screenshots of the user guide (`doc/user/images/`) are generated from the ru
 | `Dockerfile`, `compose.yaml` | Server image and deployment example (`doc/deployment.md`) |
 | `.github/workflows/` | CI: core, unit and end-to-end tests on macOS and Ubuntu; Docker image smoke test |
 | `doc/` | Sphinx documentation (user guide with screenshots, feature equations and references, developer guide), the design plan and the deployment guide |
-| `samples/` | Sample images: synthetic test patterns, CC0 textures (including the default sample `textures/camera.png`) and medical images: chest and abdominal CT, MRI, a chest X-ray and a mammogram (see `samples/README.md`) |
+| `samples/` | Sample images: synthetic test patterns, textures from scikit-image (CC0 or no known copyright restrictions; including the default sample `textures/camera.png` and the colour sample `textures/ihc.png`) and medical images: chest and abdominal CT, MRI, a chest X-ray and a mammogram (see `samples/README.md`) |
 | `scripts/` | Helper scripts, e.g. `generate-samples.ts` (`npm run samples`) and `fetch-medical-samples.py` |

@@ -1,7 +1,8 @@
 Texture Workbench
 =================
 
-Texture Workbench computes texture features of regions of interest (ROIs) in 8- and 16-bit grayscale images: Haralick
+Texture Workbench computes texture features of regions of interest (ROIs) in 8- and 16-bit images (colour images by
+their luminance, a channel, an HSB component or a stain density; stacks slice by slice): Haralick
 features from the Gray Level Co-occurrence Matrix (GLCM), first-order statistics, and run length (GLRLM), size zone
 (GLSZM), neighbourhood gray tone difference (NGTDM), local binary pattern (LBP) and 2D shape features. Users open an image in the
 browser, view it with a display window and colour tables, draw rectangle, ellipse, polygon or freehand ROIs, choose the

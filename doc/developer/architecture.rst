@@ -51,8 +51,10 @@ Repository layout
      - ``@glcm/native``: ``src/addon.cpp``, ``index.js``, ``index.d.ts``, tests; built with cmake-js
    * - ``packages/api/``
      - ``@glcm/api``: ``src/schemas.ts`` (system, images), ``src/analysis.ts`` (ROIs, settings, results),
-       ``src/exports.ts`` (exports, file formats), ``src/windowLevel.ts``, ``src/imagejRoi.ts`` and
-       ``src/roiPixels.ts`` (ImageJ ROI files), generated ``openapi.json``
+       ``src/exports.ts`` (exports, file formats), ``src/featureMaps.ts``, ``src/volumes.ts``, ``src/colour.ts``
+       (colour conversions), ``src/settings.ts`` (settings rules shared by the app and the command line),
+       ``src/mergeCsv.ts``, ``src/tiff.ts``, ``src/glcmCommand.ts`` (Copy as Command), ``src/windowLevel.ts``,
+       ``src/imagejRoi.ts`` and ``src/roiPixels.ts`` (ImageJ ROI files), generated ``openapi.json``
    * - ``packages/client/``
      - ``@glcm/client``: the API as a library — ``src/http.ts`` (transport) and ``src/operations.ts`` (open an image,
        build settings, measure, select regions, feature maps). Depends only on ``@glcm/api`` and ``fetch``
@@ -188,22 +190,23 @@ Namespace ``glcm``; include paths are relative to ``core/``.
        as ``ExtractNiftiSlice`` would.
    * - ``imaging/ColourConversion``
      - ``ConvertColour(bgr, conversion)``: luminance (OpenCV's ``COLOR_BGR2GRAY``, no value conversion, so uploads stay
-       as they were), the unweighted mean, a channel, an HSB component (ImageJ's float arithmetic; 16-bit images keep 16
-       bits), or a stain density by colour deconvolution with scikit-image's ``hed_from_rgb``/``hdx_from_rgb``, stored as
+       as they were), the unweighted mean, a channel, an HSB component (ImageJ's float arithmetic for 8-bit images, double
+       precision for 16-bit ones), or a stain density by colour deconvolution with scikit-image's ``hed_from_rgb``/``hdx_from_rgb``, stored as
        16-bit samples with the value conversion ``OD = stored × scale``. ``ColourConversionTest`` compares SHA-256 hashes of
        the mean and HSB with ImageJ 1.54p (``core/tests/data/imagej-colour.json`` from ``scripts/imagej-colour``) and the
        densities with scikit-image (``scikit-image-stains.json`` from ``scripts/radiomics-reference.py``). The server's
        ``POST /images/{id}/colour`` decodes the stored colour file again with ``decodeImageFile(path, {colour,
        encodeTiff})`` and stores the result as a new image with ``colourSource``; the web app's *Image ▸ Colour
-       Conversion…* (``web/src/colour/``) opens it with ``openColourConversion``, which keeps the ROIs and the viewport
-       (``viewerStore.openImage(image, {keepView})``) when the size and slices match.
+       Conversion…* (``web/src/colour/``) opens it with ``openColourConversion``, which keeps the ROIs, the viewport, the ruler
+       and the pixel spacing in use (``viewerStore.openImage(image, {keepView})``) when the size and slices match, and
+       opens a stack on the slice shown.
    * - ``imaging/IntensityPlots``
      - ``ComputeLineProfile``: round(L) + 1 samples along a line, bilinear between pixel centres, NaN outside the image;
        ``ComputeRoiHistogram``: the ROI's pixels (``RasterizeCroppedMask``) in bins of whole width over min–max, with mean,
        sample standard deviation and mode. ``IntensityPlotsTest``.
    * - ``imaging/ValueConversion``
-     - ``ChooseStorage``: identity for integers within 0–65 535, + 1024 for integers with a negative minimum, linear
-       min–max otherwise; ``value = stored × scale + offset``.
+     - ``ChooseStorage``: identity for integers within 0–65 535, + 1024 for integers with a negative minimum of at least
+       −1024 (or clipped there for CT) whose maximum + 1024 fits, linear min–max otherwise; ``value = stored × scale + offset``.
    * - ``imaging/PngEncoder``
      - ``EncodePng`` with a ``pHYs`` chunk for the pixel spacing: the original file of an image made from a NIfTI slice.
    * - ``imaging/Quantizer``
@@ -255,8 +258,8 @@ configuration, starts retention and listens. Plugins and hooks are registered in
 #. In server mode or when configured: CORS allow-list, rate limit, bearer-token authentication (``security.ts``).
 #. ``@fastify/static`` for ``web/dist``, a second one for the built documentation at ``/docs/`` when it exists, and a
    not-found handler that returns ``index.html`` for page requests and a JSON 404 for everything else.
-#. The route plugins under ``/api/v1``: ``health``, ``catalog``, ``images``, ``volumes``, ``analyses``, ``featureMaps``,
-   ``exports``, ``samples``.
+#. The route plugins under ``/api/v1``: ``health``, ``catalog``, ``images``, ``colour``, ``analyses``, ``featureMaps``,
+   ``exports``, ``volumes``, ``samples``.
 
 .. rubric:: Configuration and modes
 
@@ -467,7 +470,7 @@ their own process or over HTTP.
    :alt: Layout of the command line and the agent server. Front ends: the glcm command (cli/src/main.ts and files.ts,
          with the commands measure, regions, feature-map and info) and glcm mcp (cli/src/mcp.ts, MCP over standard input
          and output, the tools an assistant calls). Both use the shared operations of @glcm/client — openImage,
-         buildSettings, measure, selectRegions, computeFeatureMap — which need only @glcm/api and fetch, read no files
+         measure, selectThresholdRegions, selectRegionAt, computeFeatureMap — which need only @glcm/api and fetch, read no files
          and need no native addon. Below are two transports: localClient builds the app in this process with buildApp
          and inject, without a port, and is refused while a server uses the same folder; httpClient talks over HTTP to a
          local or shared server with --server and --token. Both reach the same routes, jobs and stores in server/src,
@@ -480,8 +483,9 @@ measured from a script, and an image measured from a script appears in the brows
 The web application also writes commands: *Analyze ▸ Copy as Command…* and Batch Measure build a ``glcm measure`` command
 with ``measureCommand`` (``packages/api/src/glcmCommand.ts``: the command's words, quoted for POSIX shells, and
 ``shellWords`` to split it back), and ``web/src/command/`` saves the settings (``requestSettings`` for the open image), the
-ROI set and a script next to it as a ZIP. ``e2e/command.spec.ts`` runs the copied command through ``cli/src/main.ts``
-``run()`` on the saved files and compares the values with the app's.
+ROI set (unless the command reads an ROI file of the user's) and a script next to it as a ZIP. ``e2e/command.spec.ts``
+runs the copied command through ``cli/src/main.ts`` ``run()`` on the saved files and compares the values with the app's
+(Copy as Command) or the addon's (Batch Measure).
 
 .. rubric:: An assistant measuring over MCP
 
@@ -556,8 +560,10 @@ Testing
      - What is tested
    * - Core
      - GoogleTest (``core/tests``)
-     - Features against Haralick's worked example and an independent GLCM implementation, ROI masks, image loading,
-       quantization, display rendering, the analysis pipeline, JSON/CSV round trips, ROI image export
+     - Features against Haralick's worked example and an independent GLCM implementation, and against reference values
+       written by PyRadiomics, SimpleITK, PyWavelets, scikit-image and ImageJ (``core/tests/data``); ROI masks and
+       operations, image loading (DICOM, NIfTI, stacks, colour conversions), quantization, resampling and filters,
+       display rendering, the analysis pipeline, JSON/CSV round trips, ROI image export
    * - Addon
      - Vitest (``bindings/node/test``)
      - Conversions, results equal to the core, error codes, every sample image

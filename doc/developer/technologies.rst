@@ -201,6 +201,10 @@ Testing
        ``scripts/radiomics-reference.py`` (packages pinned in ``scripts/requirements-radiomics.txt``) writes
        ``core/tests/data/*.json``, which the core tests compare against. Only regenerating those files needs Python; the
        tests and the application do not run it.
+   * - ImageJ (Java 21, in a digest-pinned container)
+     - 1.54p
+     - Reference data for ImageJ ROI files (``scripts/imagej-roi``, ``packages/api/test/data/imagej``) and for the colour
+       conversions that follow ImageJ (``scripts/imagej-colour``, ``core/tests/data/imagej-colour.json``)
    * - pydicom, nibabel (Python 3.12)
      - 3.0.2, 5.4.2
      - Writing the medical samples and their pixel spacing: ``scripts/fetch-medical-samples.py`` (pinned in

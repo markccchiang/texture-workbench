@@ -45,11 +45,13 @@ Exporting results
 
 *File ▸ Export Results as CSV* (or **Export ▸ CSV** above the Results table) saves all rows of the table:
 
-- The file starts with lines beginning with ``#`` that record the image, its SHA-256 checksum, the software version and
-  all settings (gray levels, quantization, distances, directions, aggregation, log base and score).
+- The file starts with lines beginning with ``#`` that record the core version, the time of the measurement, the image
+  and its SHA-256 checksum, the pixel spacing and value conversion when there are any, a filter or resampling when one
+  was used, and all other settings (gray levels, quantization, distances, directions, aggregation, log base and score).
 - Then follows a header row and one row per ROI, distance and direction (or mean and range), with the timestamp, image,
-  ROI name and id, status, pixel count, gray levels, quantization, distance, direction, one column per feature, the
-  score and the warnings.
+  image checksum, ROI name and id, status, pixel count, gray levels, quantization, distance, direction, one column per
+  feature, the score and the warnings.
+- For a stack, a ``slice`` column follows the ROI id (and the class).
 - When a measured ROI has a class (see :ref:`roi-classes`), a ``roiClass`` column follows the ROI id; it is empty for
   ROIs without a class. JSON results carry the class as ``roiClass``.
 - With a pixel spacing, a ``# pixelSpacingMm=`` line gives it (width;height), and an ``areaMm2`` column follows the
@@ -78,7 +80,7 @@ own file, and the files are delivered together as a ZIP archive.
 ROI sets
 --------
 
-*ROI ▸ Export ROI Set…* saves the ROIs of the ROI Manager — names, colors, classes and exact shapes — together with the
+*ROI ▸ Export ROI Set…* saves the ROIs of the ROI Manager — names, colours, classes and exact shapes — together with the
 name, size and checksum of the image and the list of classes. *ROI ▸ Import ROI Set…* adds the ROIs of such a file to
 the open image:
 
@@ -174,7 +176,8 @@ or printed.
 The report contains every image in the Results panel, in the order in which they were measured — a batch run over ten
 images gives one report with ten sections. For each image it shows:
 
-- its file name, size, pixel spacing, value conversion (for DICOM and NIfTI files) and SHA-256 checksum;
+- its file name, size, pixel spacing, value conversion (for DICOM and NIfTI files and converted colour images) and
+  SHA-256 checksum;
 - a picture of the image. The image currently open is drawn as you see it, with the display window, colour table and its
   ROIs; images measured earlier are drawn with their own default window, without ROIs, as long as the server still has
   them;

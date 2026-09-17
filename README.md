@@ -5,7 +5,7 @@
   </picture>
 </p>
 
-Texture Workbench measures the **texture** of regions in grayscale images: how smooth, coarse, uniform or directional a tissue, material or surface looks. It turns that into numbers you can compare between regions and images. It runs in your web browser, on your own computer or on a server shared by a team.
+Texture Workbench measures the **texture** of regions in images: how smooth, coarse, uniform or directional a tissue, material or surface looks. It turns that into numbers you can compare between regions and images. It runs in your web browser, on your own computer or on a server shared by a team.
 
 <p align="center">
   <img src="doc/user/images/app-window.png" alt="The Texture Workbench web app: the sample image with four ROIs (Sky, Coat, Grass, Hair) on the canvas, the ROI Manager with their pixel counts, the Analysis Settings panel, and the Results table with texture features per direction." width="900">
@@ -13,11 +13,11 @@ Texture Workbench measures the **texture** of regions in grayscale images: how s
 
 ## What you can do
 
-- **Open images:** PNG, JPEG, BMP or TIFF, 8 or 16 bits per pixel, and medical files: DICOM images and series and NIfTI volumes, such as CT, MRI, X-rays and mammograms. Stacks (multi-page TIFFs, DICOM series, the slices of a volume) open as one image with a slice slider. Adjust brightness and contrast, and view them in gray, inverted or in pseudo-colour.
+- **Open images:** PNG, JPEG, BMP or TIFF, 8 or 16 bits per pixel, and medical files: DICOM images and series and NIfTI volumes, such as CT, MRI, X-rays and mammograms. Stacks (multi-page TIFFs, DICOM series, the slices of a volume) open as one image with a slice slider. Colour images, such as stained tissue sections, can be measured by a colour channel, by hue, saturation or brightness, or by the amount of one stain. Adjust brightness and contrast, and view images in gray, inverted or in pseudo-colour.
 - **Mark regions of interest (ROIs):** draw rectangles, ellipses, polygons or freehand outlines. Outline objects along their edges with the livewire, select regions by intensity with the magic wand or a threshold, and paint, erase, merge or cut ROIs. An edge map can be shown over the image as a guide.
 - **Measure texture:** features from seven established families (below), with presets for common choices.
-- **Look at the results:** a sortable results table, bar, box and polar plots, and feature maps that colour the whole image by a texture feature.
-- **Use it without the browser:** measure from the command line for scripts and batch runs, or let an AI assistant open images, pick regions and measure them through the built-in MCP server.
+- **Look at the results:** a sortable results table, bar, box and polar plots, and feature maps that colour the whole image by a texture feature. Plot the values along a line or the histogram of a region, and save everything as a report.
+- **Use it without the browser:** measure from the command line for scripts and batch runs (the app writes the command for you), or let an AI assistant open images, pick regions and measure them through the built-in MCP server.
 - **Work in batches and keep your work:** measure the same ROIs on many images, export the results as CSV or JSON, and save projects that bring everything back later.
 
 ## Texture features
@@ -32,7 +32,7 @@ Texture Workbench measures the **texture** of regions in grayscale images: how s
 | Local binary patterns (LBP) | uniform pattern fractions, LBP entropy |
 | Shape (2D) | perimeter, sphericity, maximum diameter, elongation |
 
-The features follow their published definitions and are tested against [PyRadiomics](https://pyradiomics.readthedocs.io/) and [scikit-image](https://scikit-image.org/). The documentation gives the formula of every feature.
+The features follow their published definitions and are tested against [PyRadiomics](https://pyradiomics.readthedocs.io/) and [scikit-image](https://scikit-image.org/); ROI files and colour conversions against [ImageJ](https://imagej.net/). The documentation gives the formula of every feature.
 
 ## Getting started
 
