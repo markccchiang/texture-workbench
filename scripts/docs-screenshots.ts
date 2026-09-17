@@ -522,6 +522,14 @@ async function main(): Promise<void> {
     const bandBottomRight = await toPage(page, 500, 500);
     await shot(page, 'roi-band', { x: bandTopLeft.x, y: bandTopLeft.y, width: bandBottomRight.x - bandTopLeft.x, height: bandBottomRight.y - bandTopLeft.y });
 
+    // Copy as Command for the ROIs of the band screenshot
+    await chooseMenuItem(page, 'Analyze', 'Copy as Command…');
+    const commandDialog = page.getByRole('dialog', { name: 'Copy as Command' });
+    await commandDialog.getByTestId('glcm-command').waitFor();
+    await dialogShot(page, 'copy-command', commandDialog);
+    await page.keyboard.press('Escape');
+    await commandDialog.waitFor({ state: 'hidden' });
+
     // Colour Conversion of the immunohistochemistry sample, with DAB chosen
     await page.getByTestId('file-input').setInputFiles(path.join(ROOT, 'samples', 'textures', 'ihc.png'));
     await expect(page.getByTestId('status-bar')).toContainText('ihc.png 512×512 8-bit');

@@ -7,6 +7,7 @@ import { notifications } from '@mantine/notifications';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { CATALOG_QUERY } from '../api/queryClient';
+import { CommandPanel } from '../command/CommandPanel';
 import { useAnalysisSettings } from '../analysis/settingsStore';
 import { IMAGE_FILE_TYPES } from '../files/fileTypes';
 import { buildRoiSet, readRoiSetFile, ROI_SET_FILE_TYPES } from '../files/roiSet';
@@ -52,6 +53,7 @@ export function BatchContent({ onClose }: { onClose(): void }) {
   const [roiFile, setRoiFile] = useState<File | null>(null);
   const [images, setImages] = useState<File[]>([]);
   const [downloading, setDownloading] = useState(false);
+  const [showCommand, setShowCommand] = useState(false);
 
   const roisChosen = source === 'manager' ? managerAvailable : roiFile !== null;
   const ready = settings !== null && catalog.data !== undefined && images.length > 0 && roisChosen;
@@ -191,7 +193,21 @@ export function BatchContent({ onClose }: { onClose(): void }) {
         </Stack>
       )}
 
+      {showCommand && settings && images.length > 0 && roisChosen && (
+        <CommandPanel
+          source={{
+            baseName: 'batch',
+            images: images.map((file) => file.name),
+            settings,
+            rois: source === 'manager' ? buildRoiSet(image!.info, useRois.getState().rois, useRois.getState().classes) : { fileName: roiFile!.name },
+          }}
+        />
+      )}
+
       <Group justify="flex-end">
+        <Button variant="subtle" disabled={images.length === 0 || !roisChosen || !settings} onClick={() => setShowCommand((shown) => !shown)} mr="auto">
+          {showCommand ? 'Hide Command' : 'Copy as Command…'}
+        </Button>
         {!running && finishedIds.length > 0 && (
           <Button variant="light" loading={downloading} onClick={() => void download()}>
             Download combined CSV

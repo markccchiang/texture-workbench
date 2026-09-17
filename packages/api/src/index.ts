@@ -2,6 +2,7 @@ export * from './analysis.js';
 export * from './colour.js';
 export * from './exports.js';
 export * from './featureMaps.js';
+export * from './glcmCommand.js';
 export * from './imagejRoi.js';
 export * from './mergeCsv.js';
 export * from './schemas.js';

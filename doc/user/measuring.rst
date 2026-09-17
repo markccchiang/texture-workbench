@@ -159,6 +159,9 @@ once (``# images=`` gives the number of images) and the ``image`` and ``imageSha
 If the images needed different settings, for example 8-bit and 16-bit images with a fixed quantization range, the
 download is a ZIP with one CSV per group of settings.
 
+**Copy as Command…** shows the ``glcm measure`` command that does the same from the command line, with the settings and
+ROI set to save next to it (see :ref:`copy-command`).
+
 .. _feature-maps:
 
 Feature maps

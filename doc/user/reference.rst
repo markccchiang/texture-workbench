@@ -107,13 +107,13 @@ Menus
      - Undo, Redo, Select All ROIs, Delete ROI, Preferences…
    * - Image
      - Zoom In, Zoom Out, Zoom 100 %, Fit to Window, Zoom to Selection, Window/Level (Auto, Full Range, Custom…), Colour Table (Gray,
-       Inverted, Viridis, Magma, Hot), Ruler,
+       Inverted, Viridis, Magma, Hot), Colour Conversion… (colour images), Ruler,
        Image Info
    * - ROI
      - Rectangle, Ellipse, Polygon, Freehand, Livewire, Magic Wand, Brush, Eraser, Threshold ROI…, Union, Subtract, Intersect, XOR, Enlarge or Shrink…, Make Band…, Add to Manager, Duplicate, Copy to All Slices (stacks), Rename, ROI Classes…, Import ROI Set…, Export ROI Set…,
        Export ROIs for ImageJ…, Export ROI Images…
    * - Analyze
-     - Measure Selected, Measure All, Batch Measure…, Feature Map…, Plot Profile, Histogram, Presets (the feature presets of the Analysis Settings panel), Clear Results
+     - Measure Selected, Measure All, Batch Measure…, Copy as Command…, Feature Map…, Plot Profile, Histogram, Presets (the feature presets of the Analysis Settings panel), Clear Results
    * - View
      - Show / Hide Navigator, Show ROI Labels, Show Scale Bar, Show Edge Map, Reset Layout
    * - Help

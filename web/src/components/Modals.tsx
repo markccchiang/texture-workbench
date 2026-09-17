@@ -11,6 +11,7 @@ import { GrowRoiContent } from '../rois/GrowDialog';
 import { RoiClassesContent } from '../rois/ClassesDialog';
 import { HistogramContent, ProfileContent } from '../plots/IntensityPlotDialogs';
 import { ColourConversionContent } from '../colour/ColourConversionDialog';
+import { CopyCommandContent } from '../command/CommandPanel';
 import { ReportContent } from '../report/ReportDialog';
 import { CATALOG_QUERY } from '../api/queryClient';
 import { useAnalysisSettings } from '../analysis/settingsStore';
@@ -485,6 +486,7 @@ const TITLES: Record<ModalName, string> = {
   profile: 'Plot Profile',
   histogram: 'Histogram',
   colourConversion: 'Colour Conversion',
+  copyCommand: 'Copy as Command',
   imageInfo: 'Image Info',
   preferences: 'Preferences',
   shortcuts: 'Keyboard Shortcuts',
@@ -505,7 +507,7 @@ export function AppModals() {
   const modal = useUi((state) => state.modal);
   const close = () => useUi.getState().setModal(null);
   return (
-    <Modal opened={modal !== null} onClose={close} title={modal ? TITLES[modal] : ''} size={modal === 'imageInfo' || modal === 'equations' || modal === 'batch' || modal === 'profile' || modal === 'histogram' ? 'lg' : modal === 'colourConversion' ? 'xl' : 'md'}>
+    <Modal opened={modal !== null} onClose={close} title={modal ? TITLES[modal] : ''} size={modal === 'imageInfo' || modal === 'equations' || modal === 'batch' || modal === 'profile' || modal === 'histogram' || modal === 'copyCommand' ? 'lg' : modal === 'colourConversion' ? 'xl' : 'md'}>
       {modal === 'imageInfo' && <ImageInfoContent />}
       {modal === 'preferences' && <PreferencesContent />}
       {modal === 'shortcuts' && <ShortcutsContent />}
@@ -522,6 +524,7 @@ export function AppModals() {
       {modal === 'profile' && <ProfileContent />}
       {modal === 'histogram' && <HistogramContent />}
       {modal === 'colourConversion' && <ColourConversionContent onClose={close} />}
+      {modal === 'copyCommand' && <CopyCommandContent />}
       {modal === 'exportRoiImages' && <ExportRoiImagesContent onClose={close} />}
     </Modal>
   );

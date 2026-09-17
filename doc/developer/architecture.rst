@@ -63,7 +63,7 @@ Repository layout
        ``storage/``, ``web.ts``; tests use ``fastify.inject``
    * - ``web/``
      - ``@glcm/web``: ``src/`` grouped by concern (``app/``, ``api/``, ``viewer/``, ``image/``, ``rois/``, ``analysis/``,
-       ``results/``, ``files/``, ``batch/``, ``featureMaps/``, ``volumes/``, ``report/``, ``layout/``, ``stores/``,
+       ``results/``, ``files/``, ``batch/``, ``command/``, ``colour/``, ``featureMaps/``, ``volumes/``, ``report/``, ``layout/``, ``stores/``,
        ``components/``)
    * - ``e2e/``
      - Playwright tests against the built app and real servers
@@ -476,6 +476,12 @@ their own process or over HTTP.
 
 The web application uses those same routes and the same data directory, so an image opened in the browser can be
 measured from a script, and an image measured from a script appears in the browser.
+
+The web application also writes commands: *Analyze ▸ Copy as Command…* and Batch Measure build a ``glcm measure`` command
+with ``measureCommand`` (``packages/api/src/glcmCommand.ts``: the command's words, quoted for POSIX shells, and
+``shellWords`` to split it back), and ``web/src/command/`` saves the settings (``requestSettings`` for the open image), the
+ROI set and a script next to it as a ZIP. ``e2e/command.spec.ts`` runs the copied command through ``cli/src/main.ts``
+``run()`` on the saved files and compares the values with the app's.
 
 .. rubric:: An assistant measuring over MCP
 

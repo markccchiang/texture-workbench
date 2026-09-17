@@ -115,6 +115,41 @@ image needs a pixel spacing, or ``--spacing``), ``--log-sigma 2`` for the Laplac
 ``--quantization fixedBinWidth,25`` or ``roiMinMax``). They are checked exactly as the Analysis Settings panel
 checks them: a combination the application would refuse is refused here too, with the same words.
 
+.. _copy-command:
+
+Copying a measurement as a command
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The application writes the command for you. *Analyze ▸ Copy as Command…* shows the command that repeats *Measure All*
+on the open image — every ROI of the ROI Manager, with the current analysis settings:
+
+.. figure:: images/copy-command.png
+   :alt: The Copy as Command dialog with the glcm measure command, the note on the saved files, the switch for sending the command to this server, and the buttons Save Files and Copy Command.
+   :width: 80%
+
+   A measurement copied as a command.
+
+.. code-block:: bash
+
+   glcm measure camera.png --settings camera.settings.json --rois camera.roi.json --out camera-results.csv
+
+**Save Files** downloads a ZIP with the settings file, the ROI set and a script (``camera-measure.sh``) holding the same
+command. Unpack it in the folder with the image and run the command there (or the script, ``sh camera-measure.sh``); the
+results go to ``camera-results.csv``. **Copy Command** puts the command on the clipboard.
+
+- The settings file holds the settings exactly as the application sends them for this image, so the command measures
+  the same values. Replace the image name, or add more images, to measure other images the same way.
+- An image converted by *Image ▸ Colour Conversion…* is named by its colour file, with ``--colour``; a pixel spacing
+  entered in *Image Info* (and not stored in the file) is given with ``--spacing``.
+- **Send to this server** adds ``--server`` with the application's address, so the command measures on the running
+  server, as it must while the application runs on the same folder (see above). On a server with an access token, set
+  ``GLCM_API_TOKEN`` before running it.
+- The command names the image by its file name, so an image opened from a NIfTI volume or a DICOM series, which has no
+  file of its own, needs a file or its image id in its place.
+
+*Analyze ▸ Batch Measure…* has the same button, **Copy as Command…**, for the chosen images and ROIs; the command then
+names every image, and an ROI set file chosen in the dialog is used as it is instead of being saved again.
+
 Regions can also be found by intensity, without drawing anything:
 
 .. code-block:: bash
