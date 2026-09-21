@@ -12,7 +12,7 @@
 # Base images are pinned by digest (the tag is kept for readability); .github/dependabot.yml proposes updates.
 
 # ---- Build: core, Node-API addon and web app -------------------------------------------------------------------------
-FROM node:24-bookworm@sha256:6dac556d980b7f0e5498d08f08cee0ca67798b4ad6c23964a9214920e67758d0 AS build
+FROM node:25-bookworm@sha256:78839ac448c23517f8eab2e8f7943d9b4f73979eb7f8bed2c73dbf72ff869e7b AS build
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends cmake g++ make libopencv-dev libeigen3-dev nlohmann-json3-dev zlib1g-dev \
@@ -47,7 +47,7 @@ RUN npm run build:native && npm run build:web \
     && npm prune --omit=dev
 
 # ---- Runtime ---------------------------------------------------------------------------------------------------------
-FROM node:24-bookworm-slim@sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553
+FROM node:25-bookworm-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libopencv-core406 libopencv-imgproc406 libopencv-imgcodecs406 \
